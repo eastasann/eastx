@@ -566,6 +566,8 @@ A1 での `error` と、design-spec 6.4 の状態の対応:
 
 ※ Better Auth が返すコードの値は版によって変わりうるので、ADR-022 のスパイクで実際の値を確かめてこの表を直す。
 
+レート制限: Elysia が Better Auth に渡す前に、`POST /api/auth/sign-in/*` と `GET /api/auth/callback/*` だけを `AUTH_RATE_LIMITER` で IP ごとに数え、超えたら 429 を返す（ADR-021）。ほかのパス（`get-session`・`sign-out`）は数えない。
+
 Better Auth の設定（`src/auth/server.ts`、要点）:
 
 ```ts
@@ -672,7 +674,7 @@ A2 の件数カードと下書きの一覧。
 }
 ```
 
-- `languages` は「言語あり」の判定（design-spec 1.4。プロフィールは名前）。言語タブの印に使う。
+- `languages` は「言語あり」の判定（design-spec 1.4）。言語タブの印に使う。
 - プロフィールがまだないときは `NOT_FOUND`。A3 はこのとき空のフォームを出す（design-spec 6.7.4）。
 
 #### `PUT /api/admin/profile`

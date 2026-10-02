@@ -54,7 +54,7 @@ eastx/
 │   │   ├── app.ts                 #   Elysia のアプリ
 │   │   ├── contract/              #   oRPC のコントラクト（パス・入出力・エラー）
 │   │   ├── router/                #   コントラクトの実装
-│   │   ├── middleware/            #   リクエストID・レート制限・CSRF・認証・認可
+│   │   ├── middleware/            #   認証・レート制限・認可（順序は SDD 5.1）
 │   │   └── media.ts               #   /media/* の配信
 │   ├── auth/                      # Better Auth（server.ts・client.ts）
 │   ├── db/                        # Drizzle のスキーマとクライアント
@@ -130,7 +130,7 @@ Worker が読む値。ローカルは `.dev.vars`、staging・本番は `wrangle
 |---|---|---|
 | `DB` | D1 | データベース |
 | `MEDIA` | R2 | 画像 |
-| `AUTH_RATE_LIMITER` | Rate Limiting | `/api/auth/*` のレート制限 |
+| `AUTH_RATE_LIMITER` | Rate Limiting | ログインの開始と GitHub からの戻りのレート制限（対象の正は SDD ADR-021） |
 | `ADMIN_RATE_LIMITER` | Rate Limiting | `/api/admin/*` のレート制限 |
 
 型は `wrangler types` で `worker-configuration.d.ts` に生成する（8章の「生成」に含まれる）。
