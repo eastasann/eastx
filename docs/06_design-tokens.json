@@ -418,9 +418,13 @@
             "SFMono-Regular",
             "Menlo",
             "Consolas",
+            "Hiragino Sans",
+            "Noto Sans JP",
+            "Yu Gothic UI",
+            "Meiryo",
             "monospace"
           ],
-          "$description": "コード・日付・数値。JetBrains Mono（自前配信の可変フォント）"
+          "$description": "コード・日付・数値。欧文は JetBrains Mono（自前配信の可変フォント）、和文（日付の「年」「月」など）は OS のゴシック体"
         }
       },
       "size": {
@@ -491,13 +495,13 @@
         "normal": {
           "$value": {
             "value": 0,
-            "unit": "em"
+            "unit": "rem"
           }
         },
         "wide": {
           "$value": {
             "value": 0.02,
-            "unit": "em"
+            "unit": "rem"
           }
         }
       }
@@ -767,7 +771,7 @@
     "$description": "用途の名前で参照する層。実装が参照してよいのはここだけ。値は primitive へのエイリアス。color は light / dark の2つのモードを持つ",
     "color": {
       "$type": "color",
-      "$description": "light と dark で同じキーを持つ。ダークモードでもアクセントの色相（藍）は変えず、明るさだけを変えてコントラストを保つ",
+      "$description": "light と dark で同じキーを持つ（モードの方針は design-spec 4.4）",
       "light": {
         "bg": {
           "canvas": {
@@ -799,8 +803,8 @@
             "$description": "区切り線・カードの枠"
           },
           "strong": {
-            "$value": "{primitive.color.neutral.300}",
-            "$description": "入力欄の枠・強めの区切り"
+            "$value": "{primitive.color.neutral.500}",
+            "$description": "入力欄・ボタンの枠（地との差 3:1 以上）"
           }
         },
         "text": {
@@ -820,7 +824,7 @@
         "accent": {
           "default": {
             "$value": "{primitive.color.indigo.600}",
-            "$description": "操作できる場所（リンク・ボタン・ページングの現在位置）だけに使う"
+            "$description": "リンク・ボタン・ページングの現在位置"
           },
           "hover": {
             "$value": "{primitive.color.indigo.700}"
@@ -892,8 +896,8 @@
             "$description": "区切り線・カードの枠"
           },
           "strong": {
-            "$value": "{primitive.color.neutral.700}",
-            "$description": "入力欄の枠・強めの区切り"
+            "$value": "{primitive.color.neutral.500}",
+            "$description": "入力欄・ボタンの枠（地との差 3:1 以上）"
           }
         },
         "text": {
@@ -913,7 +917,7 @@
         "accent": {
           "default": {
             "$value": "{primitive.color.indigo.300}",
-            "$description": "操作できる場所（リンク・ボタン・ページングの現在位置）だけに使う"
+            "$description": "リンク・ボタン・ページングの現在位置"
           },
           "hover": {
             "$value": "{primitive.color.indigo.200}"
@@ -985,7 +989,7 @@
           "letterSpacing": "{primitive.font.letter-spacing.normal}",
           "lineHeight": 1.4
         },
-        "$description": "トップのセクション見出し・本文の見出し（##）"
+        "$description": "トップのセクション見出し・本文の h2（Markdown の #。見出しは1段下げる）"
       },
       "heading-3": {
         "$value": {
@@ -995,7 +999,7 @@
           "letterSpacing": "{primitive.font.letter-spacing.normal}",
           "lineHeight": 1.5
         },
-        "$description": "カードのタイトル・本文の見出し（###）"
+        "$description": "カードのタイトル・本文の h3 以下（Markdown の ## 以下）"
       },
       "body": {
         "$value": {
@@ -1152,7 +1156,7 @@
     },
     "shadow": {
       "$type": "shadow",
-      "$description": "装飾は最小限にするため、影は浮いている部品（メニュー・ダイアログ・トースト・ドラッグ中の行）にだけ使う。カードは枠線で区切る",
+      "$description": "浮いている部品（メニュー・ダイアログ・トースト・ドラッグ中の行）の影",
       "overlay": {
         "$value": {
           "color": "{primitive.color.black-alpha.15}",
@@ -1198,7 +1202,6 @@
     },
     "motion": {
       "$type": "transition",
-      "$description": "OS で「視差効果を減らす」が有効なときは、実装側で duration を 0 にする",
       "paging": {
         "$value": {
           "duration": "{primitive.duration.normal}",
@@ -1228,7 +1231,7 @@
       "$type": "number",
       "thumbnail": {
         "$value": "{primitive.ratio.16x9}",
-        "$description": "サムネイルの縦横比（16:9）。カード・詳細ページ・管理画面のプレビューで共通"
+        "$description": "サムネイルの縦横比。カード・詳細ページ・管理画面のプレビューで共通"
       },
       "avatar": {
         "$value": "{primitive.ratio.1x1}"

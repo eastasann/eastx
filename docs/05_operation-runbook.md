@@ -2,7 +2,7 @@
 
 監視の道具と設定の決定は `docs/02-01_system-design-doc.md`（以下 SDD）11章、デプロイ・ロールバックの手順は `docs/04_deployment-procedure.md`。このドキュメントは、日々の監視・障害対応・定期メンテナンスの手順を持つ。
 
-コマンドは本番の Worker 名（`eastx`）と環境（`--env production`）で書く。staging は `eastx-staging` と `--env staging` に読み替える。
+コマンドは本番の名前（Worker `eastx`、D1 `eastx-db`、R2 `eastx-media`）と環境（`--env production`）で書く。staging は Worker `eastx-staging`、D1 `eastx-db-staging`、R2 `eastx-media-staging` と `--env staging` に読み替える。
 
 ## 1. モニタリング・ログ設計
 
@@ -14,7 +14,7 @@
 | アプリのログ（`console.*`） | Workers Logs | 7日 | `{ level, msg, requestId, route, code, ... }` の JSON の1行（SDD 8章） |
 | サーバーの例外・5xx | Sentry | Sentry のプランに従う（無料は30日） | スタックトレース、`request_id` タグ、環境名 |
 | ブラウザの例外 | Sentry | 同上 | React のエラー境界で受けたもの |
-| 稼働監視 | Sentry Uptime Monitoring | 同上 | `https://x.eastasian.dev/ja` の応答 |
+| 稼働監視 | Sentry Uptime Monitoring | 同上 | SDD 11章の監視先の応答 |
 | D1 のクエリ | D1 の Insights（ダッシュボード・`wrangler d1 insights`） | 30日 | クエリごとの回数・時間・読んだ行数 |
 | デプロイの履歴 | Workers の Deployments、GitHub Actions | 無期限 | いつ・どの SHA を出したか |
 
@@ -22,7 +22,7 @@
 
 | レベル | 用途 | 本番で出力 |
 |--------|------|-----------|
-| ERROR | 想定外の例外、5xx、D1・R2 のエラー | ✅（Sentry にも送る） |
+| ERROR | 想定外の例外、5xx、D1・R2 のエラー | ✅ |
 | WARN | 定義済みの 4xx（バリデーション・認可・レート制限・CSRF）、ログインの拒否 | ✅ |
 | INFO | ログイン・ログアウト、公開・非公開・削除の操作、アップロード | ✅ |
 | DEBUG | リクエストとレスポンスの詳細 | ❌（`ENVIRONMENT=local` だけ） |
@@ -33,7 +33,7 @@
 
 | 監視対象 | メトリクス | 閾値 | アラート先 |
 |----------|-----------|------|-----------|
-| 公開サイトの稼働 | Sentry Uptime（`/ja`、5分ごと） | 2回続けて失敗 | メール |
+| 公開サイトの稼働 | Sentry Uptime（監視先と間隔は SDD 11章） | 2回続けて失敗 | メール |
 | サーバー・ブラウザのエラー | Sentry の新しい Issue | 新しい Issue が出たら | メール |
 | エラーの急増 | Sentry のメトリクスアラート（エラーの件数） | 1時間に10件を超える | メール |
 | Worker の CPU 時間・エラー率 | Cloudflare ダッシュボード（Workers の Metrics） | エラー率 1% 超、CPU 時間の p99 が 50ms 超が続く | 週次で目視（6章） |
@@ -95,25 +95,26 @@
    bunx wrangler d1 migrations list DB --env production --remote
    ```
 
-3. SQL を直す新しいマイグレーションを PR で入れ、もう一度昇格する。適用済みのマイグレーションのファイルは書き換えない。
-4. 同じマイグレーションが staging では通っていたなら、本番のデータの違い（NULL・重複など）を疑い、上の `d1 execute` で調べる。
+3. 失敗したマイグレーションは未適用のまま残り、次のデプロイでもそこから実行し直される（後ろに新しいマイグレーションを足しても先に進めない）。どこで適用済みかで直し方を分ける。
+   - **どの環境にも適用されていない**（staging でも失敗した）: 失敗したファイルそのものを直す PR を出し、もう一度昇格する。「適用済みのファイルは書き換えない」の唯一の例外。
+   - **staging では適用済みで、本番だけで失敗した**: ファイルは書き換えない（staging と中身がずれるため）。本番のデータの違い（NULL・重複など）を `d1 execute` で調べ、データの方を直してから、GitHub Actions で deploy.yml を手動で再実行する。
 
 ### GitHub でログインできない
 
 **症状:** ログイン後にエラーで A1 に戻る、または GitHub で「redirect_uri is not associated」。
 
 **対処:**
-1. A1 に出た文言で切り分ける（SDD 5.2）。
-   - 「このアカウントでは管理画面に入れません」→ `wrangler.jsonc` の `vars.ADMIN_GITHUB_USER_ID` が自分の GitHub の数値 ID か確かめる（`curl -s https://api.github.com/users/{ユーザー名}` の `id`）。
-   - 「ログインできませんでした」→ 次へ。
+1. A1 の表示で切り分ける（表示は design-spec 6.4、エラーコードとの対応は SDD 5.2）。
+   - 「管理者でないアカウント」の表示 → `wrangler.jsonc` の `vars.ADMIN_GITHUB_USER_ID` が自分の GitHub の数値 ID か確かめる（`curl -s https://api.github.com/users/{ユーザー名}` の `id`）。
+   - 「通信エラー」の表示 → 次へ。
 2. OAuth App のコールバック URL が `https://x.eastasian.dev/api/auth/callback/github` か確かめる。
 3. Client secret を作り直した、または期限が切れた → `bunx wrangler secret put GITHUB_CLIENT_SECRET --env production` で入れ直す。
 4. `bunx wrangler secret list --env production` で `BETTER_AUTH_SECRET` と `GITHUB_CLIENT_SECRET` があるか確かめる。
-5. 短い時間に何度も試すとレート制限（60秒10回）にかかる。1分待つ。
+5. 短い時間に何度も試すとレート制限（SDD ADR-021）にかかる。1分待つ。
 
 ### 画像が出ない・アップロードできない
 
-**症状:** 画像が背景色だけの枠になる。管理画面で「アップロードできませんでした」。
+**症状:** 画像が背景色だけの枠になる。管理画面で画像のアップロードに失敗する（design-spec 6.7.4）。
 
 **対処:**
 1. 画像の URL（`/media/...`）を直接開き、404 か 500 かを見る。
@@ -123,7 +124,7 @@
    bunx wrangler r2 object get eastx-media/uploads/2026/10/{ファイル名} --remote --file /tmp/check
    ```
 
-3. アップロードの失敗が「5MBを超えています」「画像ファイルではありません」なら、仕様どおり（SDD 5.10）。
+3. 失敗の理由が形式か大きさ（design-spec 6.7.3 の表示）なら、仕様どおり（上限と形式は SDD 5.10）。
 4. それ以外は Sentry の Issue と `wrangler tail` で R2 のエラーを見る。
 
 ### 独自ドメインにつながらない・証明書のエラー
@@ -193,6 +194,6 @@ bunx wrangler deployments list --name eastx
 | D1 の容量の確認 | 月1回 | ダッシュボードで D1 のサイズを見る |
 | 期限切れのセッションの掃除 | 月1回 | `bunx wrangler d1 execute DB --env production --remote --command "delete from admin_session where expires_at < unixepoch() * 1000"` |
 | `compatibility_date` の見直し | 四半期に1回 | `wrangler.jsonc` の日付を新しくし、変更点（Cloudflare の compatibility flags の一覧）を読んで、staging で確かめてから本番へ |
-| OAuth App の Client secret の更新 | 年1回 | GitHub で新しい secret を作る → `wrangler secret put GITHUB_CLIENT_SECRET` → ログインを確かめる → 古い secret を消す |
-| `BETTER_AUTH_SECRET` の更新 | 年1回、または漏れた疑いがあるとき | `wrangler secret put BETTER_AUTH_SECRET`（全セッションが切れるので、ログインし直す） |
+| OAuth App の Client secret の更新 | 年1回 | 環境ごと（staging 用・本番用の OAuth App）に: GitHub で新しい secret を作る → `bunx wrangler secret put GITHUB_CLIENT_SECRET --env production`（staging は `--env staging`）→ 新しい secret でログインできることを確かめる → 古い secret を消す → もう一度ログインを確かめる |
+| `BETTER_AUTH_SECRET` の更新 | 年1回、または漏れた疑いがあるとき | `bunx wrangler secret put BETTER_AUTH_SECRET --env production`（staging は `--env staging`。環境ごとに別の値。全セッションが切れるので、ログインし直す） |
 | ドメイン（`eastasian.dev`）の更新 | 年1回 | レジストラーの更新の通知に従う。自動更新にしておく |

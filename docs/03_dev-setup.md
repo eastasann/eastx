@@ -41,7 +41,7 @@ eastx/
 │   └── production/version         # 本番で動くべきコミット SHA（昇格 PR で更新）
 ├── docs/                          # 設計ドキュメント（docs/README.md が入口）
 ├── drizzle/migrations/            # drizzle-kit が生成する SQL（D1 に適用する）
-├── public/                        # 静的アセット（robots.txt、og/default-{ja,en}.png、favicon.svg）
+├── public/                        # 静的アセット（og/default-{ja,en}.png、favicon.svg）
 ├── scripts/
 │   ├── tokens/build.ts            # docs/06_design-tokens.json → Panda のトークン
 │   ├── seed/                      # デモデータの SQL とダミー画像を作る
@@ -108,7 +108,7 @@ Git に入れないもの: `.dev.vars`、`.wrangler/`（ローカルの D1・R2 
    ```
 
    http://localhost:3000 を開くと `/ja` か `/en` に移り、デモデータのトップが出る。ここまででログイン以外は動く。
-4. 管理画面を試すときは、GitHub の OAuth App を作り（6章）、`.dev.vars` を埋めて `make dev` を起動し直す。http://localhost:3000/admin から GitHub でログインすると、初回だけ `admin_user` が作られてダッシュボードが出る。
+4. 管理画面を試すときは、GitHub の OAuth App を作り（6章）、`.dev.vars` を埋めて `make dev` を起動し直す。http://localhost:3000/admin から GitHub でログインすると、初回のログインで管理者として登録され（SDD ADR-009）、ダッシュボードが出る。
 
 ### 3.2 環境変数
 
@@ -133,7 +133,7 @@ Worker が読む値。ローカルは `.dev.vars`、staging・本番は `wrangle
 | `AUTH_RATE_LIMITER` | Rate Limiting | `/api/auth/*` のレート制限 |
 | `ADMIN_RATE_LIMITER` | Rate Limiting | `/api/admin/*` のレート制限 |
 
-型は `wrangler types` で `worker-configuration.d.ts` に生成する（`make typecheck` の前に走る）。
+型は `wrangler types` で `worker-configuration.d.ts` に生成する（8章の「生成」に含まれる）。
 
 ---
 
@@ -150,9 +150,11 @@ Worker が読む値。ローカルは `.dev.vars`、staging・本番は `wrangle
 | `make db-reset` | ローカルの D1 を消して、マイグレーションの適用とデモデータの投入をやり直す |
 | `make db-studio` | Drizzle Studio でローカルの D1 を開く |
 
-- `admin_user` はシードで作らない。ローカルで初めて GitHub でログインしたときに作られる。
+- 管理者はシードで作らない（SDD ADR-009）。ログインの準備は6章。
 - スキーマを変えたら `make db-generate` → `make db-migrate` の順。`drizzle-kit push` は使わない（SDD ADR-007）。
 - マイグレーションは、staging・本番で古いコードのまま動いても壊れない形にする（列の追加 → データの移行 → 古い列の削除を、別々のリリースに分ける）。ロールバックではスキーマが戻らないため（SDD ADR-017）。
+- テーブルを作り直す SQL（`PRAGMA foreign_keys=OFF` → 新しいテーブル → コピー → `DROP` → `RENAME`）が生成されたら、そのまま使わない。D1 ではこの PRAGMA が効かず、親のテーブルの `DROP` で子の行が `ON DELETE CASCADE` で消えるおそれがある（SDD ADR-007）。`PRAGMA defer_foreign_keys = on` に置き換えるか、子のテーブルの行を退避・復元する SQL を手で足す。
+- テーブルを作り直す変更は、本番のデータを書き出したもの（`docs/04_deployment-procedure.md` 5章の `d1 export`）をローカルの D1 に入れて適用し、各テーブルの件数が変わらないことを確かめてから出す。
 
 ---
 
@@ -222,7 +224,8 @@ Terraform などは使わず、`wrangler.jsonc` でインフラを管理する�
 
 - `wrangler.jsonc` の変更は、コードと同じ PR で出す。反映されるのは、その SHA を各環境に昇格したとき。
 - D1・R2 の作成、シークレットの登録、独自ドメインの準備は、初回だけ手で行う（`docs/04_deployment-procedure.md` 3章）。
-- `compatibility_date` は四半期ごとに見直す（`docs/05_operation-runbook.md` 6章）。
+- レート制限の値（`ratelimits`）の正は SDD ADR-021。
+- `compatibility_date` の見直しは `docs/05_operation-runbook.md` 6章。
 
 ---
 
@@ -263,14 +266,14 @@ staging・本番の OAuth App は `docs/04_deployment-procedure.md` 3章。
 | ターゲット | 説明 |
 |-----------|------|
 | `make setup` | 初回セットアップ（依存のインストール、`.dev.vars` の作成、トークンと Panda の生成、ローカル D1 のマイグレーションとシード、Playwright の Chromium） |
-| `make dev` | トークンと Panda の生成をしてから、開発サーバーを http://localhost:3000 で起動（Vite ＋ Cloudflare プラグイン。ローカルの D1・R2 を使う） |
-| `make build` | トークンと Panda の生成をしてから、本番用にビルド。環境は `CLOUDFLARE_ENV`（`staging` ／ `production`。空ならローカル）で選ぶ |
-| `make test` | ユニットテストと結合テスト（7章） |
-| `make e2e` | E2E とアクセシビリティの検査（7章） |
-| `make lint` | Biome のチェック（lint とフォーマットの差分の検出） |
-| `make typecheck` | wrangler の型生成と、TypeScript の型チェック |
+| `make dev` | 生成をしてから、開発サーバーを http://localhost:3000 で起動（Vite ＋ Cloudflare プラグイン。ローカルの D1・R2 を使う） |
+| `make build` | 生成をしてから、本番用にビルド。環境は `CLOUDFLARE_ENV`（`staging` ／ `production`。空ならローカル）で選ぶ |
+| `make test` | 生成をしてから、ユニットテストと結合テスト（7章） |
+| `make e2e` | 生成をしてから、E2E とアクセシビリティの検査（7章） |
+| `make lint` | 生成をしてから、Biome のチェック（lint とフォーマットの差分の検出）と、`src/` からデザイントークンのプリミティブ層を参照していないかの検査（SDD ADR-014） |
+| `make typecheck` | 生成をしてから、TypeScript の型チェック |
 | `make format` | Biome でフォーマットを直す |
-| `make tokens` | `docs/06_design-tokens.json` から Panda のトークンを生成し、Panda のコード生成を走らせる |
+| `make tokens` | `docs/06_design-tokens.json` から Panda のトークンを生成し、Panda のコード生成を走らせる（生成の一部） |
 | `make db-generate` | マイグレーション SQL の生成（4章） |
 | `make db-migrate` | ローカルの D1 にマイグレーションを適用（4章） |
 | `make db-seed` | ローカルにデモデータを投入（4章） |
@@ -280,6 +283,7 @@ staging・本番の OAuth App は `docs/04_deployment-procedure.md` 3章。
 | `make doc-lint` | ドキュメントと実体の整合検査（`scripts/doc-lint.sh --docs`） |
 | `make promote ENV=staging` ／ `make promote ENV=production` | 昇格 PR 用のブランチを作り、`deploy/{ENV}/version` を書き換えてコミットする（9章）。`SHA=` で SHA を指定できる |
 
+- 「生成」は、Git に入れない生成物（2章）を作り直すこと: デザイントークンと Panda のコード（`make tokens`）、TanStack Router のルートの木（`routeTree.gen.ts`）、wrangler の型（`worker-configuration.d.ts`）。CI はチェックアウト直後に `make lint` から走るので、生成物を読むターゲットは必ず最初に生成をする。
 - テンプレートの標準ターゲットのうち `make db-push` は置かない（D1 ではマイグレーションだけを使うため。SDD ADR-007）。
 - makeは macOS・Linux に標準搭載。Windows で開発する場合は WSL を使う。
 
@@ -316,10 +320,9 @@ fix/xxx     ──squash──▶   │
 1. コードの PR を `main` に squash マージする（CI だけが走る）。
 2. staging に出す: `make promote ENV=staging`（`origin/main` の先頭の SHA を書く）→ push して PR を作り、マージする → `deploy.yml` が staging にデプロイする。
 3. staging（https://x-staging.eastasian.dev）で確かめる。
-4. 本番に出す: `make promote ENV=production`（`deploy/staging/version` の SHA を書く）→ PR を作り、マージする → `deploy.yml` が本番にデプロイする。CI は、その SHA が staging に出したことのある SHA かを確かめる。
-5. ロールバック ＝ 昇格 PR を revert する。
+4. 本番に出す: `make promote ENV=production`（`deploy/staging/version` の SHA を書く）→ PR を作り、マージする → `deploy.yml` が本番にデプロイする。
 
-デプロイの中身（マイグレーション → ビルド → デプロイ → 疎通確認）は `docs/04_deployment-procedure.md` 2章。
+昇格 PR での CI の確認、デプロイの中身、ロールバックの手順は `docs/04_deployment-procedure.md` の2章・5章。
 
 ### PR ルール
 
@@ -352,9 +355,9 @@ fix/xxx     ──squash──▶   │
 |------|--------|
 | 起動すると `no such table` のエラー | ローカルの D1 にマイグレーションが当たっていない。`make db-migrate`（データも欲しければ `make db-seed`） |
 | `styled-system` や `tokens.generated` が見つからない | 生成物がない。`make tokens` |
-| `routeTree.gen` が見つからない・ルートの型が合わない | TanStack Router のルートの木が古い。`make dev` か `make build` を一度走らせると作り直される |
+| `routeTree.gen` が見つからない・ルートの型が合わない | TanStack Router のルートの木が古い。`make typecheck` などの生成をするターゲットを走らせると作り直される |
 | GitHub で「redirect_uri is not associated with this application」 | OAuth App のコールバック URL が `http://localhost:3000/api/auth/callback/github` と完全に一致しているか確かめる（ポート・パスも） |
-| ローカルで「このアカウントでは管理画面に入れません」 | `.dev.vars` の `ADMIN_GITHUB_USER_ID` が、ユーザー名ではなく数値 ID になっているか確かめる（3.2） |
+| ローカルのログインで「管理者でないアカウント」として拒否される（design-spec 6.4） | `.dev.vars` の `ADMIN_GITHUB_USER_ID` が、ユーザー名ではなく数値 ID になっているか確かめる（3.2） |
 | ログインしても管理画面に入れず、ログイン画面に戻る | `BETTER_AUTH_SECRET` が空、または `SITE_URL` が `http://localhost:3000` と違う（Cookie が付かない）。`.dev.vars` を直して `make dev` を起動し直す |
 | ポート 3000 が使われている | ほかのプロセスを止める。ポートを変えると OAuth App のコールバック URL も変える必要がある |
 | ローカルのデータがおかしくなった | `make db-reset` |

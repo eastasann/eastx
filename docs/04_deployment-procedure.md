@@ -10,8 +10,8 @@
 | staging | https://x-staging.eastasian.dev | Worker `eastx-staging`（`wrangler.jsonc` の `env.staging`） | D1 `eastx-db-staging`、R2 `eastx-media-staging` | 昇格 PR（`deploy/staging/version`）のマージ |
 | 本番 | https://x.eastasian.dev | Worker `eastx`（`env.production`） | D1 `eastx-db`、R2 `eastx-media` | 昇格 PR（`deploy/production/version`）のマージ |
 
-- staging はデモデータと、確認用に入れたデータで動かす。本番は今のサイトから移したデータで動かす（design-spec 9章）。
-- staging は検索エンジンに載せない（すべてのレスポンスに `X-Robots-Tag: noindex`。SDD ADR-019）。
+- staging のデータは、本番と同じ移行の手順で入れたもの（本番の移行の予行を兼ねる。3章 Step 7）と、確認のために管理画面で入れたもの。デモデータ（design-spec 8章）はローカルと E2E だけで使う。本番は今のサイトから移したデータで動かす（design-spec 9章）。
+- staging は検索エンジンに載せない（SDD ADR-019）。
 
 ## 2. CI/CD パイプライン
 
@@ -80,9 +80,9 @@ IaC ツールは使わず、wrangler CLI とダッシュボードで準備し、
 bunx wrangler d1 create eastx-db-staging --location apac
 bunx wrangler d1 create eastx-db --location apac
 
-# R2
-bunx wrangler r2 bucket create eastx-media-staging
-bunx wrangler r2 bucket create eastx-media
+# R2（場所のヒントはアジア太平洋）
+bunx wrangler r2 bucket create eastx-media-staging --location apac
+bunx wrangler r2 bucket create eastx-media --location apac
 ```
 
 出てきた D1 の `database_id` を、`wrangler.jsonc` の `env.staging` と `env.production` に書く（`docs/03_dev-setup.md` 5章）。R2 は公開アクセスを有効にしない（Worker の `/media/*` から配信する。SDD ADR-010）。
@@ -115,7 +115,7 @@ Worker がまだないときは、`secret put` が Worker を作るか聞いて�
 ### Step 5: Sentry
 
 1. Sentry にプロジェクト（プラットフォームは Cloudflare Workers）を作り、DSN を `wrangler.jsonc` の各環境の `vars.SENTRY_DSN` に書く。
-2. Uptime Monitoring で `https://x.eastasian.dev/ja` を5分ごとに監視する（`docs/05_operation-runbook.md` 2章）。
+2. SDD 11章の設定で Uptime Monitoring を作る（アラートの条件は `docs/05_operation-runbook.md` 2章）。
 3. アラートの通知先を自分のメールにする。
 
 ### Step 6: GitHub Secrets の設定
@@ -125,13 +125,22 @@ Worker がまだないときは、`secret put` が Worker を作るか聞いて�
 | `CLOUDFLARE_API_TOKEN` | Cloudflare の API トークン。テンプレート「Edit Cloudflare Workers」に、D1 の Edit を足したもの（Workers Scripts・Workers Routes・Workers R2 Storage・D1・Account Settings の読み取り） |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare のアカウント ID |
 
-### Step 7: 最初のデプロイ
+### Step 7: 最初のデプロイとデータの移行
 
 1. Step 2〜5 の値を書いた `wrangler.jsonc` を、通常の PR で `main` に入れる。
 2. `make promote ENV=staging` で昇格 PR を作ってマージする。Custom Domain（DNS レコードと証明書）はこのデプロイで作られる。
-3. 6章のデプロイ後確認をし、https://x-staging.eastasian.dev/admin から GitHub でログインする（初回のログインで `admin_user` が作られる）。
-4. staging で確かめたら、`make promote ENV=production` で本番に出し、同じく初回ログインをする。
-5. 本番のデータ移行（design-spec 9章）は、変換スクリプト（`scripts/migrate-legacy/`）で作った SQL を `bunx wrangler d1 execute DB --env production --remote --file {SQL}` で入れ、画像を R2 に置く。先に staging で同じ手順を試す。
+3. https://x-staging.eastasian.dev/admin から GitHub でログインする（初回のログインで管理者が登録される。SDD ADR-009）。この時点では中身が空で、トップには何も出ない。
+4. staging にデータを移す（本番の予行）。変換スクリプト（`scripts/migrate-legacy/`）が作った SQL と画像を入れる。
+
+   ```bash
+   # データ（移したものは下書きで入る。design-spec 9章）
+   bunx wrangler d1 execute DB --env staging --remote --file {変換スクリプトが出した SQL}
+   # 画像（変換スクリプトが出した一覧の1件ずつ）
+   bunx wrangler r2 object put eastx-media-staging/uploads/legacy/{ファイル名} --remote --file {ローカルのファイル}
+   ```
+
+5. staging の管理画面で中身を確かめて公開し、6章のデプロイ後確認をする。
+6. `make promote ENV=production` で本番に出し、3〜5 と同じ手順（`--env production`、R2 は `eastx-media`）でログイン・データの移行・確認・公開をする。
 
 ## 4. リリース前チェックリスト
 
@@ -142,7 +151,7 @@ Worker がまだないときは、`secret put` が Worker を作るか聞いて�
 - [ ] 新しい環境変数・シークレットがある場合、`wrangler.jsonc` の `vars` に書いた、または `wrangler secret put` で登録した（対象の環境すべて）
 - [ ] `wrangler.jsonc` の変更がある場合、差分（バインディング・ルート）を確かめた
 - [ ] 本番の場合: 同じ SHA を staging に出し、変更した画面とコアフローを確かめた
-- [ ] 昇格 PR に、対象の SHA・staging での確認結果（本番のとき）・ロールバック手順を書いた
+- [ ] 昇格 PR に、`docs/03_dev-setup.md` 9章の「PR ルール」の記載事項を書いた
 - [ ] PR のセルフレビューが済んだ
 
 ## 5. ロールバック手順
