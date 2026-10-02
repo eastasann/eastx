@@ -350,7 +350,7 @@
 - パッケージ管理（`bun install`、`bun.lock`）とスクリプトの実行（`bun run`、`bun scripts/*.ts`）は Bun。
 - wrangler・Vite・Vitest・Playwright・drizzle-kit は Node.js 24 で動かす（`bun run` は各 CLI の shebang に従って Node.js で起動する）。
 - 主要なコマンドの入口は make（`docs/03_dev-setup.md` 8章）。
-- Linter・Formatter は Biome。テストは Vitest（Workers の結合テストは `@cloudflare/vitest-pool-workers`）と Playwright（アクセシビリティの検査は `@axe-core/playwright`）。
+- Linter・Formatter は Biome。テストは Vitest（Workers の結合テストは `@cloudflare/vitest-pool-workers`）と Playwright（アクセシビリティの検査は `@axe-core/playwright`）。PRD 5章の Lighthouse の目標は、Lighthouse CI（`@lhci/cli`）で、ビルドしたもののローカルのプレビューに対して測る。
 
 **理由:**
 - Bun: ユーザーの指定。インストールが速く、TypeScript のスクリプト（トークンの変換・シードの生成）をそのまま実行できる。
@@ -359,11 +359,13 @@
 - Biome: lint とフォーマットを1つのツールで速く行え、ADR-020 の import の制限にも使える。
 - Vitest: Vite と同じ設定で動き、workerd の上で D1・R2 を使った結合テストができる。
 - Playwright: E2E の定番で、Claude Code のクラウド環境には Chromium が入っている。axe でアクセシビリティの違反を自動で見つけられる。
+- Lighthouse CI: PRD 5章の Lighthouse の目標を、PR ごとに機械で確かめられる。
 
 **トレードオフ:**
 - 開発者のマシンに Bun と Node.js の両方が要る。`bun test` は workerd で動かせないので使わない。
 - `@cloudflare/vitest-pool-workers` は対応する Vitest の版が限られるので、Vitest はそれに合わせて固定する（ADR-022）。
-- 捨てた案: pnpm・npm（ユーザーが Bun を指定）、ESLint ＋ Prettier（ツールと設定が2つになる）、Jest（workerd の上で動かす仕組みがない）、Cypress（Playwright より遅く、Chromium 以外での確認もしにくい）。
+- Lighthouse CI は、ローカルのプレビューで測るので、本番のネットワークや Cloudflare の拠点を通した値とは違う。本番の体感は Sentry の Web Vitals（7章）で見る。
+- 捨てた案: pnpm・npm（ユーザーが Bun を指定）、ESLint ＋ Prettier（ツールと設定が2つになる）、Jest（workerd の上で動かす仕組みがない）、Cypress（Playwright より遅く、Chromium 以外での確認もしにくい）、手で Lighthouse を走らせる（測り忘れる）、PageSpeed Insights の API（公開された URL が要り、PR の段階で測れない）。
 
 ### ADR-017: CI/CD は GitHub Actions ＋ wrangler。staging・本番とも昇格 PR でデプロイし、IaC ツールは使わない
 
@@ -447,7 +449,7 @@
 
 **決定:**
 - `package.json` の依存は正確な版で固定する（`^` を付けない）。更新は PR で行い、大きな更新は1つずつ出す（頻度は `docs/05_operation-runbook.md` 6章）。
-- Phase 5 の最初のステップで、次を `wrangler dev` と staging の両方で確かめる（スパイク）。駄目だったときの代わりも決めておく。
+- Phase 5 で各ライブラリを最初に入れるステップの冒頭で、その上に実装を積む前に次を確かめる（スパイク）。まずローカル（`make dev` と、ビルドしたもののプレビュー）で確かめ、staging でしか見られないもの（Custom Domain の上での動作、実際にデプロイしたバンドル）は、初回の staging のデプロイ（`docs/04_deployment-procedure.md` 3章 Step 7）のあとに確かめる。駄目だったときの代わりも決めておく。
 
 | 確かめること | 関係する ADR | 駄目だったときの代わり |
 |---|---|---|
@@ -463,7 +465,7 @@
 
 **理由:** TanStack Start・Elysia の Workers アダプター・oRPC・Better Auth・Panda は、どれも比較的新しく、版によって設定や振る舞いが変わる。組み合わせとしての実績も少ない。実装を積み上げる前に確かめれば、駄目だったときの作り直しが小さくて済む。
 
-**トレードオフ:** 最初のステップが動くものを作る前の確認になり、画面ができるのが少し遅れる。版を固定すると、セキュリティの修正を取り込むのが遅れうる（月1回の更新で補う）。
+**トレードオフ:** 各ステップの冒頭が確認の作業になり、画面ができるのが少し遅れる。版を固定すると、セキュリティの修正を取り込むのが遅れうる（月1回の更新で補う）。
 
 ---
 
@@ -1729,10 +1731,11 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 | 公開側の読み取り | 同上 | 各サーバー関数の正常系と、下書き・詳細本文なしが返らないこと | 公開中だけを返す、並び順、前後のナビ、言語の代替 |
 | E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元 |
 | アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P5・A1・A2 で重大（serious 以上）な違反 0件 | 自動で検出できる範囲 |
+| Lighthouse | Lighthouse CI（`@lhci/cli`。モバイルの設定） | PRD 5章の Lighthouse の目標を assert する | デモデータを入れたプレビューの P1 と、P2〜P5 の各1ページ |
 
 - API 結合テストの 401・403 の確認は、CSRF のヘッダーを付けたリクエストで行う（5.1）。ヘッダーがないときに 403 になることも別に確かめる。
 - E2E のログイン: テスト用のヘルパーが、ローカルの D1 に管理者とセッションを作り、Better Auth と同じ方式で署名した Cookie をブラウザに入れる。本番のコードにテスト用の入口は作らない。
-- 実行のコマンドは `make test`（ユニット・結合）と `make e2e`（`docs/03_dev-setup.md`）。CI ではどちらも PR ごとに走る。
+- 実行のコマンドは `make test`（ユニット・結合）と `make e2e`（E2E・アクセシビリティ・Lighthouse。`docs/03_dev-setup.md`）。CI ではどちらも PR ごとに走る。
 
 ---
 

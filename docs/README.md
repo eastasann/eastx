@@ -6,10 +6,10 @@
 
 初めて読む人は、次の順に読む。
 
-1. `design-spec.md` と `screen_flow.mermaid` — 何を作るか（画面・ロール・振る舞い）
-2. `01_prd.md` — なぜ作るか、誰のためか、成功の基準
-3. `02-01_system-design-doc.md` — どう作るか（技術選定・API・データモデル・セキュリティ）
-4. `03_dev-setup.md` — 手元で動かす
+1. `design-spec.md` と `screen_flow.mermaid`: 何を作るか（画面・ロール・振る舞い）
+2. `01_prd.md`: なぜ作るか、誰のためか、成功の基準
+3. `02-01_system-design-doc.md`: どう作るか（技術選定・API・データモデル・セキュリティ）
+4. `03_dev-setup.md`: 手元で動かす
 5. 必要に応じて `06_design-tokens.json`（見た目の値）、`04_deployment-procedure.md`（リリース）、`05_operation-runbook.md`（運用）
 
 ## ドキュメント一覧
@@ -27,6 +27,7 @@
 | [04_deployment-procedure.md](04_deployment-procedure.md) | CI/CD、初回のクラウド準備、リリース前チェック、ロールバック |
 | [05_operation-runbook.md](05_operation-runbook.md) | ログと監視、よくある障害と対処、定期メンテナンス |
 | [06_design-tokens.json](06_design-tokens.json) | デザイントークン（DTCG 形式。プリミティブ＋セマンティック、ライト／ダーク） |
+| [claude-code-prompts.md](claude-code-prompts.md) | Phase 5 の実装のステップ別プロンプト集と進捗（派生） |
 
 ### features/
 
@@ -39,7 +40,7 @@
 | 層 | 何か | 該当するもの | 更新のしかた |
 |---|---|---|---|
 | ソース | 事実の正。変更はまずここに入れる | `design-spec.md`、`screen_flow.mermaid`、`01_prd.md`、`02-01_system-design-doc.md`、`03`〜`05`、`06_design-tokens.json` | 事実の持ち主のドキュメントだけを更新する（下の所有権マップ） |
-| 派生 | ソースから作るもの。手で直さない | Phase 4 で作る `CLAUDE.md` と実装プロンプト集、`06_design-tokens.json` から生成する Panda のトークン、コントラクトから生成する OpenAPI の仕様、`02-02` から作る各 FDD の雛形 | ソースを直してから作り直す |
+| 派生 | ソースから作るもの。手で直さない | リポジトリのルートの `CLAUDE.md`（`AGENTS.md` はそのリンク）と `claude-code-prompts.md`（`/draft:prep` で作り直す。ただし各ステップの `Status:` 行は進捗の記録なので、作り直すときに移す）、`06_design-tokens.json` から生成する Panda のトークン、コントラクトから生成する OpenAPI の仕様、`02-02` から作る各 FDD の雛形 | ソースを直してから作り直す |
 | アーカイブ | 決めた経緯の記録。今の事実の正ではない | `concept.md`、`brainstorm-notes.md`、実装を終えた `features/` の FDD | 更新しない（食い違っても直さず、ソースを正とする） |
 
 ### 事実の所有権マップ

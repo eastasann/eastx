@@ -31,6 +31,7 @@
 
 ```
 eastx/
+├── .githooks/pre-commit           # コミット前の検査（scripts/doc-lint.sh --staged）
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml                 # PR と main への push: lint・型・テスト・ビルド・E2E
@@ -46,7 +47,9 @@ eastx/
 │   ├── tokens/build.ts            # docs/06_design-tokens.json → Panda のトークン
 │   ├── seed/                      # デモデータの SQL とダミー画像を作る
 │   ├── migrate-legacy/            # 今のサイトのデータを移す変換スクリプト
+│   ├── og/                        # 既定の OGP 画像を作る
 │   ├── promote.sh                 # 昇格 PR 用のブランチとバージョンファイルを作る
+│   ├── promotion-check.sh         # 昇格 PR の SHA の確認（ci.yml が呼ぶ）
 │   └── doc-lint.sh                # ドキュメントと実体の整合検査
 ├── src/
 │   ├── server.ts                  # Worker の入口（/api/*・/media/* → Elysia、それ以外 → TanStack Start）
@@ -71,6 +74,7 @@ eastx/
 │   ├── integration/               # Workers 上の結合テスト（CMS API・サーバー関数）
 │   └── e2e/                       # Playwright
 ├── .dev.vars.example              # ローカルの環境変数の見本
+├── CLAUDE.md                      # 実装エージェントの前提知識（AGENTS.md はこのファイルへのリンク）
 ├── biome.json
 ├── drizzle.config.ts
 ├── Makefile                       # 主要コマンドの唯一の真実源（8章）
@@ -250,7 +254,7 @@ staging・本番の OAuth App は `docs/04_deployment-procedure.md` 3章。
 | ターゲット | 中身 |
 |---|---|
 | `make test` | Vitest のユニットテスト（Node.js）と結合テスト（`@cloudflare/vitest-pool-workers` で workerd 上、ローカルの D1・R2）をまとめて走らせる |
-| `make e2e` | ビルドしたアプリをローカルで起動し、デモデータを入れて、Playwright（Chromium）で E2E とアクセシビリティの検査を走らせる |
+| `make e2e` | ビルドしたアプリをローカルで起動し、デモデータを入れて、Playwright（Chromium）で E2E とアクセシビリティの検査、Lighthouse CI で PRD 5章の Lighthouse の目標の検査を走らせる |
 
 - 何をどの層で確かめるか、カバレッジの目標は SDD 10章。
 - 結合テストは、テストごとにマイグレーションを当てた空の D1 で走る。手元の `.wrangler/` のデータは使わない。
@@ -269,7 +273,7 @@ staging・本番の OAuth App は `docs/04_deployment-procedure.md` 3章。
 | `make dev` | 生成をしてから、開発サーバーを http://localhost:3000 で起動（Vite ＋ Cloudflare プラグイン。ローカルの D1・R2 を使う） |
 | `make build` | 生成をしてから、本番用にビルド。環境は `CLOUDFLARE_ENV`（`staging` ／ `production`。空ならローカル）で選ぶ |
 | `make test` | 生成をしてから、ユニットテストと結合テスト（7章） |
-| `make e2e` | 生成をしてから、E2E とアクセシビリティの検査（7章） |
+| `make e2e` | 生成をしてから、E2E・アクセシビリティ・Lighthouse の検査（7章） |
 | `make lint` | 生成をしてから、Biome のチェック（lint とフォーマットの差分の検出）と、`src/` からデザイントークンのプリミティブ層を参照していないかの検査（SDD ADR-014） |
 | `make typecheck` | 生成をしてから、TypeScript の型チェック |
 | `make format` | Biome でフォーマットを直す |
