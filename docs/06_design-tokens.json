@@ -1,0 +1,1266 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "$description": "eastx のデザイントークンの正。色・タイポグラフィ・余白・大きさ・角丸・影・モーション・縦横比の具体値はこのファイルが所有する（方針は design-spec 4.4）。実装が参照してよいのは semantic 層のみ。Panda CSS のトークンは scripts/tokens/build.ts がこのファイルから生成する（System Design Doc ADR-014）。ブレークポイントは design-spec 4.3 が持つのでここには置かない。",
+  "primitive": {
+    "$description": "生の値のスケール。実装から直接参照しない（semantic 層を経由する）",
+    "color": {
+      "$type": "color",
+      "neutral": {
+        "0": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "hex": "#ffffff"
+          }
+        },
+        "50": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.9804,
+              0.9804,
+              0.9804
+            ],
+            "hex": "#fafafa"
+          }
+        },
+        "100": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.9608,
+              0.9608,
+              0.9608
+            ],
+            "hex": "#f5f5f5"
+          }
+        },
+        "200": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.898,
+              0.898,
+              0.898
+            ],
+            "hex": "#e5e5e5"
+          }
+        },
+        "300": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.8314,
+              0.8314,
+              0.8314
+            ],
+            "hex": "#d4d4d4"
+          }
+        },
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.6392,
+              0.6392,
+              0.6392
+            ],
+            "hex": "#a3a3a3"
+          }
+        },
+        "500": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.451,
+              0.451,
+              0.451
+            ],
+            "hex": "#737373"
+          }
+        },
+        "600": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.3216,
+              0.3216,
+              0.3216
+            ],
+            "hex": "#525252"
+          }
+        },
+        "700": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.251,
+              0.251,
+              0.251
+            ],
+            "hex": "#404040"
+          }
+        },
+        "800": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.149,
+              0.149,
+              0.149
+            ],
+            "hex": "#262626"
+          }
+        },
+        "900": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.0902,
+              0.0902,
+              0.0902
+            ],
+            "hex": "#171717"
+          }
+        },
+        "950": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.0392,
+              0.0392,
+              0.0392
+            ],
+            "hex": "#0a0a0a"
+          }
+        },
+        "1000": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "hex": "#000000"
+          }
+        }
+      },
+      "indigo": {
+        "50": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.9333,
+              0.949,
+              1.0
+            ],
+            "hex": "#eef2ff"
+          }
+        },
+        "100": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.8784,
+              0.9059,
+              1.0
+            ],
+            "hex": "#e0e7ff"
+          }
+        },
+        "200": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.7804,
+              0.8235,
+              0.9961
+            ],
+            "hex": "#c7d2fe"
+          }
+        },
+        "300": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.6471,
+              0.7059,
+              0.9882
+            ],
+            "hex": "#a5b4fc"
+          }
+        },
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.5059,
+              0.549,
+              0.9725
+            ],
+            "hex": "#818cf8"
+          }
+        },
+        "500": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.3882,
+              0.4,
+              0.9451
+            ],
+            "hex": "#6366f1"
+          }
+        },
+        "600": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.3098,
+              0.2745,
+              0.898
+            ],
+            "hex": "#4f46e5"
+          }
+        },
+        "700": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.2627,
+              0.2196,
+              0.7922
+            ],
+            "hex": "#4338ca"
+          }
+        },
+        "900": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.1922,
+              0.1804,
+              0.5059
+            ],
+            "hex": "#312e81"
+          }
+        },
+        "950": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.1176,
+              0.1059,
+              0.2941
+            ],
+            "hex": "#1e1b4b"
+          }
+        }
+      },
+      "red": {
+        "50": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.9961,
+              0.949,
+              0.949
+            ],
+            "hex": "#fef2f2"
+          }
+        },
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.9725,
+              0.4431,
+              0.4431
+            ],
+            "hex": "#f87171"
+          }
+        },
+        "600": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.8627,
+              0.149,
+              0.149
+            ],
+            "hex": "#dc2626"
+          }
+        },
+        "950": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.2706,
+              0.0392,
+              0.0392
+            ],
+            "hex": "#450a0a"
+          }
+        }
+      },
+      "green": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.2902,
+              0.8706,
+              0.502
+            ],
+            "hex": "#4ade80"
+          }
+        },
+        "700": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.0824,
+              0.502,
+              0.2392
+            ],
+            "hex": "#15803d"
+          }
+        }
+      },
+      "amber": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.9843,
+              0.749,
+              0.1412
+            ],
+            "hex": "#fbbf24"
+          }
+        },
+        "700": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.7059,
+              0.3255,
+              0.0353
+            ],
+            "hex": "#b45309"
+          }
+        }
+      },
+      "black-alpha": {
+        "$description": "黒に透明度を付けたもの。影とダイアログの背景の暗幕に使う",
+        "15": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha": 0.15,
+            "hex": "#000000"
+          }
+        },
+        "40": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha": 0.4,
+            "hex": "#000000"
+          }
+        },
+        "60": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha": 0.6,
+            "hex": "#000000"
+          }
+        }
+      }
+    },
+    "font": {
+      "family": {
+        "$type": "fontFamily",
+        "sans": {
+          "$value": [
+            "Inter Variable",
+            "Hiragino Sans",
+            "Hiragino Kaku Gothic ProN",
+            "Noto Sans JP",
+            "Yu Gothic UI",
+            "Meiryo",
+            "sans-serif"
+          ],
+          "$description": "英文は Inter（自前配信の可変フォント）、和文は OS のゴシック体"
+        },
+        "mono": {
+          "$value": [
+            "JetBrains Mono Variable",
+            "ui-monospace",
+            "SFMono-Regular",
+            "Menlo",
+            "Consolas",
+            "monospace"
+          ],
+          "$description": "コード・日付・数値。JetBrains Mono（自前配信の可変フォント）"
+        }
+      },
+      "size": {
+        "$type": "dimension",
+        "xs": {
+          "$value": {
+            "value": 0.75,
+            "unit": "rem"
+          }
+        },
+        "sm": {
+          "$value": {
+            "value": 0.875,
+            "unit": "rem"
+          }
+        },
+        "md": {
+          "$value": {
+            "value": 1,
+            "unit": "rem"
+          }
+        },
+        "lg": {
+          "$value": {
+            "value": 1.125,
+            "unit": "rem"
+          }
+        },
+        "xl": {
+          "$value": {
+            "value": 1.25,
+            "unit": "rem"
+          }
+        },
+        "2xl": {
+          "$value": {
+            "value": 1.5,
+            "unit": "rem"
+          }
+        },
+        "3xl": {
+          "$value": {
+            "value": 1.875,
+            "unit": "rem"
+          }
+        },
+        "4xl": {
+          "$value": {
+            "value": 2.25,
+            "unit": "rem"
+          }
+        }
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "regular": {
+          "$value": 400
+        },
+        "medium": {
+          "$value": 500
+        },
+        "bold": {
+          "$value": 700
+        }
+      },
+      "letter-spacing": {
+        "$type": "dimension",
+        "normal": {
+          "$value": {
+            "value": 0,
+            "unit": "em"
+          }
+        },
+        "wide": {
+          "$value": {
+            "value": 0.02,
+            "unit": "em"
+          }
+        }
+      }
+    },
+    "space": {
+      "$type": "dimension",
+      "$description": "余白のスケール。4px の倍数",
+      "0": {
+        "$value": {
+          "value": 0,
+          "unit": "px"
+        }
+      },
+      "1": {
+        "$value": {
+          "value": 4,
+          "unit": "px"
+        }
+      },
+      "2": {
+        "$value": {
+          "value": 8,
+          "unit": "px"
+        }
+      },
+      "3": {
+        "$value": {
+          "value": 12,
+          "unit": "px"
+        }
+      },
+      "4": {
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        }
+      },
+      "5": {
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        }
+      },
+      "6": {
+        "$value": {
+          "value": 24,
+          "unit": "px"
+        }
+      },
+      "8": {
+        "$value": {
+          "value": 32,
+          "unit": "px"
+        }
+      },
+      "10": {
+        "$value": {
+          "value": 40,
+          "unit": "px"
+        }
+      },
+      "12": {
+        "$value": {
+          "value": 48,
+          "unit": "px"
+        }
+      },
+      "16": {
+        "$value": {
+          "value": 64,
+          "unit": "px"
+        }
+      },
+      "20": {
+        "$value": {
+          "value": 80,
+          "unit": "px"
+        }
+      }
+    },
+    "size": {
+      "$type": "dimension",
+      "$description": "要素の大きさのスケール",
+      "16": {
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        }
+      },
+      "20": {
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        }
+      },
+      "24": {
+        "$value": {
+          "value": 24,
+          "unit": "px"
+        }
+      },
+      "32": {
+        "$value": {
+          "value": 32,
+          "unit": "px"
+        }
+      },
+      "40": {
+        "$value": {
+          "value": 40,
+          "unit": "px"
+        }
+      },
+      "56": {
+        "$value": {
+          "value": 56,
+          "unit": "px"
+        }
+      },
+      "64": {
+        "$value": {
+          "value": 64,
+          "unit": "px"
+        }
+      },
+      "96": {
+        "$value": {
+          "value": 96,
+          "unit": "px"
+        }
+      },
+      "128": {
+        "$value": {
+          "value": 128,
+          "unit": "px"
+        }
+      },
+      "240": {
+        "$value": {
+          "value": 240,
+          "unit": "px"
+        }
+      },
+      "720": {
+        "$value": {
+          "value": 720,
+          "unit": "px"
+        }
+      }
+    },
+    "radius": {
+      "$type": "dimension",
+      "none": {
+        "$value": {
+          "value": 0,
+          "unit": "px"
+        }
+      },
+      "sm": {
+        "$value": {
+          "value": 4,
+          "unit": "px"
+        }
+      },
+      "md": {
+        "$value": {
+          "value": 8,
+          "unit": "px"
+        }
+      },
+      "lg": {
+        "$value": {
+          "value": 12,
+          "unit": "px"
+        }
+      },
+      "full": {
+        "$value": {
+          "value": 9999,
+          "unit": "px"
+        }
+      }
+    },
+    "duration": {
+      "$type": "duration",
+      "instant": {
+        "$value": {
+          "value": 0,
+          "unit": "ms"
+        }
+      },
+      "fast": {
+        "$value": {
+          "value": 120,
+          "unit": "ms"
+        }
+      },
+      "normal": {
+        "$value": {
+          "value": 220,
+          "unit": "ms"
+        }
+      },
+      "slow": {
+        "$value": {
+          "value": 320,
+          "unit": "ms"
+        }
+      }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "standard": {
+        "$value": [
+          0.2,
+          0,
+          0,
+          1
+        ]
+      },
+      "decelerate": {
+        "$value": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    "ratio": {
+      "$type": "number",
+      "16x9": {
+        "$value": 1.7778,
+        "$description": "16:9。CSS では aspect-ratio: 16 / 9 として出力する"
+      },
+      "1x1": {
+        "$value": 1
+      }
+    },
+    "opacity": {
+      "$type": "number",
+      "disabled": {
+        "$value": 0.5
+      }
+    },
+    "z": {
+      "$type": "number",
+      "$description": "重なり順",
+      "0": {
+        "$value": 0
+      },
+      "10": {
+        "$value": 10
+      },
+      "20": {
+        "$value": 20
+      },
+      "40": {
+        "$value": 40
+      },
+      "50": {
+        "$value": 50
+      }
+    }
+  },
+  "semantic": {
+    "$description": "用途の名前で参照する層。実装が参照してよいのはここだけ。値は primitive へのエイリアス。color は light / dark の2つのモードを持つ",
+    "color": {
+      "$type": "color",
+      "$description": "light と dark で同じキーを持つ。ダークモードでもアクセントの色相（藍）は変えず、明るさだけを変えてコントラストを保つ",
+      "light": {
+        "bg": {
+          "canvas": {
+            "$value": "{primitive.color.neutral.0}",
+            "$description": "ページの地"
+          },
+          "subtle": {
+            "$value": "{primitive.color.neutral.50}",
+            "$description": "管理画面のサイドメニュー・テーブルの見出し行など、地から一段分ける面"
+          },
+          "muted": {
+            "$value": "{primitive.color.neutral.100}",
+            "$description": "画像の代わりの枠・スケルトン・頭文字の丸"
+          }
+        },
+        "surface": {
+          "default": {
+            "$value": "{primitive.color.neutral.0}",
+            "$description": "カード・ダイアログ・入力欄の地"
+          },
+          "raised": {
+            "$value": "{primitive.color.neutral.0}",
+            "$description": "メニュー・トーストなど浮いている面"
+          }
+        },
+        "border": {
+          "default": {
+            "$value": "{primitive.color.neutral.200}",
+            "$description": "区切り線・カードの枠"
+          },
+          "strong": {
+            "$value": "{primitive.color.neutral.300}",
+            "$description": "入力欄の枠・強めの区切り"
+          }
+        },
+        "text": {
+          "default": {
+            "$value": "{primitive.color.neutral.900}",
+            "$description": "本文・見出し"
+          },
+          "muted": {
+            "$value": "{primitive.color.neutral.600}",
+            "$description": "日付・所属・補足などの控えめな文字"
+          },
+          "on-accent": {
+            "$value": "{primitive.color.neutral.0}",
+            "$description": "アクセント色の上に載せる文字"
+          }
+        },
+        "accent": {
+          "default": {
+            "$value": "{primitive.color.indigo.600}",
+            "$description": "操作できる場所（リンク・ボタン・ページングの現在位置）だけに使う"
+          },
+          "hover": {
+            "$value": "{primitive.color.indigo.700}"
+          },
+          "subtle": {
+            "$value": "{primitive.color.indigo.50}",
+            "$description": "選択中の行・現在の言語などの薄い地"
+          }
+        },
+        "focus-ring": {
+          "$value": "{primitive.color.indigo.600}",
+          "$description": "キーボードのフォーカスの輪"
+        },
+        "danger": {
+          "default": {
+            "$value": "{primitive.color.red.600}",
+            "$description": "削除などの破壊的な操作・入力エラーの文字"
+          },
+          "subtle": {
+            "$value": "{primitive.color.red.50}",
+            "$description": "エラーの通知の地"
+          }
+        },
+        "success": {
+          "default": {
+            "$value": "{primitive.color.green.700}",
+            "$description": "成功の通知のアイコン"
+          }
+        },
+        "warning": {
+          "default": {
+            "$value": "{primitive.color.amber.700}",
+            "$description": "注意書き（スラッグを変えたときの警告・下書きの印）"
+          }
+        },
+        "overlay": {
+          "$value": "{primitive.color.black-alpha.40}",
+          "$description": "ダイアログの背景の暗幕"
+        }
+      },
+      "dark": {
+        "bg": {
+          "canvas": {
+            "$value": "{primitive.color.neutral.950}",
+            "$description": "ページの地"
+          },
+          "subtle": {
+            "$value": "{primitive.color.neutral.900}",
+            "$description": "管理画面のサイドメニュー・テーブルの見出し行など、地から一段分ける面"
+          },
+          "muted": {
+            "$value": "{primitive.color.neutral.800}",
+            "$description": "画像の代わりの枠・スケルトン・頭文字の丸"
+          }
+        },
+        "surface": {
+          "default": {
+            "$value": "{primitive.color.neutral.900}",
+            "$description": "カード・ダイアログ・入力欄の地"
+          },
+          "raised": {
+            "$value": "{primitive.color.neutral.800}",
+            "$description": "メニュー・トーストなど浮いている面"
+          }
+        },
+        "border": {
+          "default": {
+            "$value": "{primitive.color.neutral.800}",
+            "$description": "区切り線・カードの枠"
+          },
+          "strong": {
+            "$value": "{primitive.color.neutral.700}",
+            "$description": "入力欄の枠・強めの区切り"
+          }
+        },
+        "text": {
+          "default": {
+            "$value": "{primitive.color.neutral.50}",
+            "$description": "本文・見出し"
+          },
+          "muted": {
+            "$value": "{primitive.color.neutral.400}",
+            "$description": "日付・所属・補足などの控えめな文字"
+          },
+          "on-accent": {
+            "$value": "{primitive.color.neutral.950}",
+            "$description": "アクセント色の上に載せる文字"
+          }
+        },
+        "accent": {
+          "default": {
+            "$value": "{primitive.color.indigo.300}",
+            "$description": "操作できる場所（リンク・ボタン・ページングの現在位置）だけに使う"
+          },
+          "hover": {
+            "$value": "{primitive.color.indigo.200}"
+          },
+          "subtle": {
+            "$value": "{primitive.color.indigo.950}",
+            "$description": "選択中の行・現在の言語などの薄い地"
+          }
+        },
+        "focus-ring": {
+          "$value": "{primitive.color.indigo.300}",
+          "$description": "キーボードのフォーカスの輪"
+        },
+        "danger": {
+          "default": {
+            "$value": "{primitive.color.red.400}",
+            "$description": "削除などの破壊的な操作・入力エラーの文字"
+          },
+          "subtle": {
+            "$value": "{primitive.color.red.950}",
+            "$description": "エラーの通知の地"
+          }
+        },
+        "success": {
+          "default": {
+            "$value": "{primitive.color.green.400}",
+            "$description": "成功の通知のアイコン"
+          }
+        },
+        "warning": {
+          "default": {
+            "$value": "{primitive.color.amber.400}",
+            "$description": "注意書き（スラッグを変えたときの警告・下書きの印）"
+          }
+        },
+        "overlay": {
+          "$value": "{primitive.color.black-alpha.60}",
+          "$description": "ダイアログの背景の暗幕"
+        }
+      }
+    },
+    "typography": {
+      "$type": "typography",
+      "display": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.sans}",
+          "fontSize": "{primitive.font.size.3xl}",
+          "fontWeight": "{primitive.font.weight.bold}",
+          "letterSpacing": "{primitive.font.letter-spacing.normal}",
+          "lineHeight": 1.25
+        },
+        "$description": "プロフィールの名前"
+      },
+      "heading-1": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.sans}",
+          "fontSize": "{primitive.font.size.2xl}",
+          "fontWeight": "{primitive.font.weight.bold}",
+          "letterSpacing": "{primitive.font.letter-spacing.normal}",
+          "lineHeight": 1.35
+        },
+        "$description": "詳細ページのタイトル"
+      },
+      "heading-2": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.sans}",
+          "fontSize": "{primitive.font.size.xl}",
+          "fontWeight": "{primitive.font.weight.bold}",
+          "letterSpacing": "{primitive.font.letter-spacing.normal}",
+          "lineHeight": 1.4
+        },
+        "$description": "トップのセクション見出し・本文の見出し（##）"
+      },
+      "heading-3": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.sans}",
+          "fontSize": "{primitive.font.size.lg}",
+          "fontWeight": "{primitive.font.weight.bold}",
+          "letterSpacing": "{primitive.font.letter-spacing.normal}",
+          "lineHeight": 1.5
+        },
+        "$description": "カードのタイトル・本文の見出し（###）"
+      },
+      "body": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.sans}",
+          "fontSize": "{primitive.font.size.md}",
+          "fontWeight": "{primitive.font.weight.regular}",
+          "letterSpacing": "{primitive.font.letter-spacing.normal}",
+          "lineHeight": 1.8
+        },
+        "$description": "公開側の本文（和文が読みやすいよう行間を広めに）"
+      },
+      "body-sm": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.sans}",
+          "fontSize": "{primitive.font.size.sm}",
+          "fontWeight": "{primitive.font.weight.regular}",
+          "letterSpacing": "{primitive.font.letter-spacing.normal}",
+          "lineHeight": 1.7
+        },
+        "$description": "カードの概要・抜粋"
+      },
+      "ui": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.sans}",
+          "fontSize": "{primitive.font.size.sm}",
+          "fontWeight": "{primitive.font.weight.regular}",
+          "letterSpacing": "{primitive.font.letter-spacing.normal}",
+          "lineHeight": 1.5
+        },
+        "$description": "管理画面の文字・ボタン・入力欄"
+      },
+      "label": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.sans}",
+          "fontSize": "{primitive.font.size.xs}",
+          "fontWeight": "{primitive.font.weight.medium}",
+          "letterSpacing": "{primitive.font.letter-spacing.wide}",
+          "lineHeight": 1.4
+        },
+        "$description": "種類ラベル・言語ラベル・状態のバッジ"
+      },
+      "meta": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.mono}",
+          "fontSize": "{primitive.font.size.sm}",
+          "fontWeight": "{primitive.font.weight.regular}",
+          "letterSpacing": "{primitive.font.letter-spacing.normal}",
+          "lineHeight": 1.5
+        },
+        "$description": "日付・期間・件数・ページ表示（1 / 3）"
+      },
+      "code": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.mono}",
+          "fontSize": "{primitive.font.size.sm}",
+          "fontWeight": "{primitive.font.weight.regular}",
+          "letterSpacing": "{primitive.font.letter-spacing.normal}",
+          "lineHeight": 1.7
+        },
+        "$description": "コードブロック・インラインコード"
+      }
+    },
+    "space": {
+      "$type": "dimension",
+      "gutter": {
+        "$value": "{primitive.space.4}",
+        "$description": "画面の左右の余白"
+      },
+      "section": {
+        "$value": "{primitive.space.16}",
+        "$description": "公開側のセクションどうしの間"
+      },
+      "stack": {
+        "$value": "{primitive.space.6}",
+        "$description": "公開側の項目どうしの間（ゆったり）"
+      },
+      "stack-dense": {
+        "$value": "{primitive.space.3}",
+        "$description": "管理画面の項目どうしの間（高密度）"
+      },
+      "inset": {
+        "$value": "{primitive.space.4}",
+        "$description": "カード・ダイアログの内側の余白"
+      },
+      "inset-dense": {
+        "$value": "{primitive.space.2}",
+        "$description": "テーブルのセル・小さな部品の内側の余白"
+      },
+      "inline": {
+        "$value": "{primitive.space.2}",
+        "$description": "横に並ぶ部品（ボタン・チップ・アイコン）の間"
+      }
+    },
+    "size": {
+      "$type": "dimension",
+      "content": {
+        "$value": "{primitive.size.720}",
+        "$description": "公開側の1列の最大幅（L1・L2）"
+      },
+      "header": {
+        "$value": "{primitive.size.56}",
+        "$description": "公開側の固定ヘッダーの高さ"
+      },
+      "sidebar": {
+        "$value": "{primitive.size.240}",
+        "$description": "管理画面のサイドメニューの幅"
+      },
+      "sidebar-collapsed": {
+        "$value": "{primitive.size.64}",
+        "$description": "タブレット幅でアイコンだけにしたサイドメニューの幅"
+      },
+      "control": {
+        "$value": "{primitive.size.40}",
+        "$description": "ボタン・入力欄の高さ（タップしやすい最小）"
+      },
+      "icon": {
+        "$value": "{primitive.size.20}",
+        "$description": "アイコン・技術アイコン"
+      },
+      "icon-sm": {
+        "$value": "{primitive.size.16}"
+      },
+      "avatar": {
+        "$value": "{primitive.size.96}",
+        "$description": "プロフィールの写真"
+      },
+      "thumbnail-card": {
+        "$value": "{primitive.size.128}",
+        "$description": "トップのカードのサムネイルの幅"
+      }
+    },
+    "radius": {
+      "$type": "dimension",
+      "control": {
+        "$value": "{primitive.radius.sm}",
+        "$description": "ボタン・入力欄"
+      },
+      "card": {
+        "$value": "{primitive.radius.md}",
+        "$description": "カード・ダイアログ・メニュー"
+      },
+      "image": {
+        "$value": "{primitive.radius.md}",
+        "$description": "サムネイル・本文中の画像"
+      },
+      "chip": {
+        "$value": "{primitive.radius.full}",
+        "$description": "使用技術のチップ・ラベル"
+      },
+      "avatar": {
+        "$value": "{primitive.radius.full}",
+        "$description": "写真・頭文字の丸"
+      }
+    },
+    "shadow": {
+      "$type": "shadow",
+      "$description": "装飾は最小限にするため、影は浮いている部品（メニュー・ダイアログ・トースト・ドラッグ中の行）にだけ使う。カードは枠線で区切る",
+      "overlay": {
+        "$value": {
+          "color": "{primitive.color.black-alpha.15}",
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 8,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 24,
+            "unit": "px"
+          },
+          "spread": {
+            "value": 0,
+            "unit": "px"
+          }
+        }
+      },
+      "drag": {
+        "$value": {
+          "color": "{primitive.color.black-alpha.15}",
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 4,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 12,
+            "unit": "px"
+          },
+          "spread": {
+            "value": 0,
+            "unit": "px"
+          }
+        }
+      }
+    },
+    "motion": {
+      "$type": "transition",
+      "$description": "OS で「視差効果を減らす」が有効なときは、実装側で duration を 0 にする",
+      "paging": {
+        "$value": {
+          "duration": "{primitive.duration.normal}",
+          "delay": "{primitive.duration.instant}",
+          "timingFunction": "{primitive.easing.standard}"
+        },
+        "$description": "セクション内ページングの横スライド"
+      },
+      "hover": {
+        "$value": {
+          "duration": "{primitive.duration.fast}",
+          "delay": "{primitive.duration.instant}",
+          "timingFunction": "{primitive.easing.standard}"
+        },
+        "$description": "ホバー・フォーカスの色の変化"
+      },
+      "overlay": {
+        "$value": {
+          "duration": "{primitive.duration.normal}",
+          "delay": "{primitive.duration.instant}",
+          "timingFunction": "{primitive.easing.decelerate}"
+        },
+        "$description": "ダイアログ・メニュー・トーストの出入り"
+      }
+    },
+    "aspect-ratio": {
+      "$type": "number",
+      "thumbnail": {
+        "$value": "{primitive.ratio.16x9}",
+        "$description": "サムネイルの縦横比（16:9）。カード・詳細ページ・管理画面のプレビューで共通"
+      },
+      "avatar": {
+        "$value": "{primitive.ratio.1x1}"
+      }
+    },
+    "opacity": {
+      "$type": "number",
+      "disabled": {
+        "$value": "{primitive.opacity.disabled}",
+        "$description": "無効にしたボタン（ページングの端など）"
+      }
+    },
+    "z-index": {
+      "$type": "number",
+      "base": {
+        "$value": "{primitive.z.0}"
+      },
+      "header": {
+        "$value": "{primitive.z.10}",
+        "$description": "公開側の固定ヘッダー"
+      },
+      "sidebar": {
+        "$value": "{primitive.z.20}",
+        "$description": "管理画面のサイドメニュー（モバイルで開いたとき）"
+      },
+      "overlay": {
+        "$value": "{primitive.z.40}",
+        "$description": "ダイアログ・メニュー"
+      },
+      "toast": {
+        "$value": "{primitive.z.50}"
+      }
+    }
+  }
+}
