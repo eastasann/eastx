@@ -1,0 +1,13 @@
+{
+  "enabledPlugins": {
+    "draft@draft-marketplace": true
+  },
+  "extraKnownMarketplaces": {
+    "draft-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "dwnfrc/DWNFRC-DRAFT"
+      }
+    }
+  }
+}
