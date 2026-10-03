@@ -90,6 +90,12 @@ function isRateLimitedAuthRequest(request: Request): boolean {
 }
 
 async function handleAuth(request: Request, requestId: string): Promise<Response> {
+  // update-user は CMS が使わない手続き。additionalFields の input を許すので、ここを Better Auth に
+  // 渡すと管理者のセッションから githubUserId・githubLogin を書き換えられる（SDD 5.2）。
+  // 末尾スラッシュは Better Auth 側の照合（skipTrailingSlashes）の既定に寄りかからず、ここで吸収する
+  if (new URL(request.url).pathname.replace(/\/+$/, '') === '/api/auth/update-user') {
+    return notFound(request, requestId)
+  }
   if (isRateLimitedAuthRequest(request)) {
     const { success } = await env.AUTH_RATE_LIMITER.limit({
       key: rateLimitKeyOf(request.headers.get('cf-connecting-ip')),

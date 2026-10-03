@@ -152,8 +152,7 @@ make test が通り（全手続きの 401・403 を含む）、openapi.json に 
 
 ## Step 4: 認証
 
-Status: blocked 2026-10-03
-ローカル用の GitHub OAuth App のキー（.dev.vars の GITHUB_CLIENT_ID・GITHUB_CLIENT_SECRET・ADMIN_GITHUB_USER_ID）が無く、実際の GitHub ログインのスパイク（ADR-022）を試せない。やること1〜8は実装し、キーなしで確かめられる範囲は make test と、ADMIN_GITHUB_USER_ID を仮の値にした make e2e で確認済み（make e2e は .dev.vars の ADMIN_GITHUB_USER_ID を要する）。残りは、キーを入れて管理者の登録・ログイン・管理者でないアカウントの拒否・キャンセルを試し、A1 に返る error の実際の値で SDD 5.2 の表を直し、ログインからログアウトまでを通すこと
+Status: done 2026-10-03
 
 ```
 Better Auth で GitHub ログインを実装し、管理画面を守ってください。

@@ -58,8 +58,11 @@ const createAuth = (workerEnv: Env) => {
     },
     user: {
       additionalFields: {
-        githubUserId: { type: 'string', required: true, input: false },
-        githubLogin: { type: 'string', required: true, input: false },
+        // input は許す。1.7.7 は input: false のフィールドを mapProfileToUser 由来でも受け付けず、
+        // ユーザー作成が MISSING_FIELD で落ちる（SDD 5.2）。書き換えの入口は
+        // /api/auth/update-user を Elysia で塞いで閉じる（src/api/app.ts）
+        githubUserId: { type: 'string', required: true },
+        githubLogin: { type: 'string', required: true },
       },
     },
     session: { expiresIn: SESSION_EXPIRES_IN, updateAge: SESSION_UPDATE_AGE },

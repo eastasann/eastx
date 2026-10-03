@@ -457,7 +457,7 @@
 | TanStack Start の SSR とサーバー関数が Workers で動く | 003 | React Router v7 |
 | Elysia のアダプターで `/api/*`・`/media/*` を振り分けられる（AOT は workerd で動かず `aot: false` を採用済み） | 004 | 入口から各ハンドラーを直接呼ぶ |
 | oRPC の `OpenAPIHandler`・`OpenAPILink` と、Zod v4 からの openapi.json の生成 | 005・008 | `RPCHandler` ＋ `RPCLink` に切り替え、OpenAPI は生成だけにする |
-| Better Auth の GitHub ログイン、hooks での拒否、実際のエラーコード | 009 | 5.2 のエラーコードの表を実際の値に直す |
+| Better Auth の GitHub ログイン、hooks での拒否、実際のエラーコード（1.7.7 の実ログインで確認済み。additionalFields の input: false は mapProfileToUser 由来も拒むため外し、update-user を塞ぐ形に 5.2 を直した） | 009 | 5.2 のエラーコードの表を実際の値に直す |
 | 生成したトークンでの Panda（strictTokens）のビルド | 014 | Panda の PostCSS の設定を見直す |
 | 長くコードの多い記事の Markdown の描画にかかる CPU 時間 | 012 | Shiki の言語を減らす、描画結果のキャッシュを確かめる |
 | `wrangler deploy --dry-run` でのバンドルの大きさが圧縮後 10MB に収まる | 002 | 重い依存の見直し、管理画面の依存の遅延読み込み |
@@ -559,7 +559,7 @@ Better Auth の標準のエンドポイントを使う。管理画面は `better
 | メソッド・パス | 用途 | リクエスト | レスポンス |
 |---|---|---|---|
 | `POST /api/auth/sign-in/social` | A1 の「GitHubでログイン」 | `{ "provider": "github", "callbackURL": "/admin/works/0f8c…", "errorCallbackURL": "/admin/login?redirect=%2Fadmin%2Fworks%2F0f8c…" }`（`callbackURL` は `redirect` クエリの値。なければ、`/admin` の下のパスでなければ、A1（`/admin/login`）自身なら `/admin`。`errorCallbackURL` は、`redirect` があれば `callbackURL` と同じ値を `redirect` に付けた A1、なければ `/admin/login`） | `200 { "url": "https://github.com/login/oauth/authorize?...", "redirect": true }` → クライアントが `url` へ移る |
-| `GET /api/auth/callback/github` | GitHub からの戻り | `?code=...&state=...` | 成功: `302` で `callbackURL` へ（セッションの Cookie を付ける）。失敗: `302` で `errorCallbackURL?error={コード}` へ。state が読めず `errorCallbackURL` が分からない失敗（state の期限切れ・戻りの URL の再読み込み）は `onAPIError.errorURL` の `/admin/login?error={コード}` へ |
+| `GET /api/auth/callback/github` | GitHub からの戻り | `?code=...&state=...` | 成功: `302` で `callbackURL` へ（セッションの Cookie を付ける）。失敗: `302` で `errorCallbackURL?error={コード}` へ（`error_description` が付くことがある。A1 は読まない）。state が読めず `errorCallbackURL` が分からない失敗（state の期限切れ・戻りの URL の再読み込み）は `onAPIError.errorURL` の `/admin/login?error={コード}` へ |
 | `GET /api/auth/get-session` | セッションの確認（A2〜A9 の表示前、サイドメニューの GitHub ユーザー名） | Cookie | `200 { "session": { "id", "expiresAt", … }, "user": { "id", "name", "email", "image", "githubUserId": "1234567", "githubLogin": "octocat" } }`。ないときは `200 null` |
 | `POST /api/auth/sign-out` | ログアウト | Cookie | `200 { "success": true }`。クライアントは `/admin/login?loggedOut=1` へ移る |
 
@@ -574,8 +574,9 @@ A1 での `error` と、design-spec 6.4 の状態の対応:
 
 - ログイン済みで A1 を開いたら、`redirect` の画面（なければ、または戻れない値なら `/admin`）へ移す。`error` の付いた A1 は、ログイン済みでも移さずに状態を出す（管理者でないセッションが残っているとき、A1 と管理画面の間を行き来させない）。
 - GitHub のキー（`GITHUB_CLIENT_ID`・`GITHUB_CLIENT_SECRET`）が空のときは GitHub のプロバイダーを無効にする。ログインの開始は 404 になり、A1 は通信エラーを出す。
+- `/api/auth/update-user` は Elysia が Better Auth に渡さず 404 を返す（本文は 8章の形）。CMS は使わない手続きで、`githubUserId`・`githubLogin` は GitHub のプロフィール由来だけにする（`additionalFields` の `input` を許すので、ここを塞がないと管理者のセッションから書き換えられる。値は `overrideUserInfoOnSignIn` でログインのたびに GitHub の実値に戻る）。
 
-※ Better Auth が返すコードの値は版によって変わりうるので、ADR-022 のスパイクで実際の値を確かめてこの表を直す。
+※ 1.7.7 で確認済み（ADR-022 のスパイク）: `access_denied`・`unable_to_create_user` は実際のログインで確かめた。`unable_to_create_session` はユーザーの行が残ったまま管理者 ID が変わったときだけ通る経路で、実ログインでは踏めないため 1.7.7 のソースで値を確かめた（フックの拒否自体は結合テストが確認している）。版を上げたら再確認する。
 
 レート制限: Elysia が Better Auth に渡す前に、`POST /api/auth/sign-in/*` と `GET /api/auth/callback/*` だけを `AUTH_RATE_LIMITER` で IP ごとに数える（ADR-021。キーは `cf-connecting-ip`。IPv6 は上位 64 ビット）。超えたら、ログインの開始は 429（本文は 8章の形で `{ "defined": false, "code": "TOO_MANY_REQUESTS", "status": 429, "message": … }`。oRPC の手続きの外なので `defined` は `false`）、GitHub からの戻りはブラウザの画面の移動なので `302` で `/admin/login?error=too_many_requests` へ移す。ほかのパス（`get-session`・`sign-out`）は数えない。
 
@@ -602,8 +603,10 @@ export const createAuth = (env: Env) =>
     },
     user: {
       additionalFields: {
-        githubUserId: { type: 'string', required: true, input: false },
-        githubLogin: { type: 'string', required: true, input: false },
+        // input は許す（既定）。better-auth 1.7.7 は input: false のフィールドを mapProfileToUser 由来でも
+        // 受け付けず、ユーザー作成が MISSING_FIELD で落ちる。書き換えの入口は update-user を塞いで閉じる（上の箇条書き）
+        githubUserId: { type: 'string', required: true },
+        githubLogin: { type: 'string', required: true },
       },
     },
     session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },

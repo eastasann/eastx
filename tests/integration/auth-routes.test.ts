@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { app } from '../../src/api/app'
+import { createSession } from './helpers'
 
 const SITE = 'http://localhost:3000'
 const LIMIT = 10
@@ -72,6 +73,29 @@ describe('/api/auth/*', () => {
     const res = await authRequest('/get-session', nextIp())
     expect(res.status).toBe(200)
     expect(await res.json()).toBeNull()
+  })
+
+  it('update-user は管理者のセッションがあっても Better Auth に渡さず 404（SDD 5.2）', async () => {
+    const { cookie } = await createSession({ admin: true })
+    const res = await authRequest('/update-user', nextIp(), {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ githubUserId: '1' }),
+    })
+    expect(res.status).toBe(404)
+    expect(await res.json()).toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it('update-user のパスの変種も届かない（ライブラリの照合の挙動が変わったら気づくための固定）', async () => {
+    const { cookie } = await createSession({ admin: true })
+    for (const path of ['/update-user/', '/update-user//', '//update-user', '/%75pdate-user']) {
+      const res = await authRequest(path, nextIp(), {
+        method: 'POST',
+        headers: { cookie, 'content-type': 'application/json' },
+        body: JSON.stringify({ githubUserId: '1' }),
+      })
+      expect(res.status, path).toBe(404)
+    }
   })
 })
 
