@@ -1,0 +1,53 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": [
+      "**",
+      "!docs",
+      "!styled-system",
+      "!**/*.gen.ts",
+      "!src/styles/tokens.generated.ts",
+      "!worker-configuration.d.ts",
+      "!drizzle/migrations"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "asNeeded"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": { "preset": "recommended" }
+  },
+  "overrides": [
+    {
+      "includes": ["src/site/**", "src/content/**", "src/routes/$lang/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/admin", "**/admin/**", "**/api", "**/api/**"],
+                    "message": "公開側から src/admin・src/api を import しない（ADR-020）"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

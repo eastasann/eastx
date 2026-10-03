@@ -30,7 +30,7 @@ ADR-022 のスパイク（新しいライブラリの動作確認）は、各ラ
 
 ## Step 1: 骨格と開発環境（スパイク: UI・入口・スタイル）
 
-Status:
+Status: done 2026-10-03
 
 ```
 docs/03_dev-setup.md のリポジトリ構成に従って、単一パッケージの骨格と開発環境を作ってください。
@@ -91,7 +91,7 @@ SDD の「6. データモデル」にあるスキーマを実装し、デモデ�
 3. scripts/seed/: design-spec 8章の件数とバリエーションどおりのデモデータの SQL と、ダミー画像（ローカルの R2）。
    make db-seed-empty 用の「ブログ・コーディング記録が0件」の版も作る。
    1文のパラメーターは100個まで（ADR-006）なので、複数行の insert は分ける。管理者はシードで作らない（ADR-009）
-4. make db-seed・make db-seed-empty・make db-reset の中身を入れる
+4. make db-seed・make db-seed-empty・make db-reset の中身を入れ、make setup のシード投入（docs/03 3.1）もつなぐ
 5. 結合テスト（workerd ＋ ローカル D1）: CHECK 制約（スラッグの形式・公開時に必須の項目・https）と、
    外部キーの ON DELETE CASCADE が D1 で効くこと
 

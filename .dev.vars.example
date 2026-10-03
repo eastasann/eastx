@@ -1,0 +1,17 @@
+# ローカルの環境変数の見本。`make setup` が .dev.vars にコピーする（docs/03_dev-setup.md 3.2）
+ENVIRONMENT=local
+SITE_URL=http://localhost:3000
+
+# 管理者として通す GitHub アカウントの数値 ID
+# 調べ方: curl -s https://api.github.com/users/{ユーザー名} の id
+ADMIN_GITHUB_USER_ID=
+
+# ローカル用 OAuth App（docs/03_dev-setup.md 6章）。空でもログイン以外は動く
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# openssl rand -base64 32 の出力
+BETTER_AUTH_SECRET=
+
+# 空なら Sentry に送らない
+SENTRY_DSN=

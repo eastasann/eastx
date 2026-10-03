@@ -1,0 +1,36 @@
+{
+  "name": "eastx",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@orpc/client": "1.15.4",
+    "@orpc/contract": "1.15.4",
+    "@orpc/openapi": "1.15.4",
+    "@orpc/server": "1.15.4",
+    "@orpc/zod": "1.15.4",
+    "@tanstack/react-router": "1.170.41",
+    "@tanstack/react-start": "1.168.60",
+    "elysia": "1.4.30",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@cloudflare/vite-plugin": "1.62.5",
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@pandacss/dev": "2.1.1",
+    "@pandacss/preset-base": "2.1.1",
+    "@playwright/test": "1.63.0",
+    "@tanstack/router-cli": "1.167.40",
+    "@types/node": "24.19.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "postcss": "8.5.28",
+    "typescript": "5.9.3",
+    "vite": "8.3.2",
+    "vitest": "4.1.11",
+    "wrangler": "4.147.0"
+  }
+}

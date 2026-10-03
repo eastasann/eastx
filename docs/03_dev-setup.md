@@ -87,7 +87,7 @@ eastx/
 └── wrangler.jsonc                 # Workers・バインディング・環境の設定（5章）
 ```
 
-Git に入れないもの: `.dev.vars`、`.wrangler/`（ローカルの D1・R2 のデータ）、`styled-system/`（Panda の生成物）、`src/styles/tokens.generated.ts`、`src/routeTree.gen.ts`、`dist/`、`node_modules/`。
+Git に入れないもの: `.dev.vars`、`.wrangler/`（ローカルの D1・R2 のデータ）、`styled-system/`（Panda の生成物）、`src/styles/tokens.generated.ts`、`src/routeTree.gen.ts`、`worker-configuration.d.ts`（wrangler の型）、`dist/`、`node_modules/`。
 
 ---
 
@@ -288,7 +288,7 @@ staging・本番の OAuth App は `docs/04_deployment-procedure.md` 3章。
 | `make promote ENV=staging` ／ `make promote ENV=production` | 昇格 PR 用のブランチを作り、`deploy/{ENV}/version` を書き換えてコミットする（9章）。`SHA=` で SHA を指定できる |
 
 - 「生成」は、Git に入れない生成物（2章）を作り直すこと: デザイントークンと Panda のコード（`make tokens`）、TanStack Router のルートの木（`routeTree.gen.ts`）、wrangler の型（`worker-configuration.d.ts`）。CI はチェックアウト直後に `make lint` から走るので、生成物を読むターゲットは必ず最初に生成をする。
-- テンプレートの標準ターゲットのうち `make db-push` は置かない（D1 ではマイグレーションだけを使うため。SDD ADR-007）。
+- テンプレートの標準ターゲットのうち `db-push` は置かない（D1 ではマイグレーションだけを使うため。SDD ADR-007）。
 - makeは macOS・Linux に標準搭載。Windows で開発する場合は WSL を使う。
 
 ---

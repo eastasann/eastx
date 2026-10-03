@@ -155,13 +155,13 @@
 
 ### ADR-004: HTTP の入口は Elysia（Cloudflare Worker アダプター）
 
-**決定:** `/api/*` と `/media/*` を Elysia で受ける。この構成で Elysia が受け持つのは、ルートのまとめ（`/api/auth/*` → Better Auth、`/api/admin/*` → oRPC、`/media/*` → R2）、リクエスト全体の前後処理（リクエストID・セキュリティヘッダー）、`/media/*` の処理。Cloudflare Worker アダプター（`elysia/adapter/cloudflare-worker`）を使い、モジュールのトップレベルで `.compile()` しておく。oRPC と Better Auth には本文を Elysia に読ませずに渡す（`parse: 'none'`）。
+**決定:** `/api/*` と `/media/*` を Elysia で受ける。この構成で Elysia が受け持つのは、ルートのまとめ（`/api/auth/*` → Better Auth、`/api/admin/*` → oRPC、`/media/*` → R2）、リクエスト全体の前後処理（リクエストID・セキュリティヘッダー）、`/media/*` の処理。Cloudflare Worker アダプター（`elysia/adapter/cloudflare-worker`）を `aot: false` で使う（AOT の `.compile()` は実行時のコード生成（`new Function`）を使い、workerd が拒否することを ADR-022 のスパイクで確認した）。oRPC と Better Auth には本文を Elysia に読ませずに渡す（`parse: 'none'`）。
 
 **理由:** ユーザーの指定。HTTP の入口（認証の受け口・API・画像の配信）を1か所にまとめ、`src/api/` だけで CMS API の HTTP 層が完結する。
 
 **トレードオフ:**
 - Elysia は Bun を主な実行環境としていて、Workers のアダプターは比較的新しい。Workers は実行時のコード生成（`new Function`）を許さないため、アダプターの設定に依存する。本文の解析を oRPC と Better Auth に任せるので、Elysia 自身の機能（入力の検証など）はほとんど使わず、役割が薄いわりに互換性のリスクは最も大きい。
-- 対処: ADR-022 のスパイクで、`wrangler dev` と staging の両方で動くことを確かめる。動かなければ、まず Elysia の AOT を切る（`aot: false`）。それでも駄目なら、`src/server.ts` から oRPC と Better Auth の fetch ハンドラーを直接呼ぶ形に変える。各ハンドラーは Elysia に依存しない形で書いておき、差し替えを `src/api/app.ts` の中だけで済ませる。
+- 対処: ADR-022 のスパイク（ローカル）で、AOT（`.compile()`）は workerd で動かないことを確認し、`aot: false` に切り替えた。staging でも確かめる。それでも駄目なら、`src/server.ts` から oRPC と Better Auth の fetch ハンドラーを直接呼ぶ形に変える。各ハンドラーは Elysia に依存しない形で書いておき、差し替えを `src/api/app.ts` の中だけで済ませる。
 - 捨てた案: Hono（Workers での実績が最も多い）は、ユーザーの指定により選ばなかった。
 
 ### ADR-005: 通信方式は oRPC（コントラクト先行の REST）＋ TanStack Query。公開側はサーバー関数で直接読む
@@ -454,7 +454,7 @@
 | 確かめること | 関係する ADR | 駄目だったときの代わり |
 |---|---|---|
 | TanStack Start の SSR とサーバー関数が Workers で動く | 003 | React Router v7 |
-| Elysia のアダプターで `/api/*`・`/media/*` を振り分けられる | 004 | `aot: false`、それでも駄目なら入口から各ハンドラーを直接呼ぶ |
+| Elysia のアダプターで `/api/*`・`/media/*` を振り分けられる（AOT は workerd で動かず `aot: false` を採用済み） | 004 | 入口から各ハンドラーを直接呼ぶ |
 | oRPC の `OpenAPIHandler`・`OpenAPILink` と、Zod v4 からの openapi.json の生成 | 005・008 | `RPCHandler` ＋ `RPCLink` に切り替え、OpenAPI は生成だけにする |
 | Better Auth の GitHub ログイン、hooks での拒否、実際のエラーコード | 009 | 5.2 のエラーコードの表を実際の値に直す |
 | 生成したトークンでの Panda（strictTokens）のビルド | 014 | Panda の PostCSS の設定を見直す |

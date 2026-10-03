@@ -1,0 +1,18 @@
+node_modules/
+dist/
+
+# ローカルの環境変数と wrangler の状態（docs/03_dev-setup.md 2章）
+.dev.vars
+.wrangler/
+
+# 生成物（make の「生成」が作り直す）
+styled-system/
+src/styles/tokens.generated.ts
+src/routeTree.gen.ts
+worker-configuration.d.ts
+
+# テストの出力
+test-results/
+playwright-report/
+
+.DS_Store

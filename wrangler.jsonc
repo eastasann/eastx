@@ -1,0 +1,24 @@
+// Workers・バインディング・環境の設定。トップレベルはローカル専用でデプロイしない（docs/03_dev-setup.md 5章）。
+// env.staging・env.production は Step 9（CI/CD）で足す。
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "eastx-local",
+  "main": "src/server.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "vars": { "ENVIRONMENT": "local", "SITE_URL": "http://localhost:3000" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "eastx-db-local",
+      "database_id": "local",
+      "migrations_dir": "drizzle/migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "eastx-media-local" }],
+  "ratelimits": [
+    { "name": "AUTH_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+    { "name": "ADMIN_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } }
+  ]
+}
