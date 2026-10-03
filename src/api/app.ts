@@ -1,19 +1,22 @@
 /**
  * HTTP の入口（ADR-004）。`/api/*`・`/media/*` を Elysia で受け、
- * `/api/admin/*` は oRPC の OpenAPIHandler に、本文を Elysia に読ませずに渡す（skipBodyParsing）。
+ * `/api/admin/*` は oRPC の OpenAPIHandler に、`/api/auth/*` は Better Auth に、本文を Elysia に読ませずに渡す（skipBodyParsing）。
  * `/api/admin/*` の処理の順は SDD 5.1（リクエストID → CSRF → 認証 → レート制限 → 認可）。
  */
+import { env } from 'cloudflare:workers'
 import { OpenAPIHandler } from '@orpc/openapi/fetch'
 import { ORPCError } from '@orpc/server'
 import { SimpleCsrfProtectionHandlerPlugin } from '@orpc/server/plugins'
 import { Elysia } from 'elysia'
 import { CloudflareAdapter } from 'elysia/adapter/cloudflare-worker'
+import { getAuth } from '../auth/server'
 import { API_BASE_PATH } from './constants'
 import { baseErrors } from './contract/common'
 import { UPLOAD_MAX_BYTES } from './contract/misc'
 import { clientInterceptors, handlerInterceptors, RequestBodyTooLargeError } from './errors'
 import { log } from './log'
 import { serveMedia } from './media'
+import { rateLimitKeyOf } from './rate-limit-key'
 import { router } from './router'
 
 const rpcHandler = new OpenAPIHandler(router, {
@@ -76,6 +79,36 @@ async function handleAdmin(request: Request, requestId: string): Promise<Respons
 }
 
 /**
+ * AUTH_RATE_LIMITER で数えるのはログインの開始と GitHub からの戻りだけ（SDD 5.2・ADR-021）。
+ * 画面を開くたびに呼ぶ get-session とログアウトを数えると、普段の操作で上限に当たる
+ */
+function isRateLimitedAuthRequest(request: Request): boolean {
+  const { pathname } = new URL(request.url)
+  if (request.method === 'POST') return pathname.startsWith('/api/auth/sign-in/')
+  if (request.method === 'GET') return pathname.startsWith('/api/auth/callback/')
+  return false
+}
+
+async function handleAuth(request: Request, requestId: string): Promise<Response> {
+  if (isRateLimitedAuthRequest(request)) {
+    const { success } = await env.AUTH_RATE_LIMITER.limit({
+      key: rateLimitKeyOf(request.headers.get('cf-connecting-ip')),
+    })
+    if (!success) {
+      const code = 'TOO_MANY_REQUESTS'
+      const { status, message } = baseErrors[code]
+      log('warn', { msg: message, requestId, route: `${request.method} ${new URL(request.url).pathname}`, code })
+      // GitHub からの戻りはブラウザの画面の移動なので、JSON を見せずに A1 へ戻す（通信エラーの表示。SDD 5.2）
+      if (request.method === 'GET') {
+        return new Response(null, { status: 302, headers: { location: '/admin/login?error=too_many_requests' } })
+      }
+      return Response.json({ defined: false, code, status, message }, { status })
+    }
+  }
+  return getAuth().handler(request)
+}
+
+/**
  * 手続き・ルートが見つからない。oRPC のエラー形式に合わせる（SDD 8章。message は日本語）。
  * CSRF・認証より前に返す（存在しないパスに守るものはない。SDD 5.1）
  */
@@ -102,6 +135,14 @@ export const app = new Elysia({ adapter: CloudflareAdapter, aot: false })
     async ({ request }) => {
       const requestId = requestIdOf(request)
       return withRequestId(await handleAdmin(request, requestId), requestId)
+    },
+    { parse: skipBodyParsing },
+  )
+  .all(
+    '/api/auth/*',
+    async ({ request }) => {
+      const requestId = requestIdOf(request)
+      return withRequestId(await handleAuth(request, requestId), requestId)
     },
     { parse: skipBodyParsing },
   )

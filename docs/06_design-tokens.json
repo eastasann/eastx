@@ -685,6 +685,21 @@
         }
       }
     },
+    "border-width": {
+      "$type": "dimension",
+      "1": {
+        "$value": {
+          "value": 1,
+          "unit": "px"
+        }
+      },
+      "2": {
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        }
+      }
+    },
     "duration": {
       "$type": "duration",
       "instant": {
@@ -1152,6 +1167,17 @@
       "avatar": {
         "$value": "{primitive.radius.full}",
         "$description": "写真・頭文字の丸"
+      }
+    },
+    "border-width": {
+      "$type": "dimension",
+      "default": {
+        "$value": "{primitive.border-width.1}",
+        "$description": "区切り線・カードの枠・入力欄の枠"
+      },
+      "focus-ring": {
+        "$value": "{primitive.border-width.2}",
+        "$description": "キーボードのフォーカスの輪の太さ"
       }
     },
     "shadow": {

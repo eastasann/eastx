@@ -46,6 +46,9 @@ const createAuth = (workerEnv: Env) => {
     }),
     socialProviders: {
       github: {
+        // キーが未設定のまま有効にすると、空の client_id で GitHub へ送り出してしまう。無効にしておけば
+        // ログインの開始が 404 になり、A1 は通信エラーを出す（ローカルでキーを入れる前もアプリは動く）
+        enabled: workerEnv.GITHUB_CLIENT_ID !== '' && workerEnv.GITHUB_CLIENT_SECRET !== '',
         clientId: workerEnv.GITHUB_CLIENT_ID,
         clientSecret: workerEnv.GITHUB_CLIENT_SECRET,
         // ログインのたびに GitHub のユーザー名などを最新にする
@@ -72,6 +75,9 @@ const createAuth = (workerEnv: Env) => {
         },
       },
     },
+    // state の期限切れ・戻りの URL の再読み込みなど、ログインの開始で渡した errorCallbackURL を読めない失敗の行き先。
+    // 既定の /api/auth/error（Better Auth の画面）ではなく A1 に error を付けて戻す（SDD 5.2）
+    onAPIError: { errorURL: '/admin/login' },
     advanced: { cookiePrefix: 'eastx', database: { generateId: () => crypto.randomUUID() } },
   })
 }

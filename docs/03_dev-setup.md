@@ -259,7 +259,8 @@ staging・本番の OAuth App は `docs/04_deployment-procedure.md` 3章。
 - 何をどの層で確かめるか、カバレッジの目標は SDD 10章。
 - 結合テストは、テストファイルごとにマイグレーションを当てた空の D1 で走る（`@cloudflare/vitest-pool-workers` はテストファイルごとに保存先を分ける）。同じファイルの中のテストは D1 を共有するので、ほかのテストが入れた行に頼らず、一意の値がぶつからないように書く。手元の `.wrangler/` のデータは使わない。
 - 結合テストの `ADMIN_GITHUB_USER_ID`・`BETTER_AUTH_SECRET`・GitHub のキーは `vitest.config.ts` で固定の値にする（手元の `.dev.vars` と CI の有無に左右されない）。管理者・管理者でないセッションは `tests/integration/helpers.ts` が D1 に作り、署名した Cookie を返す。
-- E2E のログインは、テスト用のヘルパーが署名済みのセッション Cookie を入れる（GitHub には行かない）。
+- E2E のログインは、`tests/e2e/fixtures.ts` の `login` がプレビューと同じローカルの D1（`.wrangler/`）にユーザーとセッションを作り、署名したセッションの Cookie をブラウザに入れる（GitHub には行かない）。`login({ admin: true })` は `.dev.vars` の `ADMIN_GITHUB_USER_ID` の管理者のセッションで、管理画面に入る流れに使う。そのため `make e2e` には `.dev.vars` の `ADMIN_GITHUB_USER_ID` が要る（空ならフィクスチャが理由を出して失敗する）。手元でログインして作った管理者の行があればそれを使い、消さない。`login()` は管理者でないユーザーのセッションで、テストごとに作って終わりに消す。
+- E2E は1つのワーカーで順に走らせる（`playwright.config.ts` の `workers: 1`）。ワーカーのプロセスとプレビューの Worker が同じ SQLite のファイルへ同時に書くと、miniflare の D1 はロックを待たずに `SQLITE_BUSY` で失敗するため。
 - CI では、どちらも PR ごとに走る（`docs/04_deployment-procedure.md` 2章）。
 
 ---

@@ -152,7 +152,8 @@ make test が通り（全手続きの 401・403 を含む）、openapi.json に 
 
 ## Step 4: 認証
 
-Status:
+Status: blocked 2026-10-03
+ローカル用の GitHub OAuth App のキー（.dev.vars の GITHUB_CLIENT_ID・GITHUB_CLIENT_SECRET・ADMIN_GITHUB_USER_ID）が無く、実際の GitHub ログインのスパイク（ADR-022）を試せない。やること1〜8は実装し、キーなしで確かめられる範囲は make test と、ADMIN_GITHUB_USER_ID を仮の値にした make e2e で確認済み（make e2e は .dev.vars の ADMIN_GITHUB_USER_ID を要する）。残りは、キーを入れて管理者の登録・ログイン・管理者でないアカウントの拒否・キャンセルを試し、A1 に返る error の実際の値で SDD 5.2 の表を直し、ログインからログアウトまでを通すこと
 
 ```
 Better Auth で GitHub ログインを実装し、管理画面を守ってください。
@@ -357,7 +358,8 @@ Status:
 3. E2E: design-spec 2.2 のコアフロー（訪問者の「何者かつかみ、作品で確かめる」と「人となりを知る」、
    管理者の「書いて公開する」）を1本ずつ。異常系の最低ライン（不正な入力のエラーの出し方・未認証の拒否・
    空の状態の表示・期限切れからの復元）。コアフローの E2E は受入スイートを兼ねるので、
-   実装の内部ではなく仕様の振る舞いで書く
+   実装の内部ではなく仕様の振る舞いで書く。管理者の流れのログインは tests/e2e/fixtures.ts の
+   login({ admin: true }) を使う。make e2e を走らせる環境（手元と CI）の .dev.vars に ADMIN_GITHUB_USER_ID が要る
 4. アクセシビリティ: P1〜P5・A1・A2 で axe の重大な違反 0件
 5. Lighthouse CI: PRD 5章の Lighthouse の目標を assert する（SDD 10章）
 6. KPI と監視: Sentry（サーバーは withSentry、ブラウザは @sentry/react、DSN はルートのローダーから。SDD 11章）と、

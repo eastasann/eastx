@@ -14,25 +14,11 @@ import { type Contract, contract } from '../../src/api/contract'
 import { getAuth } from '../../src/auth/server'
 import { getDb } from '../../src/db/client'
 import { adminSession, adminUser } from '../../src/db/schema'
+import { signCookieValue } from '../support/signed-cookie'
 
 export const BASE_URL = 'http://localhost'
 export const API_URL = `${BASE_URL}/api/admin`
 export const CSRF_HEADER = { 'x-csrf-token': 'orpc' } as const
-
-/**
- * better-call（Better Auth が使う）の署名付き Cookie と同じ形: `{トークン}.{HMAC-SHA256 の base64}` を URL エンコードしたもの
- */
-async function signCookieValue(value: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value))
-  return encodeURIComponent(`${value}.${btoa(String.fromCharCode(...new Uint8Array(signature)))}`)
-}
 
 export interface TestSession {
   userId: string

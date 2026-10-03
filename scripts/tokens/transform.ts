@@ -50,6 +50,7 @@ export function toPandaPath(path: string[]): string[] {
     space: 'spacing',
     size: 'sizes',
     radius: 'radii',
+    'border-width': 'borderWidths',
     shadow: 'shadows',
     duration: 'durations',
     easing: 'easings',

@@ -312,7 +312,7 @@
 - ダークモードは `<html data-theme="light|dark">` で切り替え、Panda の `_dark` の条件を `[data-theme=dark] &` に設定する。OS に合わせる設定のときは、`<head>` の小さなスクリプトが `prefers-color-scheme` を見て `data-theme` を描画の前に入れる。
 - ブレークポイントは design-spec 4.3 の値を `panda.config.ts` に設定する。
 - UI 部品（ダイアログ・メニュー・トースト・タブ・セレクト・スイッチ・コンボボックス・ツールチップ）は Ark UI（ヘッドレス）で作り、見た目は Panda のレシピで付ける。
-- 06 の型と Panda の対応: color → `colors`、space → `spacing`、size → `sizes`、radius → `radii`、shadow → `shadows`、duration → `durations`、cubicBezier → `easings`、opacity → `opacities`、z-index → `zIndex`、aspect-ratio → `aspectRatios`、fontFamily・fontWeight・font.size・letter-spacing → `fonts`・`fontWeights`・`fontSizes`・`letterSpacings`。typography（合成値）は Panda の `textStyles` に、transition（合成値）は `durations` と `easings` のセマンティックトークンの組に展開する。
+- 06 の型と Panda の対応: color → `colors`、space → `spacing`、size → `sizes`、radius → `radii`、border-width → `borderWidths`、shadow → `shadows`、duration → `durations`、cubicBezier → `easings`、opacity → `opacities`、z-index → `zIndex`、aspect-ratio → `aspectRatios`、fontFamily・fontWeight・font.size・letter-spacing → `fonts`・`fontWeights`・`fontSizes`・`letterSpacings`。typography（合成値）は Panda の `textStyles` に、transition（合成値）は `durations` と `easings` のセマンティックトークンの組に展開する。
 - Panda ではプリミティブ層もトークンになり、型では「セマンティック層だけを参照する」を止められない。そこでプリミティブは `primitive` の名前空間に出し、`make lint` の中で `src/` からの `primitive.` の参照を検査して止める。
 - スタイルは静的に書けるもの（`css()` に渡すオブジェクト、レシピとそのバリアント）だけにし、実行時に組み立てない。
 
@@ -440,6 +440,7 @@
 **理由:** バインディングなので保存先が要らず、ローカルでも wrangler で動く。設定が `wrangler.jsonc` に残る。
 
 **トレードオフ:**
+- IP ごとのキーは、IPv6 では上位 64 ビット（/64）にする。利用者1人に /64 がまとめて割り当てられ、その中で送り元を自由に変えられるため。
 - 数えるのは Cloudflare の拠点ごとで、正確でもない。期間は 10秒か60秒しか選べない。そのため総当たりを厳密に防ぐものではない。ログインは GitHub の OAuth でパスワードを持たないので、目的は認証の入口と API の乱用を抑えることに留める。
 - 捨てた案:
   - WAF のレート制限のルール: 拠点をまたいで数えられるが、設定がリポジトリの外（ダッシュボード）に出る。
@@ -494,7 +495,7 @@
 | `/admin/stacks`、`/admin/stacks/{id}` | `admin/_authed/stacks.index.tsx`、`stacks.$id.tsx` | A7 |
 | `/admin/blog`、`/admin/blog/{id}` | `admin/_authed/blog.index.tsx`、`blog.$id.tsx` | A8 |
 | `/admin/coding`、`/admin/coding/{id}` | `admin/_authed/coding.index.tsx`、`coding.$id.tsx` | A9 |
-| 管理画面で一致しないパス | `admin/_authed/route.tsx` の `notFoundComponent` | 画面なし。design-spec 6.6 の「存在しない管理画面の URL」の扱い |
+| 管理画面で一致しないパス | `admin/_authed/$.tsx`（スプラット。`beforeLoad` で `/admin` へ移す） | 画面なし。design-spec 6.6 の「存在しない管理画面の URL」の扱い |
 
 - 管理画面の一覧は、絞り込みをクエリで持つ: `?status=draft|published`（A4〜A6・A8・A9）、`?kind=work|education`（A4）、`?kind=learning_log|snippet|problem|memo`（A9）。ダッシュボードの下書き件数からは `?status=draft` 付きで移る。
 - `$lang` が `ja`・`en` 以外のときの C1 の言語は、design-spec 3.1 のとおりルート `/` と同じ振り分けで決める。
@@ -557,8 +558,8 @@ Better Auth の標準のエンドポイントを使う。管理画面は `better
 
 | メソッド・パス | 用途 | リクエスト | レスポンス |
 |---|---|---|---|
-| `POST /api/auth/sign-in/social` | A1 の「GitHubでログイン」 | `{ "provider": "github", "callbackURL": "/admin/works/0f8c…", "errorCallbackURL": "/admin/login" }`（`callbackURL` は `redirect` クエリの値。なければ `/admin`） | `200 { "url": "https://github.com/login/oauth/authorize?...", "redirect": true }` → クライアントが `url` へ移る |
-| `GET /api/auth/callback/github` | GitHub からの戻り | `?code=...&state=...` | 成功: `302` で `callbackURL` へ（セッションの Cookie を付ける）。失敗: `302` で `errorCallbackURL?error={コード}` へ |
+| `POST /api/auth/sign-in/social` | A1 の「GitHubでログイン」 | `{ "provider": "github", "callbackURL": "/admin/works/0f8c…", "errorCallbackURL": "/admin/login?redirect=%2Fadmin%2Fworks%2F0f8c…" }`（`callbackURL` は `redirect` クエリの値。なければ、`/admin` の下のパスでなければ、A1（`/admin/login`）自身なら `/admin`。`errorCallbackURL` は、`redirect` があれば `callbackURL` と同じ値を `redirect` に付けた A1、なければ `/admin/login`） | `200 { "url": "https://github.com/login/oauth/authorize?...", "redirect": true }` → クライアントが `url` へ移る |
+| `GET /api/auth/callback/github` | GitHub からの戻り | `?code=...&state=...` | 成功: `302` で `callbackURL` へ（セッションの Cookie を付ける）。失敗: `302` で `errorCallbackURL?error={コード}` へ。state が読めず `errorCallbackURL` が分からない失敗（state の期限切れ・戻りの URL の再読み込み）は `onAPIError.errorURL` の `/admin/login?error={コード}` へ |
 | `GET /api/auth/get-session` | セッションの確認（A2〜A9 の表示前、サイドメニューの GitHub ユーザー名） | Cookie | `200 { "session": { "id", "expiresAt", … }, "user": { "id", "name", "email", "image", "githubUserId": "1234567", "githubLogin": "octocat" } }`。ないときは `200 null` |
 | `POST /api/auth/sign-out` | ログアウト | Cookie | `200 { "success": true }`。クライアントは `/admin/login?loggedOut=1` へ移る |
 
@@ -567,12 +568,16 @@ A1 での `error` と、design-spec 6.4 の状態の対応:
 | `error` | design-spec 6.4 の状態 |
 |---|---|
 | `unable_to_create_user`、`unable_to_create_session`（管理者でないアカウントを hooks が拒否） | 管理者でないアカウント |
+| `forbidden`（管理画面の API クライアントが `FORBIDDEN` を受けてログアウトした。8章） | 管理者でないアカウント |
 | `access_denied`（GitHub 側でキャンセル） | GitHub 側でキャンセル |
-| それ以外 | 通信エラー |
+| それ以外（`session_check_failed`: 管理画面のレイアウトがセッションを確かめられなかった、`too_many_requests`: GitHub からの戻りがレート制限を超えた、を含む） | 通信エラー |
+
+- ログイン済みで A1 を開いたら、`redirect` の画面（なければ、または戻れない値なら `/admin`）へ移す。`error` の付いた A1 は、ログイン済みでも移さずに状態を出す（管理者でないセッションが残っているとき、A1 と管理画面の間を行き来させない）。
+- GitHub のキー（`GITHUB_CLIENT_ID`・`GITHUB_CLIENT_SECRET`）が空のときは GitHub のプロバイダーを無効にする。ログインの開始は 404 になり、A1 は通信エラーを出す。
 
 ※ Better Auth が返すコードの値は版によって変わりうるので、ADR-022 のスパイクで実際の値を確かめてこの表を直す。
 
-レート制限: Elysia が Better Auth に渡す前に、`POST /api/auth/sign-in/*` と `GET /api/auth/callback/*` だけを `AUTH_RATE_LIMITER` で IP ごとに数え、超えたら 429 を返す（ADR-021）。ほかのパス（`get-session`・`sign-out`）は数えない。
+レート制限: Elysia が Better Auth に渡す前に、`POST /api/auth/sign-in/*` と `GET /api/auth/callback/*` だけを `AUTH_RATE_LIMITER` で IP ごとに数える（ADR-021。キーは `cf-connecting-ip`。IPv6 は上位 64 ビット）。超えたら、ログインの開始は 429（本文は 8章の形で `{ "defined": false, "code": "TOO_MANY_REQUESTS", "status": 429, "message": … }`。oRPC の手続きの外なので `defined` は `false`）、GitHub からの戻りはブラウザの画面の移動なので `302` で `/admin/login?error=too_many_requests` へ移す。ほかのパス（`get-session`・`sign-out`）は数えない。
 
 Better Auth の設定（`src/auth/server.ts`、要点）:
 
@@ -606,6 +611,8 @@ export const createAuth = (env: Env) =>
       user: { create: { before: async (user) => (user.githubUserId === env.ADMIN_GITHUB_USER_ID ? { data: user } : false) } },
       session: { create: { before: async (session) => ((await isAdminUser(env, session.userId)) ? { data: session } : false) } },
     },
+    // errorCallbackURL を読めない失敗（state の期限切れなど）も A1 へ戻す
+    onAPIError: { errorURL: '/admin/login' },
     advanced: { cookiePrefix: 'eastx', database: { generateId: () => crypto.randomUUID() } },
   })
 ```
@@ -1607,7 +1614,7 @@ export default defineConfig({
 | 公開側の画面（P1〜P5・C1・C2）の閲覧、公開側のサーバー関数（5.11） | ✓ | ✓ | ✓ |
 | 下書きの中身の、公開側での閲覧 | ✕（404） | ✕（404） | ✕（404） |
 | `GET /media/*`（画像） | ✓ | ✓ | ✓ |
-| A1 ログイン画面 | ✓（A2 へ移す） | ✓ | ✓ |
+| A1 ログイン画面 | ✓（A2、または `redirect` の画面へ移す） | ✓ | ✓ |
 | A2〜A9 の表示 | ✓ | ✕（A1 へ。design-spec 6.4 の「管理者でないアカウント」） | ✕（A1 へ） |
 | `/api/auth/*`（ログイン開始・コールバック・セッション取得・ログアウト） | ✓ | ✓ | ✓（`admin_user` が作られるのは `ADMIN_GITHUB_USER_ID` の人だけ） |
 | `GET /api/admin/*`（ダッシュボード・一覧・詳細・スラッグ・OpenAPI） | ✓ | ✕（403） | ✕（401） |
@@ -1616,7 +1623,7 @@ export default defineConfig({
 
 - 認可は 5.1 のミドルウェアで、`/api/admin/*` の全手続きに一律にかける。手続きごとに付け外ししない。
 - 公開側のサーバー関数は、`status = 'published'` の条件を `src/content/` の中の共通のクエリ部品に入れ、個別のクエリで書き忘れないようにする。
-- 管理画面のルートガード（`beforeLoad`）は表示のためのもので、守りの正は API 側。
+- 管理画面のルートガード（`beforeLoad`）は表示のためのもので、守りの正は API 側。ガードが見るのはセッションの有無だけで、管理者かどうかは見ない（クライアントは `ADMIN_GITHUB_USER_ID` を知らない）。A2〜A9 は表示のときに CMS API を呼ぶので、管理者でないセッションはその `FORBIDDEN` で A1 の「管理者でないアカウント」へ移る（8章）。
 
 #### その他の設計判断
 
@@ -1699,7 +1706,7 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 |-----------|----------|
 | バリデーションエラー | `INPUT_VALIDATION_FAILED` → `fieldErrors` のキーに対応する入力欄の下に赤字で出す。`PUBLISH_REQUIREMENTS_NOT_MET` → 足りない項目を一覧で出し、該当する言語タブと入力欄に印を付ける。`SLUG_CONFLICT` → スラッグ欄の下に出し、`suggestion` を候補として示す |
 | 通信・サーバーエラー | 管理画面: design-spec 6.5〜6.7.4 の「取得に失敗」「保存に失敗」「削除に失敗」「並べ替えの保存に失敗」の表示。入力は消さない。公開側: C2 |
-| 認可エラー | `UNAUTHORIZED` → design-spec 6.4 の「ログインの有効期限切れ」の流れ。編集中ならフォームの状態を localStorage の `eastx:backup:{種類}:{id か new}` に一時保存してから、`/admin/login?redirect={今のパス}` へ移す。`FORBIDDEN` → ログアウトして、A1 に design-spec 6.4 の「管理者でないアカウント」の表示 |
+| 認可エラー | `UNAUTHORIZED` → design-spec 6.4 の「ログインの有効期限切れ」の流れ。編集中ならフォームの状態を localStorage の `eastx:backup:{種類}:{id か new}` に一時保存してから、`/admin/login?redirect={今のパス}` へ移す。`FORBIDDEN` → ログアウトして（失敗しても）、`/admin/login?error=forbidden` に移して design-spec 6.4 の「管理者でないアカウント」の表示 |
 | 想定外のエラー | Sentry に送る。管理画面は通信・サーバーエラーと同じ表示、公開側は C2。開発中（`ENVIRONMENT=local`）だけ詳細を出す |
 
 ### ログとの対応

@@ -5,6 +5,8 @@ export default defineConfig({
   test: {
     projects: [
       {
+        // src/ の ~/ の別名（tsconfig.json の paths）を vite.config.ts と同じ方法で解決する
+        resolve: { tsconfigPaths: true },
         test: {
           name: 'unit',
           environment: 'node',

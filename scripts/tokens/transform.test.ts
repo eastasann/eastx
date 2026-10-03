@@ -22,6 +22,7 @@ describe('toPandaPath', () => {
     expect(toPandaPath(['primitive', 'color', 'neutral', '900'])).toEqual(['colors', 'primitive', 'neutral', '900'])
     expect(toPandaPath(['primitive', 'space', '4'])).toEqual(['spacing', 'primitive', '4'])
     expect(toPandaPath(['primitive', 'radius', 'md'])).toEqual(['radii', 'primitive', 'md'])
+    expect(toPandaPath(['semantic', 'border-width', 'default'])).toEqual(['borderWidths', 'default'])
     expect(toPandaPath(['primitive', 'font', 'family', 'sans'])).toEqual(['fonts', 'primitive', 'sans'])
     expect(toPandaPath(['primitive', 'font', 'letter-spacing', 'wide'])).toEqual([
       'letterSpacings',
