@@ -1204,9 +1204,10 @@ const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`
 const slugFormat = (col: unknown) =>
   sql`${col} is null or (${col} <> '' and ${col} not glob '*[^a-z0-9-]*')`
 const yearMonthFormat = (col: unknown) =>
-  sql`${col} is null or ${col} glob '[0-9][0-9][0-9][0-9]-[01][0-9]'`
-const httpsOrNull = (col: unknown) => sql`${col} is null or ${col} like 'https://%'`
-const mediaOrNull = (col: unknown) => sql`${col} is null or ${col} like '/media/%'`
+  sql`${col} is null or (${col} glob '[0-9][0-9][0-9][0-9]-[01][0-9]' and substr(${col}, 6, 2) between '01' and '12')`
+// LIKE は ASCII の大文字小文字を区別しない（'/MEDIA/...' が通る）ので、前方一致は GLOB で見る
+const httpsOrNull = (col: unknown) => sql`${col} is null or ${col} glob 'https://*'`
+const mediaOrNull = (col: unknown) => sql`${col} is null or ${col} glob '/media/*'`
 
 // ---- profile ----------------------------------------------------------
 export const profile = sqliteTable(
@@ -1247,7 +1248,7 @@ export const socialLink = sqliteTable(
   },
   (t) => [
     check('social_link_service', sql`${t.service} in (${inList(SOCIAL_SERVICES)})`),
-    check('social_link_url', sql`${t.url} like 'https://%'`),
+    check('social_link_url', sql`${t.url} glob 'https://*'`),
     check('social_link_other_label', sql`${t.service} <> 'other' or ${t.label} is not null`),
     index('social_link_sort_idx').on(t.sortOrder),
   ],
@@ -1727,7 +1728,7 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 | レイヤー | ツール | カバレッジ目標 | 対象 |
 |----------|--------|---------------|------|
 | ユニット | Vitest（Node.js 環境） | `src/domain/`・`src/i18n/`・`src/markdown/` の行カバレッジ 90% | スラッグの生成と重複の連番、言語ありの判定と代替、抜粋の作り方、公開状態の遷移（5.3）と公開のルール、日付・期間の書式、Markdown の描画（生の HTML・`javascript:`・見出しのレベル・外部リンク） |
-| API 結合 | Vitest ＋ `@cloudflare/vitest-pool-workers`（workerd 上で、ローカルの D1・R2 を使う。テストごとにマイグレーションを適用） | `/api/admin/*` の全手続きについて、未認証で 401・管理者でないセッションで 403 になるテストを必ず持つ（認可マトリクスの照合）。主要な手続きの正常系とエラー系 | CMS API の全手続き、Better Auth の hooks（管理者でない ID を拒否）、アップロードの形式・上限、`/media/*` |
+| API 結合 | Vitest ＋ `@cloudflare/vitest-pool-workers`（workerd 上で、ローカルの D1・R2 を使う。テストファイルごとにマイグレーションを当てた空の D1） | `/api/admin/*` の全手続きについて、未認証で 401・管理者でないセッションで 403 になるテストを必ず持つ（認可マトリクスの照合）。主要な手続きの正常系とエラー系 | CMS API の全手続き、Better Auth の hooks（管理者でない ID を拒否）、アップロードの形式・上限、`/media/*` |
 | 公開側の読み取り | 同上 | 各サーバー関数の正常系と、下書き・詳細本文なしが返らないこと | 公開中だけを返す、並び順、前後のナビ、言語の代替 |
 | E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元 |
 | アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P5・A1・A2 で重大（serious 以上）な違反 0件 | 自動で検出できる範囲 |

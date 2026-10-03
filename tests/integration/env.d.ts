@@ -1,6 +1,2 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
-
-// cloudflare:test の env に wrangler.jsonc のバインディングの型を付ける
-declare module 'cloudflare:test' {
-  interface ProvidedEnv extends Env {}
-}
+// cloudflare:test の env は Cloudflare.Env（wrangler types が wrangler.jsonc のバインディングから生成）で型が付く

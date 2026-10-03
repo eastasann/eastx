@@ -19,13 +19,12 @@ routetree:
 wrangler-types:
 	bunx wrangler types
 
-# デモデータの投入（db-seed）は、シードのスクリプトができる Step 2 で setup につなぐ
-# （docs/03_dev-setup.md 3.1 が定める setup の完成形。docs/claude-code-prompts.md Step 2）
 setup:
 	bun install
 	test -f .dev.vars || cp .dev.vars.example .dev.vars
 	$(MAKE) gen
 	$(MAKE) db-migrate
+	$(MAKE) db-seed
 	bunx playwright install chromium
 	git config core.hooksPath .githooks
 
@@ -38,10 +37,12 @@ build: gen
 test: gen
 	bunx vitest run
 
-# デモデータの投入は Step 2（シード）、アクセシビリティ（axe）と Lighthouse CI は Step 10 で足す
-# （docs/03_dev-setup.md 7章が定める e2e の完成形。docs/claude-code-prompts.md Step 2・10）
+# アクセシビリティ（axe）と Lighthouse CI は Step 10 で足す
+# （docs/03_dev-setup.md 7章が定める e2e の完成形。docs/claude-code-prompts.md Step 10）
 e2e: gen
 	bunx vite build
+	$(MAKE) db-migrate
+	$(MAKE) db-seed
 	bunx playwright test
 
 lint: gen
@@ -55,14 +56,12 @@ typecheck: gen
 format:
 	bunx biome format --write .
 
-# drizzle-kit の依存と drizzle.config.ts は Step 2 で入れる（docs/claude-code-prompts.md）
 db-generate:
 	bunx drizzle-kit generate
 
 db-migrate:
 	bunx wrangler d1 migrations apply eastx-db-local --local
 
-# seed のスクリプトは Step 2 で作る（docs/claude-code-prompts.md）
 db-seed:
 	bun scripts/seed/seed.ts
 
@@ -74,8 +73,10 @@ db-reset:
 	$(MAKE) db-migrate
 	$(MAKE) db-seed
 
+# 既定のポート（4983）を別のプロセスが使っているときは make db-studio STUDIO_PORT=4984 のように変える
+STUDIO_PORT ?= 4983
 db-studio:
-	bunx drizzle-kit studio
+	bunx drizzle-kit studio --port $(STUDIO_PORT)
 
 doc-lint:
 	scripts/doc-lint.sh --docs

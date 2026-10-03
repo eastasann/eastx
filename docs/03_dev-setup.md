@@ -149,10 +149,10 @@ Worker が読む値。ローカルは `.dev.vars`、staging・本番は `wrangle
 |---|---|
 | `make db-generate` | `src/db/schema.ts` の変更から、drizzle-kit で `drizzle/migrations/` に SQL を生成する。生成した SQL は必ず読んでからコミットする |
 | `make db-migrate` | 未適用のマイグレーションをローカルの D1 に適用する |
-| `make db-seed` | デモデータ（design-spec 8章）をローカルの D1 に入れ、ダミー画像をローカルの R2 に置く。既存のデータは消してから入れる |
+| `make db-seed` | デモデータ（design-spec 8章）をローカルの D1 に入れ、ダミー画像をローカルの R2 に置く。中身のテーブル（プロフィール〜コーディング記録）は消してから入れる。管理者・セッションのテーブルと R2 の既存の画像は残す。`make setup`・`make e2e` もこれを呼ぶので、ローカルの管理画面で手で入れた中身は消える。`CLOUDFLARE_ENV` が設定されていると止まる |
 | `make db-seed-empty` | ブログとコーディング記録を0件にしたデモデータを入れる（セクションとメニューが消えることの確認用） |
 | `make db-reset` | ローカルの D1 を消して、マイグレーションの適用とデモデータの投入をやり直す |
-| `make db-studio` | Drizzle Studio でローカルの D1 を開く |
+| `make db-studio` | Drizzle Studio でローカルの D1 を開く（https://local.drizzle.studio）。ポート（既定 4983）がふさがっていれば `STUDIO_PORT=` で変える |
 
 - 管理者はシードで作らない（SDD ADR-009）。ログインの準備は6章。
 - スキーマを変えたら `make db-generate` → `make db-migrate` の順。`drizzle-kit push` は使わない（SDD ADR-007）。
@@ -257,7 +257,7 @@ staging・本番の OAuth App は `docs/04_deployment-procedure.md` 3章。
 | `make e2e` | ビルドしたアプリをローカルで起動し、デモデータを入れて、Playwright（Chromium）で E2E とアクセシビリティの検査、Lighthouse CI で PRD 5章の Lighthouse の目標の検査を走らせる |
 
 - 何をどの層で確かめるか、カバレッジの目標は SDD 10章。
-- 結合テストは、テストごとにマイグレーションを当てた空の D1 で走る。手元の `.wrangler/` のデータは使わない。
+- 結合テストは、テストファイルごとにマイグレーションを当てた空の D1 で走る（`@cloudflare/vitest-pool-workers` はテストファイルごとに保存先を分ける）。同じファイルの中のテストは D1 を共有するので、ほかのテストが入れた行に頼らず、一意の値がぶつからないように書く。手元の `.wrangler/` のデータは使わない。
 - E2E のログインは、テスト用のヘルパーが署名済みのセッション Cookie を入れる（GitHub には行かない）。
 - CI では、どちらも PR ごとに走る（`docs/04_deployment-procedure.md` 2章）。
 

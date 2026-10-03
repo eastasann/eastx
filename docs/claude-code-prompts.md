@@ -78,7 +78,7 @@ make setup が通り、make dev で http://localhost:3000 が /ja か /en に 30
 
 ## Step 2: D1 スキーマ + シード
 
-Status:
+Status: done 2026-10-03
 
 ```
 SDD の「6. データモデル」にあるスキーマを実装し、デモデータを入れられるようにしてください。

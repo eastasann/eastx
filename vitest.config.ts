@@ -1,4 +1,4 @@
-import { cloudflareTest } from '@cloudflare/vitest-pool-workers'
+import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
@@ -13,7 +13,7 @@ export default defineConfig({
       },
       {
         plugins: [
-          cloudflareTest({
+          cloudflareTest(async () => ({
             // バインディングは wrangler.jsonc（トップレベル = ローカル）から読む。
             // main は wrangler.jsonc から継承させない: src/server.ts は TanStack Start の
             // 仮想モジュールに依存し、Vite のビルドの外ではバンドルできない。
@@ -23,12 +23,17 @@ export default defineConfig({
             // pool が同梱する workerd は 2026-08-22 までしか対応しない。
             // wrangler.jsonc の compatibility_date（2026-09-01）はそのままに、テストだけ上限に合わせる。
             // pool の更新で外せるようになったら外す
-            miniflare: { compatibilityDate: '2026-08-22' },
-          }),
+            miniflare: {
+              compatibilityDate: '2026-08-22',
+              // テストファイルごとに空の D1 へ当てる（tests/integration/setup.ts）。docs/03_dev-setup.md 7章
+              bindings: { TEST_MIGRATIONS: await readD1Migrations('./drizzle/migrations') },
+            },
+          })),
         ],
         test: {
           name: 'integration',
           include: ['tests/integration/**/*.test.ts'],
+          setupFiles: ['./tests/integration/setup.ts'],
         },
       },
     ],
