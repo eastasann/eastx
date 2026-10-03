@@ -295,7 +295,7 @@ Status: done 2026-10-04
 
 ## Step 8: 管理画面の長文の編集（A5・A6・A8・A9）
 
-Status:
+Status: done 2026-10-04
 
 ```
 Markdown を書いて公開する管理画面（L5）を実装してください。

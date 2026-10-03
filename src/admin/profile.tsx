@@ -27,6 +27,7 @@ import {
 } from './editor'
 import { isNotFoundError } from './errors'
 import { ImageField, MarkdownField, SelectField, TextField } from './fields'
+import { rebaseValues } from './form-values'
 import { FormLayout } from './layouts'
 import { SortableList } from './sortable'
 
@@ -108,7 +109,10 @@ function ProfileEditor({ initial }: { initial: Profile | null }) {
   const queryClient = useQueryClient()
   const [saved, setSaved] = useState(initial)
   const [baseline, setBaseline] = useState(() => toForm(initial))
-  const form = useForm({ defaultValues: baseline })
+  // useForm の既定値は、最後に reset に渡した値と同じに保つ。違うと、TanStack Form は描画のたびに既定値が
+  // 変わったとみなし、触っていないフォームの値を既定値で上書きする（保存を待つあいだの入力が消える）
+  const [formDefaults, setFormDefaults] = useState(baseline)
+  const form = useForm({ defaultValues: formDefaults })
   const values = useStore(form.store, (state) => state.values)
   const save = useSaveState()
   const session = useEditSession({
@@ -120,7 +124,8 @@ function ProfileEditor({ initial }: { initial: Profile | null }) {
   })
 
   function submit() {
-    const body = toBody(form.state.values)
+    const sent = form.state.values
+    const body = toBody(sent)
     return save.run('save', {
       check: () => checkWithSchema(profileInput, body),
       request: () => api.profile.update(body),
@@ -128,7 +133,9 @@ function ProfileEditor({ initial }: { initial: Profile | null }) {
         const next = toForm(output)
         setSaved(output)
         setBaseline(next)
-        form.reset(next)
+        const merged = rebaseValues(sent, form.state.values, next)
+        setFormDefaults(merged)
+        form.reset(merged)
         session.clearBackup()
         queryClient.setQueryData(['profile'], output)
       },

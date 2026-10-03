@@ -2,12 +2,11 @@
  * 管理画面のレイアウト（design-spec 4.1・4.3）。L3 はログイン（A1）、L4〜L6 はサイドメニューの右側の中身。
  * サイドメニューを含む外枠は AdminShell で、`admin/_authed/route.tsx` が置く
  */
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useId, useRef, useState } from 'react'
 import { css } from 'styled-system/css'
 import { Dialog } from '~/ui/dialog'
 import { MenuIcon } from '~/ui/icons'
 import { button } from '~/ui/recipes'
-import { Tabs } from '~/ui/tabs'
 import { Toaster } from '~/ui/toast'
 import { MEDIA, useMediaQuery } from '~/ui/use-media-query'
 import { SidebarContent } from './sidebar'
@@ -165,42 +164,116 @@ export interface SplitEditLayoutProps extends Omit<AdminPageProps, 'children'> {
   fields: ReactNode
   editor: ReactNode
   preview: ReactNode
+  /** 画面に場所を持たないもの（確認ダイアログなど） */
+  children?: ReactNode
 }
 
 /**
  * L5 サイドメニュー＋2ペイン編集。基本項目の下を「Markdownエディタ ／ プレビュー」に分ける。
- * モバイル幅ではタブで切り替える。2つ描くとエディタの状態が分かれるので、幅に合わせてどちらか一方だけを描く
+ * モバイル幅ではタブで切り替える。エディタは幅が変わっても同じ場所に描いたまま、見せる・隠すだけを変える
+ * （別の要素の下へ描き直すと、エディタが作り直されて元に戻す履歴とアップロード中の画像の行き先が消える）
  */
-export function SplitEditLayout({ back, title, actions, fields, editor, preview }: SplitEditLayoutProps) {
+export function SplitEditLayout({ back, title, actions, fields, editor, preview, children }: SplitEditLayoutProps) {
   const isMobile = useMediaQuery(MEDIA.mobile)
+  const [pane, setPane] = useState<Pane>('editor')
+  const id = useId()
+  const tabs = useRef<Record<Pane, HTMLButtonElement | null>>({ editor: null, preview: null })
+  const panes: { value: Pane; label: string; content: ReactNode }[] = [
+    { value: 'editor', label: 'エディタ', content: editor },
+    { value: 'preview', label: 'プレビュー', content: preview },
+  ]
+
+  function select(next: Pane) {
+    setPane(next)
+    tabs.current[next]?.focus()
+  }
+
   return (
     <div className={page}>
       <Toolbar back={back} title={title} actions={actions} />
       {fields}
-      {isMobile ? (
-        <Tabs
-          label="本文"
-          items={[
-            { value: 'editor', label: 'エディタ', content: editor },
-            { value: 'preview', label: 'プレビュー', content: preview },
-          ]}
-        />
-      ) : (
+      {isMobile && (
         <div
+          role="tablist"
+          aria-label="本文"
           className={css({
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-            gap: 'stack-dense',
-            alignItems: 'start',
+            display: 'flex',
+            gap: 'inline',
+            borderBottomWidth: 'default',
+            borderBottomStyle: 'solid',
+            borderBottomColor: 'border.default',
           })}
         >
-          <section aria-label="エディタ">{editor}</section>
-          <section aria-label="プレビュー">{preview}</section>
+          {panes.map((item) => (
+            <button
+              key={item.value}
+              ref={(element) => {
+                tabs.current[item.value] = element
+              }}
+              type="button"
+              role="tab"
+              id={`${id}-${item.value}-tab`}
+              aria-selected={pane === item.value}
+              aria-controls={`${id}-${item.value}`}
+              tabIndex={pane === item.value ? 0 : -1}
+              onClick={() => setPane(item.value)}
+              onKeyDown={(event) => {
+                // 2つだけなので、左右どちらの矢印でももう一方へ移る（Ark UI のタブと同じ操作）
+                if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                  event.preventDefault()
+                  select(item.value === 'editor' ? 'preview' : 'editor')
+                }
+              }}
+              className={paneTab}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       )}
+      <div
+        className={css({
+          display: 'grid',
+          gridTemplateColumns: { base: 'minmax(0, 1fr)', tablet: 'minmax(0, 1fr) minmax(0, 1fr)' },
+          gap: 'stack-dense',
+          alignItems: 'start',
+        })}
+      >
+        {panes.map((item) => (
+          <section
+            key={item.value}
+            id={`${id}-${item.value}`}
+            {...(isMobile
+              ? { role: 'tabpanel', 'aria-labelledby': `${id}-${item.value}-tab` }
+              : { 'aria-label': item.label })}
+            hidden={isMobile && pane !== item.value}
+          >
+            {item.content}
+          </section>
+        ))}
+      </div>
+      {children}
     </div>
   )
 }
+
+type Pane = 'editor' | 'preview'
+
+// 見た目は src/ui/tabs.tsx のタブにそろえる
+const paneTab = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  h: 'control',
+  px: 'inset-dense',
+  textStyle: 'ui',
+  color: 'text.muted',
+  cursor: 'pointer',
+  borderBottomWidth: 'emphasis',
+  borderBottomStyle: 'solid',
+  borderBottomColor: 'transparent',
+  _hover: { color: 'text.default' },
+  '&[aria-selected=true]': { color: 'accent.default', borderBottomColor: 'accent.default' },
+})
 
 /** L6 サイドメニュー＋フォーム。右に1列のフォーム */
 export function FormLayout({ back, title, actions, children }: AdminPageProps) {

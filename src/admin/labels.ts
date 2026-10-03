@@ -1,7 +1,7 @@
 /**
  * 管理画面の表示の文言（design-spec 6.5〜6.7）。管理画面は日本語だけなので辞書にしない（SDD 9章）
  */
-import type { CAREER_KINDS } from '~/db/schema'
+import type { CAREER_KINDS, CODING_LOG_KINDS } from '~/db/schema'
 import type { Languages } from '~/domain/languages'
 import type { Status } from '~/domain/publishing'
 
@@ -37,3 +37,10 @@ export const NOTICES = {
   pageNotFound: 'ページが見つかりませんでした',
   sessionExpired: 'ログインの有効期限が切れました。入力中の内容はこのブラウザに一時保存してあります',
 } as const
+
+export const CODING_LOG_KIND_LABELS: Record<(typeof CODING_LOG_KINDS)[number], string> = {
+  learning_log: '学習ログ',
+  snippet: 'コード断片',
+  problem: '問題を解いた記録',
+  memo: '技術メモ',
+}

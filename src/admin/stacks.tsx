@@ -25,11 +25,13 @@ import {
   RestoreBanner,
   SaveActions,
   SaveProblems,
+  useEditorKey,
   useEditSession,
   useSaveState,
 } from './editor'
 import { isAuthError, isNotFoundError } from './errors'
 import { ImageField, SwitchField, TextField } from './fields'
+import { rebaseValues } from './form-values'
 import { NOTICES } from './labels'
 import { FormLayout, ListLayout } from './layouts'
 import { AdminLink } from './link'
@@ -160,6 +162,7 @@ export function StackEditPage({ id }: { id: string }) {
     queryFn: () => api.stacks.get({ params: { id } }),
     enabled: !isNew,
   })
+  const editor = useEditorKey(id)
   const back = <BackLink href={LIST_HREF}>使用技術一覧</BackLink>
   const disabledActions = <SaveActions pending={null} disabled onSave={() => {}} />
 
@@ -181,16 +184,19 @@ export function StackEditPage({ id }: { id: string }) {
       </FormLayout>
     )
   }
-  return <StackEditor key={id} initial={isNew ? null : (query.data ?? null)} />
+  return <StackEditor key={editor.key} onCreated={editor.markCreated} initial={isNew ? null : (query.data ?? null)} />
 }
 
-function StackEditor({ initial }: { initial: Stack | null }) {
+function StackEditor({ initial, onCreated }: { initial: Stack | null; onCreated: (id: string) => void }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [saved, setSaved] = useState(initial)
   const [baseline, setBaseline] = useState(() => toForm(initial))
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const form = useForm({ defaultValues: baseline })
+  // useForm の既定値は、最後に reset に渡した値と同じに保つ。違うと、TanStack Form は描画のたびに既定値が
+  // 変わったとみなし、触っていないフォームの値を既定値で上書きする（保存を待つあいだの入力が消える）
+  const [formDefaults, setFormDefaults] = useState(baseline)
+  const form = useForm({ defaultValues: formDefaults })
   const values = useStore(form.store, (state) => state.values)
   const save = useSaveState()
   const session = useEditSession({
@@ -202,7 +208,8 @@ function StackEditor({ initial }: { initial: Stack | null }) {
   })
 
   function submit() {
-    const body = form.state.values
+    const sent = form.state.values
+    const body = sent
     return save.run('save', {
       // 識別名は A7 では必須（design-spec 6.7.3）。作成の API は省けるが、それは A5・A6 の「新しい技術として追加」のため
       check: () => checkWithSchema(stackUpdateInput, body),
@@ -211,12 +218,15 @@ function StackEditor({ initial }: { initial: Stack | null }) {
         const next = toForm(output)
         setSaved(output)
         setBaseline(next)
-        form.reset(next)
+        const merged = rebaseValues(sent, form.state.values, next)
+        setFormDefaults(merged)
+        form.reset(merged)
         session.clearBackup()
         queryClient.setQueryData(['stacks', 'item', output.id], output)
         void queryClient.invalidateQueries({ queryKey: LIST_KEY })
         void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
         if (saved === null) {
+          onCreated(output.id)
           await session.leave(() => navigate({ to: '/admin/stacks/$id', params: { id: output.id }, replace: true }))
         }
       },

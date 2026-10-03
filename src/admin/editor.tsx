@@ -235,10 +235,15 @@ export function LanguageTabs({
   languages,
   problems,
   panels,
+  value,
+  onValueChange,
 }: {
   languages: Languages
   problems: Record<Lang, boolean>
   panels: Record<Lang, ReactNode>
+  /** 選んでいる言語。L5 はタブの外の本文のエディタも同じ言語に切り替えるので、外で持つ */
+  value?: Lang
+  onValueChange?: (lang: Lang) => void
 }) {
   const tabLabel = (lang: Lang) => (
     <>
@@ -251,6 +256,10 @@ export function LanguageTabs({
   return (
     <Tabs
       label="入力する言語"
+      value={value}
+      onValueChange={(next) => {
+        if (next === 'ja' || next === 'en') onValueChange?.(next)
+      }}
       items={(['ja', 'en'] as const).map((lang) => ({
         value: lang,
         label: tabLabel(lang),
@@ -538,4 +547,27 @@ export function EditNotFound({ listHref }: { listHref: string }) {
       </AdminLink>
     </div>
   )
+}
+
+/**
+ * 編集ビューの部品の key。開いている項目（URL の id）が変わったら部品を作り直すが、新規作成で初めて保存して
+ * URL を作成した項目のものに置き換えたとき（SDD 4.1）は作り直さない。作り直すと、保存の応答を待つあいだの入力と
+ * 元に戻す履歴が消える。同じ id へ戻ってきたときも作り直すよう、key は開いた回ごとに変える
+ */
+export function useEditorKey(id: string) {
+  const state = useRef({ id, key: `${id}:0`, createdId: null as string | null, count: 0 })
+  if (state.current.id !== id) {
+    const keep = state.current.createdId === id
+    const count = state.current.count + 1
+    state.current = { id, key: keep ? state.current.key : `${id}:${count}`, createdId: null, count }
+  }
+  return {
+    key: state.current.key,
+    /** 新規作成の初めての保存で、URL を置き換える前に呼ぶ */
+    markCreated(createdId: string) {
+      // 新規作成のビューを開いたままのときだけ覚える。保存の応答の前に別の項目へ移っていたら、その項目の部品を
+      // 作成した項目の URL で使い回してしまうので覚えない
+      if (state.current.id === 'new') state.current.createdId = createdId
+    },
+  }
 }

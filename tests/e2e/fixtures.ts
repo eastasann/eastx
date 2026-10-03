@@ -38,6 +38,28 @@ interface TestFixtures {
   login: (options?: LoginOptions) => Promise<LoggedInUser>
 }
 
+const BUSY_RETRY_MS = 100
+const BUSY_RETRY_LIMIT = 50
+
+function isBusy(error: unknown): boolean {
+  for (let cause: unknown = error; cause instanceof Error; cause = cause.cause) {
+    if (cause.message.includes('SQLITE_BUSY')) return true
+  }
+  return false
+}
+
+/** SQLITE_BUSY のあいだは待ってやり直す。ほかのエラーと、待っても空かないときはそのまま投げる */
+async function whenUnlocked<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run()
+    } catch (error) {
+      if (!isBusy(error) || attempt >= BUSY_RETRY_LIMIT) throw error
+      await new Promise((resolve) => setTimeout(resolve, BUSY_RETRY_MS))
+    }
+  }
+}
+
 export const test = base.extend<TestFixtures, WorkerFixtures>({
   local: [
     // biome-ignore lint/correctness/noEmptyPattern: Playwright のフィクスチャは第1引数の分割代入を要る
@@ -135,9 +157,15 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
     // login は context より後に用意されるので、context より先に片付く。開いたままのページ（ダッシュボードの読み込みなど）が
     // プレビューの Worker を通して同じ D1 のファイルを読み書きしていると、ここの書き込みが SQLITE_BUSY で落ちるので、先に閉じる
+    // ページを閉じても、Worker がすでに受けた要求（ダッシュボードの読み込みなど）は D1 への読み書きを続けていることがあり、
+    // miniflare の D1 はロックを待たないので、そのあいだは SQLITE_BUSY が返る。終わるのを待ってやり直す
     for (const opened of context.pages()) await opened.close()
-    for (const id of sessionIds) await local.db.delete(schema.adminSession).where(eq(schema.adminSession.id, id))
-    for (const id of createdUserIds) await local.db.delete(schema.adminUser).where(eq(schema.adminUser.id, id))
+    for (const id of sessionIds) {
+      await whenUnlocked(() => local.db.delete(schema.adminSession).where(eq(schema.adminSession.id, id)))
+    }
+    for (const id of createdUserIds) {
+      await whenUnlocked(() => local.db.delete(schema.adminUser).where(eq(schema.adminUser.id, id)))
+    }
   },
 })
 

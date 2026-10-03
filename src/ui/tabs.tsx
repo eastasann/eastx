@@ -1,6 +1,6 @@
 /**
  * タブ（Ark UI の Tabs に見た目を付けたもの）。矢印キーでの移動と、タブとパネルの関連付けは Ark UI が持つ。
- * 管理画面の言語タブ（6.7）と、モバイル幅の L5 のエディタ／プレビューの切り替えに使う
+ * 管理画面の言語タブ（6.7）に使う
  */
 import { Tabs as ArkTabs } from '@ark-ui/react/tabs'
 import type { ReactNode } from 'react'

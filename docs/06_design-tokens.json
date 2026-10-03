@@ -645,6 +645,12 @@
           "unit": "px"
         }
       },
+      "400": {
+        "$value": {
+          "value": 400,
+          "unit": "px"
+        }
+      },
       "720": {
         "$value": {
           "value": 720,
@@ -1152,6 +1158,10 @@
       "thumbnail-card": {
         "$value": "{primitive.size.128}",
         "$description": "トップのカードのサムネイルの幅"
+      },
+      "editor": {
+        "$value": "{primitive.size.400}",
+        "$description": "L5 の Markdown エディタとプレビューの最小の高さ"
       }
     },
     "radius": {

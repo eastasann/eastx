@@ -69,3 +69,24 @@ export function formatAdminYearMonth(value: string): string {
   yearMonthToDate(value)
   return value.replace('-', '/')
 }
+
+/** 日本時間のオフセット。Asia/Tokyo は夏時間を持たないので固定 */
+const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000
+
+/** 日時 → 日時の入力欄（`<input type="datetime-local">`）の値。日本時間の分まで（`2026-09-12T19:00`） */
+export function toTokyoDateTimeInput(value: DateInput): string {
+  return new Date(toDate(value).getTime() + TOKYO_OFFSET_MS).toISOString().slice(0, 16)
+}
+
+const DATE_TIME_INPUT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/
+
+/**
+ * 日時の入力欄の値（日本時間）→ API に送る ISO 8601（`+09:00` 付き）。空なら null。
+ * 入力欄の形でない値は、API の入力チェックで理由を出すためにそのまま返す
+ */
+export function fromTokyoDateTimeInput(value: string): string | null {
+  if (value === '') return null
+  const match = DATE_TIME_INPUT.exec(value)
+  if (!match) return value
+  return `${value}${match[1] === undefined ? ':00' : ''}+09:00`
+}

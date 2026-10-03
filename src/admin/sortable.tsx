@@ -1,5 +1,5 @@
 /**
- * フォームの中の並べ替え（SNS リンク。design-spec 6.7.2）。dnd-kit でドラッグとキーボードで並べ替える（ADR-015）。
+ * フォームの中の並べ替え（SNS リンク、作品・プロジェクトの使用技術のチップ。design-spec 6.7.2）。dnd-kit でドラッグとキーボードで並べ替える（ADR-015）。
  * 一覧ビューの行の並べ替えは src/admin/list-view.tsx が持つ
  */
 import {
@@ -14,6 +14,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import {
+  rectSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
@@ -28,6 +29,10 @@ import { button } from '~/ui/recipes'
 export const SORT_INSTRUCTIONS =
   'スペースキーで持ち上げ、上下の矢印キーで動かし、もう一度スペースキーで置きます。Esc でやめます'
 
+/** 横に並べて折り返す並び（チップ）は、左右の矢印キーでも動く */
+const WRAP_SORT_INSTRUCTIONS =
+  'スペースキーで持ち上げ、矢印キーで動かし、もう一度スペースキーで置きます。Esc でやめます'
+
 export interface SortableListProps<T> {
   items: T[]
   getId: (item: T) => string
@@ -38,9 +43,24 @@ export interface SortableListProps<T> {
   renderItem: (item: T, index: number, handle: ReactNode) => ReactNode
   /** 並びの読み上げ名 */
   label: string
+  /** `column` は縦に1列（SNS リンク）、`wrap` は横に並べて折り返す（チップ） */
+  layout?: 'column' | 'wrap'
 }
 
-export function SortableList<T>({ items, getId, getLabel, onMove, renderItem, label }: SortableListProps<T>) {
+const listLayouts = {
+  column: css({ display: 'flex', flexDirection: 'column', gap: 'inline' }),
+  wrap: css({ display: 'flex', flexWrap: 'wrap', gap: 'inline' }),
+}
+
+export function SortableList<T>({
+  items,
+  getId,
+  getLabel,
+  onMove,
+  renderItem,
+  label,
+  layout = 'column',
+}: SortableListProps<T>) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -71,10 +91,13 @@ export function SortableList<T>({ items, getId, getLabel, onMove, renderItem, la
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
-      accessibility={{ announcements, screenReaderInstructions: { draggable: SORT_INSTRUCTIONS } }}
+      accessibility={{
+        announcements,
+        screenReaderInstructions: { draggable: layout === 'column' ? SORT_INSTRUCTIONS : WRAP_SORT_INSTRUCTIONS },
+      }}
     >
-      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <ul aria-label={label} className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
+      <SortableContext items={ids} strategy={layout === 'column' ? verticalListSortingStrategy : rectSortingStrategy}>
+        <ul aria-label={label} className={listLayouts[layout]}>
           {items.map((item, index) => (
             <SortableItem key={getId(item)} id={getId(item)} label={getLabel(item, index)}>
               {(handle) => renderItem(item, index, handle)}

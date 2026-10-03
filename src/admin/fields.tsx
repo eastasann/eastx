@@ -2,18 +2,18 @@
  * 編集ビューの入力欄（design-spec 6.7）。欄の下に入力チェックの理由（赤字）と、公開に足りない項目の印を出す（6.7.3）。
  * 値は文字列で持ち、空文字のまま API に送る（サーバーが空を null にする。SDD 5.0）
  */
-import { type ChangeEvent, type DragEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import { type ChangeEvent, type DragEvent, type ReactNode, useId, useRef, useState } from 'react'
 import { css, cx } from 'styled-system/css'
 import { UPLOAD_CONTENT_TYPES, UPLOAD_MAX_BYTES, UPLOAD_MESSAGES } from '~/api/contract/misc'
 import type { Lang } from '~/i18n/detect'
 import { FallbackImage } from '~/ui/image'
-import { MarkdownBody } from '~/ui/markdown-body'
 import { button, input } from '~/ui/recipes'
 import { Select, type SelectOption } from '~/ui/select'
 import { Switch } from '~/ui/switch'
 import { toaster } from '~/ui/toast'
 import { api } from './api'
 import { isAuthError, saveFailureOf } from './errors'
+import { MarkdownPreview } from './markdown-preview'
 
 export interface FieldStateProps {
   /** 入力チェックの理由（design-spec 6.7.3） */
@@ -25,6 +25,8 @@ export interface FieldStateProps {
 interface ShellProps extends FieldStateProps {
   label: string
   htmlFor?: string
+  /** label 要素に結びつけられない入力欄（CodeMirror）が aria-labelledby で読む ID */
+  labelId?: string
   hint?: ReactNode
   /** 欄の下の文（hint とエラーの読み上げ）を入力欄と結びつけるための ID */
   describedBy: string
@@ -33,11 +35,20 @@ interface ShellProps extends FieldStateProps {
 
 const MISSING_MESSAGE = '公開に必要です'
 
-function FieldShell({ label, htmlFor, hint, errors = [], missing = false, describedBy, children }: ShellProps) {
+export function FieldShell({
+  label,
+  htmlFor,
+  labelId,
+  hint,
+  errors = [],
+  missing = false,
+  describedBy,
+  children,
+}: ShellProps) {
   const messages = [...errors, ...(missing && errors.length === 0 ? [MISSING_MESSAGE] : [])]
   return (
     <div className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
-      <label htmlFor={htmlFor} className={css({ textStyle: 'label' })}>
+      <label id={labelId} htmlFor={htmlFor} className={css({ textStyle: 'label' })}>
         {label}
       </label>
       {children}
@@ -53,7 +64,7 @@ function FieldShell({ label, htmlFor, hint, errors = [], missing = false, descri
   )
 }
 
-function invalidOf({ errors = [], missing = false }: FieldStateProps): boolean {
+export function invalidOf({ errors = [], missing = false }: FieldStateProps): boolean {
   return errors.length > 0 || missing
 }
 
@@ -63,7 +74,9 @@ export interface TextFieldProps extends FieldStateProps {
   onChange: (value: string) => void
   /** 入力欄の name（API の fieldErrors のキー。ADR-008） */
   name: string
-  type?: 'text' | 'url' | 'month'
+  type?: 'text' | 'url' | 'month' | 'datetime-local'
+  /** 日付・日時の欄の上限 */
+  max?: string
   placeholder?: string
   hint?: ReactNode
   disabled?: boolean
@@ -76,6 +89,7 @@ export function TextField({
   onChange,
   name,
   type = 'text',
+  max,
   placeholder,
   hint,
   disabled,
@@ -89,6 +103,7 @@ export function TextField({
         id={id}
         name={name}
         type={type}
+        max={max}
         value={value}
         placeholder={placeholder}
         disabled={disabled}
@@ -102,7 +117,7 @@ export function TextField({
   )
 }
 
-export interface TextAreaFieldProps extends Omit<TextFieldProps, 'type'> {
+export interface TextAreaFieldProps extends Omit<TextFieldProps, 'type' | 'max'> {
   rows?: number
 }
 
@@ -136,12 +151,8 @@ export function TextAreaField({
   )
 }
 
-/** プレビューの「コピー」ボタンの文言（管理画面は日本語） */
-const COPY_LABELS = { copy: 'コピー', copied: 'コピーしました', copyFailed: 'コピーできませんでした' }
-
 /**
- * Markdown の欄（L6）。ボタンで入力とプレビューを切り替える（design-spec 4.1・6.7.1）。
- * 描画は公開側と同じ関数で行い（ADR-012）、Shiki を含むのでプレビューを開いたときに初めて読み込む
+ * Markdown の欄（L6）。ボタンで入力とプレビューを切り替える（design-spec 4.1・6.7.1）
  */
 export function MarkdownField({
   label,
@@ -154,26 +165,6 @@ export function MarkdownField({
   ...state
 }: TextAreaFieldProps) {
   const [preview, setPreview] = useState(false)
-  const [html, setHtml] = useState<string | null>(null)
-  const [failed, setFailed] = useState(false)
-
-  useEffect(() => {
-    if (!preview) return
-    let active = true
-    setHtml(null)
-    setFailed(false)
-    import('~/markdown/render')
-      .then(({ renderMarkdown }) => renderMarkdown(value, { lang, siteOrigin: window.location.origin }))
-      .then((rendered) => {
-        if (active) setHtml(rendered)
-      })
-      .catch(() => {
-        if (active) setFailed(true)
-      })
-    return () => {
-      active = false
-    }
-  }, [preview, value, lang])
 
   return (
     <div className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
@@ -194,7 +185,6 @@ export function MarkdownField({
         >
           <p className={css({ textStyle: 'label' })}>{label}（プレビュー）</p>
           <div
-            aria-busy={html === null && !failed}
             className={css({
               p: 'inset',
               borderWidth: 'default',
@@ -203,13 +193,7 @@ export function MarkdownField({
               borderRadius: 'control',
             })}
           >
-            {failed ? (
-              <p className={css({ textStyle: 'body-sm', color: 'danger.default' })}>プレビューを表示できませんでした</p>
-            ) : html === null ? (
-              <p className={css({ textStyle: 'body-sm', color: 'text.muted' })}>プレビューを準備しています…</p>
-            ) : (
-              <MarkdownBody html={html} copyLabels={COPY_LABELS} lang={lang} />
-            )}
+            <MarkdownPreview markdown={value} lang={lang} />
           </div>
         </section>
       ) : (

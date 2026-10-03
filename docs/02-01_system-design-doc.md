@@ -330,7 +330,7 @@
 ### ADR-015: 管理画面のエディタは CodeMirror 6、並べ替えは dnd-kit
 
 **決定:**
-- Markdown のエディタは CodeMirror 6（`@codemirror/lang-markdown`）。React とのつなぎは自前の薄い部品（`EditorView` を `useEffect` で作る）にする。画像の貼り付け・ドロップでアップロードし、カーソルの位置に画像の記法を入れる処理を拡張で足す。
+- Markdown のエディタは CodeMirror 6（`@codemirror/lang-markdown`）。React とのつなぎは自前の薄い部品（`EditorView` を `useEffect` で作る）にする。画像の貼り付け・ドロップでアップロードし、カーソルの位置に画像の記法を入れる処理を拡張で足す。CodeMirror は自分の基本のスタイルを CSS のレイヤーの外に入れ、それが Panda のレイヤーの中のスタイルに勝つので、CodeMirror が値を持つプロパティ（余白・高さ・キャレットの色・フォント・フォーカスの枠）は Panda から `!important` を付けたトークンで上書きする（ADR-014 のトークンだけで見た目を付ける方針はそのまま）。
 - 一覧の並べ替えと、作品・プロジェクトの使用技術のチップの並べ替えは、dnd-kit の安定版（`@dnd-kit/core`・`@dnd-kit/sortable`）で行い、キーボードでも並べ替えられるようにする。
 
 **理由:** CodeMirror 6 は拡張で貼り付けやドロップを扱いやすく、軽い。つなぎを自前にするのは、貼り付けの拡張とエディタの作り直しのタイミングを自分で決めるため。dnd-kit はキーボード操作と読み上げに対応している。

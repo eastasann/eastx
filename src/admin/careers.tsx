@@ -30,11 +30,13 @@ import {
   PublishActions,
   RestoreBanner,
   SaveProblems,
+  useEditorKey,
   useEditSession,
   useSaveState,
 } from './editor'
 import { isAuthError, isNotFoundError } from './errors'
 import { MarkdownField, SelectField, TextField } from './fields'
+import { rebaseValues } from './form-values'
 import { CAREER_KIND_LABELS, displayTitle, languagesLabel, NOTICES, STATUS_LABELS } from './labels'
 import { FormLayout, ListLayout } from './layouts'
 import { AdminLink } from './link'
@@ -194,6 +196,7 @@ export function CareerEditPage({ id }: { id: string }) {
     queryFn: () => api.careers.get({ params: { id } }),
     enabled: !isNew,
   })
+  const editor = useEditorKey(id)
   const back = <BackLink href={LIST_HREF}>経歴一覧</BackLink>
   const disabledActions = (
     <PublishActions status={null} pending={null} disabled hideStatus onSave={() => {}} onUnpublish={() => {}} />
@@ -217,16 +220,19 @@ export function CareerEditPage({ id }: { id: string }) {
       </FormLayout>
     )
   }
-  return <CareerEditor key={id} initial={isNew ? null : (query.data ?? null)} />
+  return <CareerEditor key={editor.key} onCreated={editor.markCreated} initial={isNew ? null : (query.data ?? null)} />
 }
 
-function CareerEditor({ initial }: { initial: Career | null }) {
+function CareerEditor({ initial, onCreated }: { initial: Career | null; onCreated: (id: string) => void }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [saved, setSaved] = useState(initial)
   const [baseline, setBaseline] = useState(() => toForm(initial))
   const [confirm, setConfirm] = useState<'unpublish' | 'delete' | null>(null)
-  const form = useForm({ defaultValues: baseline })
+  // useForm の既定値は、最後に reset に渡した値と同じに保つ。違うと、TanStack Form は描画のたびに既定値が
+  // 変わったとみなし、触っていないフォームの値を既定値で上書きする（保存を待つあいだの入力が消える）
+  const [formDefaults, setFormDefaults] = useState(baseline)
+  const form = useForm({ defaultValues: formDefaults })
   const values = useStore(form.store, (state) => state.values)
   const save = useSaveState()
   const session = useEditSession({
@@ -238,6 +244,7 @@ function CareerEditor({ initial }: { initial: Career | null }) {
   })
 
   function submit(action: Transition) {
+    const sent = form.state.values
     const status: Status = action === 'publish' || action === 'update' ? 'published' : 'draft'
     const body = { ...form.state.values, status }
     return save.run(action, {
@@ -248,13 +255,16 @@ function CareerEditor({ initial }: { initial: Career | null }) {
         const next = toForm(output)
         setSaved(output)
         setBaseline(next)
-        form.reset(next)
+        const merged = rebaseValues(sent, form.state.values, next)
+        setFormDefaults(merged)
+        form.reset(merged)
         session.clearBackup()
         queryClient.setQueryData(['careers', 'item', output.id], output)
         void queryClient.invalidateQueries({ queryKey: ['careers', 'list'] })
         void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
         // 新規作成で初めて保存したら、URL を作成した項目のものに置き換える（SDD 4.1）
         if (saved === null) {
+          onCreated(output.id)
           await session.leave(() => navigate({ to: '/admin/careers/$id', params: { id: output.id }, replace: true }))
         }
       },

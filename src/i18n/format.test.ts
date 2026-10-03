@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { formatAdminDate, formatAdminYearMonth, formatDate, formatPeriod, formatYearMonth } from './format'
+import {
+  formatAdminDate,
+  formatAdminYearMonth,
+  formatDate,
+  formatPeriod,
+  formatYearMonth,
+  fromTokyoDateTimeInput,
+  toTokyoDateTimeInput,
+} from './format'
 
 describe('formatYearMonth', () => {
   it('日本語は「2026年9月」、英語は「Sep 2026」', () => {
@@ -56,5 +64,23 @@ describe('管理画面の表記', () => {
   it('年月は「2026/09」', () => {
     expect(formatAdminYearMonth('2026-09')).toBe('2026/09')
     expect(() => formatAdminYearMonth('2026/09')).toThrow(RangeError)
+  })
+})
+
+describe('toTokyoDateTimeInput・fromTokyoDateTimeInput', () => {
+  it('日本時間の分までの入力値にする（UTC の 15:00 は翌日の 0:00）', () => {
+    expect(toTokyoDateTimeInput('2026-09-11T15:00:37.123Z')).toBe('2026-09-12T00:00')
+    expect(toTokyoDateTimeInput(Date.UTC(2026, 8, 12, 10, 5))).toBe('2026-09-12T19:05')
+  })
+
+  it('入力値を日本時間のオフセット付きの ISO 8601 にする', () => {
+    expect(fromTokyoDateTimeInput('2026-09-12T19:05')).toBe('2026-09-12T19:05:00+09:00')
+    expect(fromTokyoDateTimeInput('2026-09-12T19:05:30')).toBe('2026-09-12T19:05:30+09:00')
+    expect(new Date(fromTokyoDateTimeInput('2026-09-12T00:00') ?? '').toISOString()).toBe('2026-09-11T15:00:00.000Z')
+  })
+
+  it('空は null、入力欄の形でない値はそのまま返す', () => {
+    expect(fromTokyoDateTimeInput('')).toBeNull()
+    expect(fromTokyoDateTimeInput('2026/09/12')).toBe('2026/09/12')
   })
 })
