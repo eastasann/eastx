@@ -28,9 +28,10 @@ staged_checks() {
   # 1. 追加行の先送りマーカー
   #    規律文がマーカー名に言及するファイル(CLAUDE.md・prompts.md・このスクリプト)だけを除外する。
   #    PRD/FDD等のドキュメントに残った未記入のTODOは検出対象
-  #    bun.lock はハッシュの base64 が偶然 XXX 等を含むため除外する(機械生成物で手書きのマーカーは入らない)
+  #    bun.lock はハッシュの base64 が偶然 XXX 等を含むため除外する(機械生成物で手書きのマーカーは入らない)。
+  #    -w で語として一致させる(mktemp のテンプレート XXXXXX や HACKY のような語中を拾わない)
   hits=$(added_lines . ':(exclude)CLAUDE.md' ':(exclude)docs/claude-code-prompts.md' ':(exclude)docs/_adopt-survey.md' ':(exclude)scripts/doc-lint.sh' ':(exclude)bun.lock' \
-    | grep -E 'TODO|FIXME|HACK|XXX' || true)
+    | grep -wE 'TODO|FIXME|HACK|XXX' || true)
   if [ -n "$hits" ]; then
     finding '追加行に先送りマーカー(TODO/FIXME/HACK/XXX)がある:'
     printf '%s\n' "$hits" | head -20
