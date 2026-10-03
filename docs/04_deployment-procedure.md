@@ -1,0 +1,215 @@
+# Deployment Procedure — eastx
+
+構成は `docs/02-01_system-design-doc.md`（以下 SDD）、ブランチ戦略とリリースフローの方針は `docs/03_dev-setup.md` 9章。このドキュメントは、デプロイの仕組み・初回の準備・リリースとロールバックの手順を持つ。
+
+## 1. 環境一覧
+
+| 環境 | URL | サービス | DB | デプロイ方法 |
+|------|-----|----------|-----|-------------|
+| ローカル | http://localhost:3000 | `make dev`（Vite ＋ Cloudflare プラグイン、workerd） | ローカルの D1（`.wrangler/state/`）、ローカルの R2 | なし |
+| staging | https://x-staging.eastasian.dev | Worker `eastx-staging`（`wrangler.jsonc` の `env.staging`） | D1 `eastx-db-staging`、R2 `eastx-media-staging` | 昇格 PR（`deploy/staging/version`）のマージ |
+| 本番 | https://x.eastasian.dev | Worker `eastx`（`env.production`） | D1 `eastx-db`、R2 `eastx-media` | 昇格 PR（`deploy/production/version`）のマージ |
+
+- staging のデータは、本番と同じ移行の手順で入れたもの（本番の移行の予行を兼ねる。3章 Step 7）と、確認のために管理画面で入れたもの。デモデータ（design-spec 8章）はローカルと E2E だけで使う。本番は今のサイトから移したデータで動かす（design-spec 9章）。
+- staging は検索エンジンに載せない（SDD ADR-019）。
+
+## 2. CI/CD パイプライン
+
+リリースは、環境ごとのバージョン宣言ファイル `deploy/{環境}/version`（中身は `main` のコミット SHA）の更新をきっかけにする。**`main` へのマージではデプロイしない。**
+
+```
+[feature/fix の PR]
+    └── ci.yml（lint → 型 → テスト → ビルド → E2E）
+
+[main へ squash マージ]
+    └── ci.yml（同上。デプロイはしない）
+
+[昇格 PR（deploy/staging/version を更新）]
+    ├── ci.yml の promotion-check（SHA が main の祖先か）
+    └── マージ → deploy.yml → staging にデプロイ
+
+[昇格 PR（deploy/production/version を更新）]
+    ├── ci.yml の promotion-check（SHA が main の祖先で、staging に出したことがあるか）
+    └── マージ → deploy.yml → 本番にデプロイ
+        （ロールバック ＝ 昇格 PR の revert）
+```
+
+### CI/CD ワークフロー
+
+**ci.yml**（全 PR と `main` への push）:
+
+```
+bun install（--frozen-lockfile）→ make lint → make typecheck → make test → make build → make e2e
+```
+
+`deploy/*/version` だけを変えた PR では、上の代わりに promotion-check を走らせる:
+
+- 書かれた値が40桁の SHA で、`main` の祖先であること
+- 本番のときは、その SHA が `deploy/staging/version` の過去の値（`git log -p deploy/staging/version`）にあること
+
+**deploy.yml**（`main` への push で、`deploy/*/version` が変わったとき。手動実行もできる）:
+
+```
+変わった環境ごとに:
+  1. deploy/{環境}/version から SHA を読み、その SHA をチェックアウト
+  2. bun install（--frozen-lockfile）
+  3. D1 のマイグレーションを適用（wrangler d1 migrations apply DB --env {環境} --remote）
+  4. CLOUDFLARE_ENV={環境} でビルド（make build）
+  5. wrangler deploy（メッセージに SHA を入れる）
+  6. 疎通確認（/ja・/en が 200、/api/auth/get-session が 200）
+```
+
+- マイグレーションはビルドの前に当てる。ビルド後は Cloudflare プラグインが書き出したデプロイ用の設定が優先され、`--env` が効かなくなるため。
+- マイグレーションが失敗したら、その時点で止まる（デプロイしない）。
+- 同じ環境のデプロイが重ならないよう、`concurrency: deploy-{環境}` を付ける。
+
+## 3. 初回クラウドセットアップ
+
+IaC ツールは使わず、wrangler CLI とダッシュボードで準備し、結果を `wrangler.jsonc` に書く（SDD ADR-017）。手元で `bunx wrangler login` してから行う。
+
+### Step 1: Cloudflare アカウントとドメイン
+
+1. Cloudflare のアカウントで Workers Paid プランに入る（SDD ADR-002）。
+2. `eastasian.dev` をゾーンとして追加し、レジストラーでネームサーバーを Cloudflare のものに変える（すでに Cloudflare なら不要）。
+3. `x` と `x-staging` の DNS レコードが既にあれば消しておく（Custom Domain を作るときにぶつかるため）。
+
+### Step 2: D1 と R2 を作る
+
+```bash
+# D1（場所のヒントはアジア太平洋）
+bunx wrangler d1 create eastx-db-staging --location apac
+bunx wrangler d1 create eastx-db --location apac
+
+# R2（場所のヒントはアジア太平洋）
+bunx wrangler r2 bucket create eastx-media-staging --location apac
+bunx wrangler r2 bucket create eastx-media --location apac
+```
+
+出てきた D1 の `database_id` を、`wrangler.jsonc` の `env.staging` と `env.production` に書く（`docs/03_dev-setup.md` 5章）。R2 は公開アクセスを有効にしない（Worker の `/media/*` から配信する。SDD ADR-010）。
+
+### Step 3: GitHub の OAuth App（staging 用・本番用）
+
+`docs/03_dev-setup.md` 6章と同じ手順で、2つ作る。
+
+| OAuth App | Homepage URL | Authorization callback URL |
+|---|---|---|
+| `eastx (staging)` | `https://x-staging.eastasian.dev` | `https://x-staging.eastasian.dev/api/auth/callback/github` |
+| `eastx` | `https://x.eastasian.dev` | `https://x.eastasian.dev/api/auth/callback/github` |
+
+Client ID は `wrangler.jsonc` の各環境の `vars.GITHUB_CLIENT_ID` に、自分の GitHub の数値 ID は `vars.ADMIN_GITHUB_USER_ID` に書く。
+
+### Step 4: シークレットを登録する
+
+```bash
+# staging
+bunx wrangler secret put BETTER_AUTH_SECRET --env staging     # openssl rand -base64 32 の出力
+bunx wrangler secret put GITHUB_CLIENT_SECRET --env staging
+
+# 本番（staging とは別の値にする）
+bunx wrangler secret put BETTER_AUTH_SECRET --env production
+bunx wrangler secret put GITHUB_CLIENT_SECRET --env production
+```
+
+Worker がまだないときは、`secret put` が Worker を作るか聞いてくるので、作ってよい。
+
+### Step 5: Sentry
+
+1. Sentry にプロジェクト（プラットフォームは Cloudflare Workers）を作り、DSN を `wrangler.jsonc` の各環境の `vars.SENTRY_DSN` に書く。
+2. SDD 11章の設定で Uptime Monitoring を作る（アラートの条件は `docs/05_operation-runbook.md` 2章）。
+3. アラートの通知先を自分のメールにする。
+
+### Step 6: GitHub Secrets の設定
+
+| Secret 名 | 内容 |
+|----------|------|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare の API トークン。テンプレート「Edit Cloudflare Workers」に、D1 の Edit を足したもの（Workers Scripts・Workers Routes・Workers R2 Storage・D1・Account Settings の読み取り） |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare のアカウント ID |
+
+### Step 7: 最初のデプロイとデータの移行
+
+1. Step 2〜5 の値を書いた `wrangler.jsonc` を、通常の PR で `main` に入れる。
+2. `make promote ENV=staging` で昇格 PR を作ってマージする。Custom Domain（DNS レコードと証明書）はこのデプロイで作られる。
+3. https://x-staging.eastasian.dev/admin から GitHub でログインする（初回のログインで管理者が登録される。SDD ADR-009）。この時点では中身が空で、トップには何も出ない。
+4. staging にデータを移す（本番の予行）。変換スクリプト（`scripts/migrate-legacy/`）が作った SQL と画像を入れる。
+
+   ```bash
+   # データ（移したものは下書きで入る。design-spec 9章）
+   bunx wrangler d1 execute DB --env staging --remote --file {変換スクリプトが出した SQL}
+   # 画像（変換スクリプトが出した一覧の1件ずつ）
+   bunx wrangler r2 object put eastx-media-staging/uploads/legacy/{ファイル名} --remote --file {ローカルのファイル}
+   ```
+
+5. staging の管理画面で中身を確かめて公開し、6章のデプロイ後確認をする。
+6. `make promote ENV=production` で本番に出し、3〜5 と同じ手順（`--env production`、R2 は `eastx-media`）でログイン・データの移行・確認・公開をする。
+
+## 4. リリース前チェックリスト
+
+昇格 PR を作る前に確かめる。
+
+- [ ] 対象の SHA で CI が緑（`main` の該当コミットのチェック）
+- [ ] マイグレーションがある場合、生成した SQL を読み、古いコードのままでも壊れない形になっている（`docs/03_dev-setup.md` 4章）
+- [ ] 新しい環境変数・シークレットがある場合、`wrangler.jsonc` の `vars` に書いた、または `wrangler secret put` で登録した（対象の環境すべて）
+- [ ] `wrangler.jsonc` の変更がある場合、差分（バインディング・ルート）を確かめた
+- [ ] 本番の場合: 同じ SHA を staging に出し、変更した画面とコアフローを確かめた
+- [ ] 昇格 PR に、`docs/03_dev-setup.md` 9章の「PR ルール」の記載事項を書いた
+- [ ] PR のセルフレビューが済んだ
+
+## 5. ロールバック手順
+
+### 通常のロールバック（環境プロモーション）
+
+`deploy/{環境}/version` を前の SHA に戻す PR（昇格 PR の revert）をマージする。デプロイと同じパイプラインが走るので、これが基本の手段。D1 のマイグレーションは戻らないので、前の SHA のコードが今のスキーマで動くこと（4章のチェック）が前提になる。
+
+### アプリケーションの緊急ロールバック
+
+PR を待てないときは、Worker の前のバージョンに直接戻す。
+
+```bash
+# デプロイの履歴を見る（本番。staging は --name eastx-staging）
+bunx wrangler deployments list --name eastx
+
+# 直前のバージョンに戻す（バージョン ID を指定すれば、そのバージョンに戻す）
+bunx wrangler rollback --name eastx --message "rollback: <理由>"
+```
+
+戻したあと、`deploy/production/version` を実際に動いている SHA に合わせる PR を必ず出す（宣言と実体をずらしたままにしない）。
+
+### インフラのロールバック
+
+`wrangler.jsonc` の変更は、それを含む昇格 PR の revert で戻る。D1・R2 そのものの作成・削除は手作業なので、消す操作は行わない。
+
+### DB のロールバック
+
+マイグレーションに戻す仕組みはない。データやスキーマを戻す必要があるときは、D1 の Time Travel（Paid で30日分）で、問題の前の時点に戻す。
+
+```bash
+# 今のブックマーク（戻すときの基準）を見る
+bunx wrangler d1 time-travel info DB --env production
+
+# 指定した時点に戻す（UNIX 時刻か RFC 3339）
+bunx wrangler d1 time-travel restore DB --env production --timestamp=2026-10-01T09:00:00+09:00
+```
+
+その時点より後に管理画面で保存した内容は失われるので、戻す前に `bunx wrangler d1 export DB --env production --remote --output backup.sql` で今のデータを書き出しておく。
+
+## 6. デプロイ後確認
+
+deploy.yml の疎通確認（2章）に加えて、手で確かめる。
+
+- [ ] `/ja` と `/en` のトップが出て、各セクションの中身が正しい
+- [ ] 詳細ページ（作品・プロジェクト・ブログ・コーディング記録）を1つずつ開ける
+- [ ] 存在しない URL で C1（404）が出る
+- [ ] 管理画面に GitHub でログインでき、ダッシュボードが出る
+- [ ] 今回変えた画面・機能が動く（staging で確かめ済みなら、本番では主要な画面だけでよい）
+- [ ] Sentry に新しいエラーが出ていない。`bunx wrangler tail eastx --status error`（staging は `eastx-staging`）でエラーが流れていない
+
+## 7. 緊急時連絡先
+
+| 役割 | 担当 | 連絡手段 |
+|------|------|----------|
+| 開発者・運用（自分） | 持ち主 | Sentry のアラートのメール |
+| Cloudflare の障害 | — | https://www.cloudflarestatus.com |
+| GitHub（Actions・OAuth）の障害 | — | https://www.githubstatus.com |
+| Sentry の障害 | — | https://status.sentry.io |
+
+※ 1人開発のため、Sentry のアラート（エラー・稼働監視）をメールで受けて対応する（`docs/05_operation-runbook.md` 5章）。
