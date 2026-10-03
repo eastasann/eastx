@@ -13,6 +13,8 @@ export interface MenuItem {
   value: string
   label: ReactNode
   href?: string
+  /** リンクを別タブで開く（公開サイトで見る） */
+  external?: boolean
   /** リンクを押したときの処理（ルーターでの移動など）。既定の移動を止めるときは event.preventDefault() */
   onClick?: (event: MouseEvent<HTMLAnchorElement>) => void
   /** 今いる場所の項目に付ける */
@@ -47,6 +49,8 @@ export function Menu({ trigger, triggerClassName, triggerLabel, items, onSelect 
                 <ArkMenu.Item key={item.value} value={item.value} disabled={item.disabled} asChild>
                   <a
                     href={item.href}
+                    target={item.external ? '_blank' : undefined}
+                    rel={item.external ? 'noopener noreferrer' : undefined}
                     onClick={item.onClick}
                     aria-current={item.current ? 'page' : undefined}
                     className={optionItem}

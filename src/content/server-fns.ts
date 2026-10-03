@@ -13,6 +13,7 @@ import { getDb } from '~/db/client'
 import { isSlug } from '~/domain/slug'
 import { isLang, type Lang } from '~/i18n/detect'
 import { type DetailInput, loadProjectDetail, loadWorkDetail } from './portfolio-detail'
+import { loadBlogPost, loadCodingLog } from './post-detail'
 import type { ContentContext } from './shared'
 import { loadSiteChrome } from './site-chrome'
 import { loadTopPage } from './top-page'
@@ -70,3 +71,11 @@ export const getWorkDetail = createServerFn({ method: 'GET' })
 export const getProjectDetail = createServerFn({ method: 'GET' })
   .validator(validateDetailInput)
   .handler(({ data }) => guarded('getProjectDetail', () => loadProjectDetail(contentContext(), data)))
+
+export const getBlogPost = createServerFn({ method: 'GET' })
+  .validator(validateDetailInput)
+  .handler(({ data }) => guarded('getBlogPost', () => loadBlogPost(contentContext(), data)))
+
+export const getCodingLog = createServerFn({ method: 'GET' })
+  .validator(validateDetailInput)
+  .handler(({ data }) => guarded('getCodingLog', () => loadCodingLog(contentContext(), data)))

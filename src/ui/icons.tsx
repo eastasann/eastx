@@ -223,3 +223,29 @@ export function ArrowRightIcon(props: IconProps) {
     </Svg>
   )
 }
+
+/** 行の操作のメニュー（⋯） */
+export function MoreIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M5 12h.01M12 12h.01M19 12h.01" />
+    </Svg>
+  )
+}
+
+/** 並べ替えのつまみ（≡） */
+export function GripIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M5 8h14M5 12h14M5 16h14" />
+    </Svg>
+  )
+}
+
+export function PlusIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </Svg>
+  )
+}

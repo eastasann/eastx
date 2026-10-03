@@ -2,8 +2,8 @@
  * 管理画面のサイドメニュー（design-spec 3.3・4.1・4.3）。上からメニュー項目、下部にログイン中の GitHub のユーザー名・
  * テーマの切り替え・ログアウト。デスクトップ幅は常に表示、タブレット幅はアイコンだけ、モバイル幅はメニューボタンから引き出しで開く
  */
-import { useLocation, useRouter } from '@tanstack/react-router'
-import { type ComponentType, type MouseEvent, useState } from 'react'
+import { useLocation } from '@tanstack/react-router'
+import { type ComponentType, useState } from 'react'
 import { css } from 'styled-system/css'
 import { authClient } from '~/auth/client'
 import {
@@ -17,9 +17,9 @@ import {
   PenIcon,
   UserIcon,
 } from '~/ui/icons'
-import { isPlainClick } from '~/ui/navigation'
 import { ThemeToggle } from '~/ui/theme'
 import { Tooltip } from '~/ui/tooltip'
+import { AdminLink } from './link'
 
 interface MenuEntry {
   /** 移る先のパス。一覧のルートを足していないものも、ここで並びを決める（3.3 の末尾） */
@@ -81,15 +81,7 @@ const itemBase = css(itemBaseStyle)
 const collapsedItem = css(itemBaseStyle, collapsedItemStyle)
 
 export function SidebarContent({ githubLogin, collapsed, onNavigate }: SidebarContentProps) {
-  const router = useRouter()
   const { pathname } = useLocation()
-
-  function navigate(event: MouseEvent<HTMLAnchorElement>, to: string) {
-    if (!isPlainClick(event)) return
-    event.preventDefault()
-    onNavigate?.()
-    void router.navigate({ href: to })
-  }
 
   return (
     <nav
@@ -102,16 +94,16 @@ export function SidebarContent({ githubLogin, collapsed, onNavigate }: SidebarCo
           return (
             <li key={entry.to}>
               <Tooltip content={entry.label} placement="right" enabled={collapsed}>
-                <a
+                <AdminLink
                   href={entry.to}
-                  onClick={(event) => navigate(event, entry.to)}
+                  onNavigate={onNavigate}
                   aria-current={isCurrent(entry, pathname) ? 'page' : undefined}
                   aria-label={collapsed ? entry.label : undefined}
                   className={collapsed ? collapsedItem : itemBase}
                 >
                   <Icon />
                   {!collapsed && <span>{entry.label}</span>}
-                </a>
+                </AdminLink>
               </Tooltip>
             </li>
           )

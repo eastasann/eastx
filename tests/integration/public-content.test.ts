@@ -1,11 +1,13 @@
 /**
- * 公開側の読み取り（SDD 5.11 の getTopPage・getWorkDetail・getProjectDetail。SDD 10章「公開側の読み取り」）。
+ * 公開側の読み取り（SDD 5.11 の getTopPage・getWorkDetail・getProjectDetail・getBlogPost・getCodingLog。
+ * SDD 10章「公開側の読み取り」）。
  * 公開中だけを返すこと、並び順、前後のナビ、詳細ページを持たないものを返さないこと、言語の代替を確かめる
  */
 import { env } from 'cloudflare:test'
 import { isNotFound } from '@tanstack/react-router'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { loadProjectDetail, loadWorkDetail } from '../../src/content/portfolio-detail'
+import { loadBlogPost, loadCodingLog } from '../../src/content/post-detail'
 import type { ContentContext } from '../../src/content/shared'
 import { loadTopPage } from '../../src/content/top-page'
 import { getDb } from '../../src/db/client'
@@ -358,5 +360,127 @@ describe('loadProjectDetail', () => {
 
     await expectNotFound(loadProjectDetail(context, { lang: 'ja', slug: 'plain' }))
     await expectNotFound(loadProjectDetail(context, { lang: 'ja', slug: 'draft' }))
+  })
+})
+
+describe('loadBlogPost', () => {
+  async function seedPosts() {
+    const ids = { newest: crypto.randomUUID(), middle: crypto.randomUUID(), oldest: crypto.randomUUID() }
+    await db.batch([
+      db.insert(blogPost).values({
+        id: ids.newest,
+        titleEn: 'Newest',
+        bodyEn: 'English only',
+        slug: 'newest',
+        status: 'published',
+        publishedAt: at('2026-09-03T00:00:00Z'),
+      }),
+      // 下書きは前後のナビで飛ばす
+      db.insert(blogPost).values({ titleJa: '下書き', bodyJa: '本文', slug: 'draft', status: 'draft' }),
+      db.insert(blogPost).values({
+        id: ids.middle,
+        titleJa: '真ん中',
+        bodyJa: '## 見出し\n\n本文の最初の段落',
+        thumbnailUrl: '/media/thumb.png',
+        slug: 'middle',
+        status: 'published',
+        publishedAt: at('2026-09-02T00:00:00Z'),
+        contentUpdatedAt: at('2026-09-10T00:00:00Z'),
+      }),
+      db.insert(blogPost).values({
+        id: ids.oldest,
+        titleJa: '最古',
+        bodyJa: '本文',
+        titleEn: 'Oldest',
+        bodyEn: 'Body',
+        slug: 'oldest',
+        status: 'published',
+        publishedAt: at('2026-09-01T00:00:00Z'),
+        // 公開日より前の更新日（データ移行で入りうる）は出さない
+        contentUpdatedAt: at('2026-08-01T00:00:00Z'),
+      }),
+    ])
+    return ids
+  }
+
+  it('公開中の記事の中で、公開日の新しい・古い記事を返す', async () => {
+    const ids = await seedPosts()
+    const view = await loadBlogPost(context, { lang: 'ja', slug: 'middle' })
+    expect(view.id).toBe(ids.middle)
+    expect(view.newer).toEqual({ slug: 'newest', title: { value: 'Newest', lang: 'en' } })
+    expect(view.older).toEqual({ slug: 'oldest', title: { value: '最古', lang: 'ja' } })
+    expect((await loadBlogPost(context, { lang: 'ja', slug: 'newest' })).newer).toBeNull()
+    expect((await loadBlogPost(context, { lang: 'ja', slug: 'oldest' })).older).toBeNull()
+  })
+
+  it('本文・公開日・更新日・ページのメタ情報を返す', async () => {
+    await seedPosts()
+    const view = await loadBlogPost(context, { lang: 'ja', slug: 'middle' })
+    expect(view.body).toEqual({ html: expect.stringContaining('<h3>見出し</h3>'), lang: 'ja' })
+    expect(view.publishedAt).toBe('2026-09-02T00:00:00.000Z')
+    expect(view.contentUpdatedAt).toBe('2026-09-10T00:00:00.000Z')
+    expect(view.thumbnailUrl).toBe('/media/thumb.png')
+    expect(view.meta).toEqual({
+      title: '真ん中 — eastasian',
+      description: '見出し 本文の最初の段落',
+      ogImageUrl: `${SITE_URL}/media/thumb.png`,
+      alternates: { ja: `${SITE_URL}/ja/blog/middle`, en: `${SITE_URL}/en/blog/middle` },
+    })
+  })
+
+  it('更新日が公開日より後でなければ出さない', async () => {
+    await seedPosts()
+    expect((await loadBlogPost(context, { lang: 'ja', slug: 'oldest' })).contentUpdatedAt).toBeNull()
+    expect((await loadBlogPost(context, { lang: 'ja', slug: 'newest' })).contentUpdatedAt).toBeNull()
+  })
+
+  it('表示中の言語で言語ありでない記事は、もう片方の言語で出す', async () => {
+    await seedPosts()
+    const view = await loadBlogPost(context, { lang: 'ja', slug: 'newest' })
+    expect(view.availability).toEqual({ lang: 'en', fallback: true })
+    expect(view.title).toEqual({ value: 'Newest', lang: 'en' })
+    expect(view.body.lang).toBe('en')
+    expect(view.meta.ogImageUrl).toBe(`${SITE_URL}/og/default-ja.png`)
+  })
+
+  it('存在しない・非公開の記事は notFound', async () => {
+    await seedPosts()
+    await expectNotFound(loadBlogPost(context, { lang: 'ja', slug: 'draft' }))
+    await expectNotFound(loadBlogPost(context, { lang: 'ja', slug: 'no-such' }))
+  })
+})
+
+describe('loadCodingLog', () => {
+  it('種類・参考リンクと前後を返し、非公開の記録は notFound', async () => {
+    const id = crypto.randomUUID()
+    await db.batch([
+      db.insert(codingLog).values({
+        id,
+        kind: 'problem',
+        titleJa: '問題',
+        bodyJa: '```ts\nconst a = 1\n```',
+        referenceUrl: 'https://atcoder.jp/contests/abc001',
+        slug: 'problem',
+        status: 'published',
+        publishedAt: at('2026-09-02T00:00:00Z'),
+      }),
+      db.insert(codingLog).values({
+        titleJa: '古い記録',
+        bodyJa: '本文',
+        slug: 'older',
+        status: 'published',
+        publishedAt: at('2026-09-01T00:00:00Z'),
+      }),
+      db.insert(codingLog).values({ titleJa: '下書き', bodyJa: '本文', slug: 'draft', status: 'draft' }),
+    ])
+    const view = await loadCodingLog(context, { lang: 'en', slug: 'problem' })
+    expect(view.id).toBe(id)
+    expect(view.kind).toBe('problem')
+    expect(view.referenceUrl).toBe('https://atcoder.jp/contests/abc001')
+    expect(view.availability).toEqual({ lang: 'ja', fallback: true })
+    expect(view.newer).toBeNull()
+    expect(view.older).toEqual({ slug: 'older', title: { value: '古い記録', lang: 'ja' } })
+    expect(view.meta.alternates.en).toBe(`${SITE_URL}/en/coding/problem`)
+    await expectNotFound(loadCodingLog(context, { lang: 'ja', slug: 'draft' }))
   })
 })

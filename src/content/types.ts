@@ -131,3 +131,24 @@ export interface WorkDetailView {
 }
 
 export type ProjectDetailView = Omit<WorkDetailView, 'githubUrl'> & { period: Period }
+
+export interface BlogPostView {
+  lang: Lang
+  meta: PageMeta
+  id: string
+  slug: string
+  title: LocalizedText
+  /** body.lang が lang と違えば、本文の上に注記を出す（design-spec 6.3） */
+  body: LocalizedHtml
+  availability: Availability
+  /** ISO 8601 */
+  publishedAt: string
+  /** 公開日より後のときだけ入る（design-spec 6.3） */
+  contentUpdatedAt: string | null
+  thumbnailUrl: string | null
+  /** 公開中の中で、公開日の1つ新しいもの・1つ古いもの */
+  newer: Neighbor
+  older: Neighbor
+}
+
+export type CodingLogView = BlogPostView & { kind: CodingLogKind; referenceUrl: string | null }

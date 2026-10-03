@@ -133,6 +133,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       return { githubLogin: user.githubLogin }
     })
 
+    // login は context より後に用意されるので、context より先に片付く。開いたままのページ（ダッシュボードの読み込みなど）が
+    // プレビューの Worker を通して同じ D1 のファイルを読み書きしていると、ここの書き込みが SQLITE_BUSY で落ちるので、先に閉じる
+    for (const opened of context.pages()) await opened.close()
     for (const id of sessionIds) await local.db.delete(schema.adminSession).where(eq(schema.adminSession.id, id))
     for (const id of createdUserIds) await local.db.delete(schema.adminUser).where(eq(schema.adminUser.id, id))
   },

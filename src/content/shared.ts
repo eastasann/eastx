@@ -2,6 +2,7 @@
  * 公開側の読み取り（src/content/）で共通の部品
  */
 import { isNotNull, or, type SQL, sql } from 'drizzle-orm'
+import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import type { Db } from '~/db/client'
 import type { project, work } from '~/db/schema'
 
@@ -20,4 +21,12 @@ export function required<T>(value: T | null, column: string): T {
 /** 詳細本文が日英のどちらかにあるか（src/domain/detail.ts と同じ規則）。API は空白だけの本文を NULL で保存する（SDD 5.0） */
 export function hasDetailSql(table: typeof work | typeof project): SQL<boolean> {
   return sql`(${or(isNotNull(table.bodyJa), isNotNull(table.bodyEn))})`.mapWith(Boolean)
+}
+
+/**
+ * 本文の有無だけを読む（言語ありの判定に使う）。本文の全文は読まない。
+ * API は空白だけの本文を NULL で保存する（SDD 5.0）ので、NULL でなければ中身がある
+ */
+export function bodyPresence(column: SQLiteColumn): SQL<string | null> {
+  return sql<string | null>`case when ${column} is null then null else '1' end`
 }

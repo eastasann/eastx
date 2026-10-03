@@ -1,4 +1,6 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { useState } from 'react'
 import { SESSION_CHECK_FAILED_ERROR } from '~/admin/auth'
 import { AdminShell } from '~/admin/layouts'
 import { authClient } from '~/auth/client'
@@ -26,11 +28,28 @@ export const Route = createFileRoute('/admin/_authed')({
   component: AuthedLayout,
 })
 
+/**
+ * 失敗は画面の「再試行」で読み直す（design-spec 6.5〜6.7.4）ので、自動の再試行はしない。
+ * 自動の再試行は「読み込めませんでした」を出すのを遅らせ、期限切れ（UNAUTHORIZED）も繰り返す。
+ * 窓に戻ったときの読み直しもしない。編集中のフォームは読み込んだ値を元にしていて、裏で値が変わると比べる元がずれる
+ */
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, refetchOnWindowFocus: false },
+      mutations: { retry: false },
+    },
+  })
+}
+
 function AuthedLayout() {
   const { user } = Route.useRouteContext()
+  const [queryClient] = useState(createQueryClient)
   return (
-    <AdminShell githubLogin={user.githubLogin}>
-      <Outlet />
-    </AdminShell>
+    <QueryClientProvider client={queryClient}>
+      <AdminShell githubLogin={user.githubLogin}>
+        <Outlet />
+      </AdminShell>
+    </QueryClientProvider>
   )
 }

@@ -112,6 +112,8 @@ export function AdminShell({ githubLogin, children }: { githubLogin: string; chi
 }
 
 export interface AdminPageProps {
+  /** 操作バーの上の戻るリンク（編集ビューの「← 一覧」） */
+  back?: ReactNode
   title: ReactNode
   /** 操作バーのボタン・絞り込みなど */
   actions?: ReactNode
@@ -119,8 +121,8 @@ export interface AdminPageProps {
 }
 
 /** 右側の上部の操作バー（見出しと操作）。L4〜L6 で共通 */
-function Toolbar({ title, actions }: Pick<AdminPageProps, 'title' | 'actions'>) {
-  return (
+function Toolbar({ back, title, actions }: Pick<AdminPageProps, 'back' | 'title' | 'actions'>) {
+  const bar = (
     <div
       className={css({
         display: 'flex',
@@ -134,6 +136,13 @@ function Toolbar({ title, actions }: Pick<AdminPageProps, 'title' | 'actions'>) 
       {actions !== undefined && (
         <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'inline' })}>{actions}</div>
       )}
+    </div>
+  )
+  if (back === undefined) return bar
+  return (
+    <div className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
+      {back}
+      {bar}
     </div>
   )
 }
@@ -162,11 +171,11 @@ export interface SplitEditLayoutProps extends Omit<AdminPageProps, 'children'> {
  * L5 サイドメニュー＋2ペイン編集。基本項目の下を「Markdownエディタ ／ プレビュー」に分ける。
  * モバイル幅ではタブで切り替える。2つ描くとエディタの状態が分かれるので、幅に合わせてどちらか一方だけを描く
  */
-export function SplitEditLayout({ title, actions, fields, editor, preview }: SplitEditLayoutProps) {
+export function SplitEditLayout({ back, title, actions, fields, editor, preview }: SplitEditLayoutProps) {
   const isMobile = useMediaQuery(MEDIA.mobile)
   return (
     <div className={page}>
-      <Toolbar title={title} actions={actions} />
+      <Toolbar back={back} title={title} actions={actions} />
       {fields}
       {isMobile ? (
         <Tabs
@@ -194,10 +203,10 @@ export function SplitEditLayout({ title, actions, fields, editor, preview }: Spl
 }
 
 /** L6 サイドメニュー＋フォーム。右に1列のフォーム */
-export function FormLayout({ title, actions, children }: AdminPageProps) {
+export function FormLayout({ back, title, actions, children }: AdminPageProps) {
   return (
     <div className={page}>
-      <Toolbar title={title} actions={actions} />
+      <Toolbar back={back} title={title} actions={actions} />
       <div className={css({ display: 'flex', flexDirection: 'column', gap: 'stack-dense', maxW: 'content' })}>
         {children}
       </div>

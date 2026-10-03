@@ -261,17 +261,14 @@ export function WorkCard({ item, lang, messages }: ItemProps<WorkItem>) {
   )
 }
 
-/**
- * ブログ記事・コーディング記録の行。行き先（P4・P5）のルートは Step 7 で作るので、型付きの Link ではなく URL で移る。
- * ルートができたら Link に替える（docs/claude-code-prompts.md Step 7 の 1）
- */
+/** ブログ記事・コーディング記録の行。行全体を押すと P4・P5 へ */
 function PostRow({
   item,
   lang,
   messages,
-  href,
+  to,
   kindLabel,
-}: ItemProps<BlogPostItem> & { href: string; kindLabel?: string }) {
+}: ItemProps<BlogPostItem> & { to: '/$lang/blog/$slug' | '/$lang/coding/$slug'; kindLabel?: string }) {
   return (
     <article className={cardLayout(true)}>
       <div className={cardBody}>
@@ -283,9 +280,9 @@ function PostRow({
           <LanguageLabel availability={item.availability} messages={messages} />
         </div>
         <h3 className={itemTitle}>
-          <a href={href} className={stretchedLink}>
+          <Link to={to} params={{ lang, slug: item.slug }} className={stretchedLink}>
             <Text text={item.title} pageLang={lang} />
-          </a>
+          </Link>
         </h3>
         {item.excerpt && <Text as="p" text={item.excerpt} pageLang={lang} className={twoLines} />}
       </div>
@@ -295,7 +292,7 @@ function PostRow({
 }
 
 export function BlogPostRow({ item, lang, messages }: ItemProps<BlogPostItem>) {
-  return <PostRow item={item} lang={lang} messages={messages} href={`/${lang}/blog/${item.slug}`} />
+  return <PostRow item={item} lang={lang} messages={messages} to="/$lang/blog/$slug" />
 }
 
 export function CodingLogRow({ item, lang, messages }: ItemProps<CodingLogItem>) {
@@ -304,7 +301,7 @@ export function CodingLogRow({ item, lang, messages }: ItemProps<CodingLogItem>)
       item={item}
       lang={lang}
       messages={messages}
-      href={`/${lang}/coding/${item.slug}`}
+      to="/$lang/coding/$slug"
       kindLabel={messages.codingLogKind[item.kind]}
     />
   )

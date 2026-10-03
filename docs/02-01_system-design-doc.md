@@ -315,7 +315,7 @@
 - 06 の型と Panda の対応: color → `colors`、space → `spacing`、size → `sizes`、radius → `radii`、border-width → `borderWidths`、shadow → `shadows`、duration → `durations`、cubicBezier → `easings`、opacity → `opacities`、z-index → `zIndex`、aspect-ratio → `aspectRatios`、fontFamily・fontWeight・font.size・letter-spacing → `fonts`・`fontWeights`・`fontSizes`・`letterSpacings`。typography（合成値）は Panda の `textStyles` に、transition（合成値）は `durations` と `easings` のセマンティックトークンの組に展開する。
 - Panda ではプリミティブ層もトークンになり、型では「セマンティック層だけを参照する」を止められない。そこでプリミティブは `primitive` の名前空間に出し、`make lint` の中で `src/` からの `primitive.` の参照を検査して止める。
 - スタイルは静的に書けるもの（`css()` に渡すオブジェクト、レシピとそのバリアント）だけにし、実行時に組み立てない。
-- トークンを通さない値は、ライブラリが実行時に渡す CSS 変数だけにする: Ark UI のトーストの積み重ね（`var(--x)`・`var(--z-index)` など）と、Shiki のテーマの色（`var(--shiki-light)`・`var(--shiki-dark)`。ADR-012）。どちらもデザインの値ではなく、ライブラリの出力をそのまま使う。
+- トークンを通さない値は、ライブラリが実行時に渡す値を受ける CSS 変数だけにする: Ark UI のトーストの積み重ね（`var(--x)`・`var(--z-index)` など）、Shiki のテーマの色（`var(--shiki-light)`・`var(--shiki-dark)`。ADR-012）、dnd-kit のドラッグ中の位置と遷移（要素の `style` に `--drag-transform`・`--drag-transition` として渡し、`transform`・`transition` で読む。ADR-015）。どれもデザインの値ではなく、ライブラリの出力をそのまま使う。
 
 **理由:** design-spec 4.4 の「見た目はすべてデザイントークン経由で指定し、コンポーネントに値を直接書かない」を、レビューではなく型の仕組みで守れる。Panda のトークンは「プリミティブ＋セマンティック（条件付き）」の2層で、06 の構造にそのまま対応する。ビルド時に CSS を生成するので、SSR でもランタイムの負荷がない。Ark UI は Panda と同じチームが作っていて、キーボード操作や読み上げをライブラリに任せられる。Style Dictionary を使わないのは、06 で使う DTCG の型が少なく（color・dimension・fontFamily・fontWeight・duration・cubicBezier・number・shadow・typography・transition）、出力先も Panda の2層だけなので、設定と変換の仕組みを1つ増やすより、短いスクリプトの方が単純なため。
 
