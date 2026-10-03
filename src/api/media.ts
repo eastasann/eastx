@@ -19,8 +19,9 @@ export async function serveMedia(request: Request): Promise<Response> {
     return new Response(null, { status: 404 })
   }
   if (key === '') return new Response(null, { status: 404 })
+  // R2 のキーは 1024 バイトまで。超えると MEDIA.get が null ではなく例外を返すため、先に 404 にする
+  if (new TextEncoder().encode(key).byteLength > 1024) return new Response(null, { status: 404 })
 
-  // lib.dom の CacheStorage が Workers のランタイム型より優先されて default が見えないため読み替える
   // キャッシュキーからクエリを落とす。キーの中身は不変（UUID）なので、
   // クエリ違いで同じオブジェクトのエントリが増えたり、キャッシュを素通りされたりしない
   const cacheKey = `${url.origin}${url.pathname}`
@@ -39,8 +40,8 @@ export async function serveMedia(request: Request): Promise<Response> {
       ETag: object.httpEtag,
       'X-Content-Type-Options': 'nosniff',
     })
-    // パラメーター付き（image/svg+xml;charset=utf-8）で保存されても CSP が外れないよう、メディアタイプだけで比べる
-    if ((contentType.split(';')[0] ?? '').trim() === 'image/svg+xml') {
+    // パラメーター・大文字小文字の揺れで CSP が外れないよう、メディアタイプだけを小文字で比べる
+    if ((contentType.split(';')[0] ?? '').trim().toLowerCase() === 'image/svg+xml') {
       headers.set('Content-Security-Policy', SVG_CSP)
     }
     response = new Response(object.body, { headers })

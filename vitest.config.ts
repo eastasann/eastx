@@ -25,8 +25,15 @@ export default defineConfig({
             // pool の更新で外せるようになったら外す
             miniflare: {
               compatibilityDate: '2026-08-22',
-              // テストファイルごとに空の D1 へ当てる（tests/integration/setup.ts）。docs/03_dev-setup.md 7章
-              bindings: { TEST_MIGRATIONS: await readD1Migrations('./drizzle/migrations') },
+              bindings: {
+                // テストファイルごとに空の D1 へ当てる（tests/integration/setup.ts）。docs/03_dev-setup.md 7章
+                TEST_MIGRATIONS: await readD1Migrations('./drizzle/migrations'),
+                // 手元の .dev.vars（CI には無い）に左右されないよう、認証に使う値はテストで固定する
+                ADMIN_GITHUB_USER_ID: '1000001',
+                BETTER_AUTH_SECRET: 'test-secret-for-integration-tests-only-0123456789',
+                GITHUB_CLIENT_ID: 'test-client-id',
+                GITHUB_CLIENT_SECRET: 'test-client-secret',
+              },
             },
           })),
         ],

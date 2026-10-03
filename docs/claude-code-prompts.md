@@ -105,7 +105,7 @@ make db-reset でテーブルの作成とデモデータの投入が通り、mak
 
 ## Step 3: CMS API
 
-Status:
+Status: done 2026-10-03
 
 ```
 SDD の「5. API設計」に従って、CMS API（/api/admin/*）を実装してください。

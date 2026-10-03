@@ -125,7 +125,7 @@ Worker が読む値。ローカルは `.dev.vars`、staging・本番は `wrangle
 | `ADMIN_GITHUB_USER_ID` | 変数 | 自分の GitHub の数値 ID | 管理者として通す GitHub アカウント（SDD ADR-009）。調べ方: `curl -s https://api.github.com/users/{ユーザー名}` の `id` |
 | `GITHUB_CLIENT_ID` | 変数 | ローカル用 OAuth App の Client ID | |
 | `GITHUB_CLIENT_SECRET` | シークレット | ローカル用 OAuth App の Client secret | |
-| `BETTER_AUTH_SECRET` | シークレット | `openssl rand -base64 32` の出力 | Cookie の署名などに使う。変えると全セッションが切れる |
+| `BETTER_AUTH_SECRET` | シークレット | `openssl rand -base64 32` の出力 | Cookie の署名などに使う。変えると全セッションが切れる。`local` 以外で空だと Better Auth の初期化を拒否し、CMS API がすべて 500 になる（公開されている既定の値で黙って動かさないため） |
 | `SENTRY_DSN` | 変数 | 空 | 空なら Sentry に送らない |
 
 バインディング（`wrangler.jsonc` で設定。ローカルは wrangler が自動で用意する）:
@@ -258,6 +258,7 @@ staging・本番の OAuth App は `docs/04_deployment-procedure.md` 3章。
 
 - 何をどの層で確かめるか、カバレッジの目標は SDD 10章。
 - 結合テストは、テストファイルごとにマイグレーションを当てた空の D1 で走る（`@cloudflare/vitest-pool-workers` はテストファイルごとに保存先を分ける）。同じファイルの中のテストは D1 を共有するので、ほかのテストが入れた行に頼らず、一意の値がぶつからないように書く。手元の `.wrangler/` のデータは使わない。
+- 結合テストの `ADMIN_GITHUB_USER_ID`・`BETTER_AUTH_SECRET`・GitHub のキーは `vitest.config.ts` で固定の値にする（手元の `.dev.vars` と CI の有無に左右されない）。管理者・管理者でないセッションは `tests/integration/helpers.ts` が D1 に作り、署名した Cookie を返す。
 - E2E のログインは、テスト用のヘルパーが署名済みのセッション Cookie を入れる（GitHub には行かない）。
 - CI では、どちらも PR ごとに走る（`docs/04_deployment-procedure.md` 2章）。
 

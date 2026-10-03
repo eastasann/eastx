@@ -155,7 +155,7 @@
 
 ### ADR-004: HTTP の入口は Elysia（Cloudflare Worker アダプター）
 
-**決定:** `/api/*` と `/media/*` を Elysia で受ける。この構成で Elysia が受け持つのは、ルートのまとめ（`/api/auth/*` → Better Auth、`/api/admin/*` → oRPC、`/media/*` → R2）、リクエスト全体の前後処理（リクエストID・セキュリティヘッダー）、`/media/*` の処理。Cloudflare Worker アダプター（`elysia/adapter/cloudflare-worker`）を `aot: false` で使う（AOT の `.compile()` は実行時のコード生成（`new Function`）を使い、workerd が拒否することを ADR-022 のスパイクで確認した）。oRPC と Better Auth には本文を Elysia に読ませずに渡す（`parse: 'none'`）。
+**決定:** `/api/*` と `/media/*` を Elysia で受ける。この構成で Elysia が受け持つのは、ルートのまとめ（`/api/auth/*` → Better Auth、`/api/admin/*` → oRPC、`/media/*` → R2）、リクエスト全体の前後処理（リクエストID・セキュリティヘッダー）、`/media/*` の処理。Cloudflare Worker アダプター（`elysia/adapter/cloudflare-worker`）を `aot: false` で使う（AOT の `.compile()` は実行時のコード生成（`new Function`）を使い、workerd が拒否することを ADR-022 のスパイクで確認した）。oRPC と Better Auth には本文を Elysia に読ませずに渡す。`aot: false` の動的ハンドラーは `parse: 'none'` を解釈せず Content-Type に従って本文を読んでしまう（Elysia 1.4.30）ので、本文に触れずに印の値を返す parse の関数を指定する（parse の関数が値を返すと、Elysia はそれを本文として扱い読み込みを飛ばす）。
 
 **理由:** ユーザーの指定。HTTP の入口（認証の受け口・API・画像の配信）を1か所にまとめ、`src/api/` だけで CMS API の HTTP 層が完結する。
 
@@ -220,7 +220,7 @@
 
 **トレードオフ:**
 - 公開時の必須チェック（言語ありの判定など）は状態によって変わるので、Zod だけでは書かず `src/domain/` の関数で行う（5.3）。
-- Zod は管理画面のバンドルを少し大きくする（公開側には入れない）。Zod v4 と `@orpc/zod` の組み合わせは ADR-022 のスパイクで確かめる。
+- Zod は管理画面のバンドルを少し大きくする（公開側には入れない）。Zod v4 と `@orpc/zod`（`ZodToJsonSchemaConverter`）の組み合わせで、全手続きの openapi.json が生成でき、`OpenAPILink` の型付きクライアントから呼べることを ADR-022 のスパイク（ローカルの結合テスト）で確認した。
 - 捨てた案:
   - Valibot・ArkType: バンドルは小さいが、oRPC の OpenAPI の変換と周辺の情報は Zod が最も厚い。
   - React Hook Form: 成熟しているが、スキーマはリゾルバーを挟む形で、TanStack の部品とのつながりが TanStack Form ほど直接ではない。
@@ -246,7 +246,7 @@
 ### ADR-010: 画像は R2 に置き、Worker の `/media/*` から配信する
 
 **決定:**
-- 画像は R2 のバケット（`MEDIA` バインディング。場所のヒントは `apac`）に `uploads/{yyyy}/{mm}/{uuid}.{拡張子}` のキーで置く。DB には `/media/uploads/...` というルート相対のパスを持つ。
+- 画像は R2 のバケット（`MEDIA` バインディング。場所のヒントは `apac`）に `uploads/{yyyy}/{mm}/{uuid}.{拡張子}`（年月は UTC）のキーで置く。DB には `/media/uploads/...` というルート相対のパスを持つ。
 - `/media/*` は Elysia が処理する。まず Cache API（`caches.default`）を見て、なければ R2 から読み、`Cache-Control: public, max-age=31536000, immutable` を付けて Cache API に入れてから返す。
 - アップロードの上限と形式は 5.10。
 
@@ -524,7 +524,8 @@
 - CMS API のベースパスは `/api/admin`。コントラクトは `src/api/contract/`、実装は `src/api/router/`。
 - リクエスト・レスポンスの本文は JSON（アップロードだけ `multipart/form-data`）。文字コードは UTF-8。
 - ID は UUID の文字列。日時は ISO 8601 の文字列（UTC。例: `"2026-09-30T03:12:45.000Z"`）。年月は `"YYYY-MM"` の文字列（例: `"2024-04"`）。
-- 日英を持つ項目は `ja` と `en` のオブジェクトに分ける。文字列は前後の空白を取り除き、空文字は `null` として保存する。
+- 日英を持つ項目は `ja` と `en` のオブジェクトに分ける。文字列は前後の空白を取り除き、空文字は `null` として保存する。空にできる項目（文字列・URL・日時・年月）はキーを省いても `null` として扱う。`status` と `kind`（経歴・コーディング記録）、使用技術の更新の `key`・`displayName`・`showOnTop` は省けない（省いた PUT で値が書き換わらないように）。
+- `/{id}` を持つ手続きは、入力を oRPC の `detailed`（パスの `params` と本文の `body` を分ける）にする。本文やクエリの `id` がパスの `{id}` を上書きしないようにするため。管理画面の型付きクライアントは `{ params: { id }, body }` で呼ぶ。`fieldErrors` のキーは `body.` を付けない欄の名前（`ja.title` など）にそろえる。
 - 状態は `"draft"` ／ `"published"`。作成（POST）と更新（PUT）の本文の `status` に「保存後にしたい状態」を入れ、サーバーが今の状態との組み合わせで、design-spec 6.7.1 のボタンの意味（下書き保存・公開する・更新する・非公開に戻す）を決める（5.3）。
 - 一覧はページングしない（design-spec 6.6）。並び順は design-spec 6.6 の表のとおりにサーバーで並べて返す。
 - 文字数などの技術的な上限（超えたら `INPUT_VALIDATION_FAILED`）: タイトル・名前・所属・場所・肩書き・表示名 200字、概要 500字、Markdown の本文 100,000字、URL 2,048字、スラッグ・識別名 100字。
@@ -540,12 +541,15 @@
 |---|---|---|
 | 1 | リクエストID: `cf-ray`（ローカルでは UUID）をコンテキストとレスポンスヘッダーに入れる | — |
 | 2 | CSRF: `SimpleCsrfProtectionHandlerPlugin` がヘッダーを確かめる | `CSRF_TOKEN_MISMATCH`（403） |
-| 3 | 認証: Better Auth の `getSession` でセッションを読む | セッションがない・切れている → `UNAUTHORIZED`（401） |
+| 3 | 認証: Better Auth の `getSession` でセッションを読む。期限の延長（`updateAge`）はしない（`disableRefresh`）。ここで DB の期限を延ばしても延ばした Cookie を返す経路がないため。延長は管理画面が表示の前に呼ぶ `GET /api/auth/get-session` に任せる | セッションがない・切れている → `UNAUTHORIZED`（401） |
 | 4 | レート制限: `ADMIN_RATE_LIMITER` をセッションのユーザーIDで数える（ADR-021） | `TOO_MANY_REQUESTS`（429） |
 | 5 | 認可: `session.user.githubUserId === env.ADMIN_GITHUB_USER_ID` | 一致しない → `FORBIDDEN`（403） |
 
 - 認証なしで呼べる手続きはない（`GET /api/admin/openapi.json` も同じ）。
 - CSRF の確認が認証より前にあるので、CSRF のヘッダーがないリクエストは、未認証でも 403 になる。7章の権限マトリクスの「401」「403」は、CSRF のヘッダーを付けたリクエストでの結果。
+- 入力の検証（Zod）は 5 の後に走るので、未認証・管理者でないリクエストは、本文の誤りより先に 401・403 になる。
+- 手続きが見つからないパス・メソッドは、2 より前に `NOT_FOUND`（404、`defined: false`）を返す（存在しないパスに守るものはない）。
+- 本文の解釈（JSON・multipart）は、oRPC が手続きを決めたあと 2 より前に行う。そのため、本文を解釈できないリクエストは CSRF・認証より先に `INPUT_VALIDATION_FAILED`（`formErrors`）になる。認証の前に本文を読むので、1 で本文の読み込みを 5MB ＋ 64KiB（アップロードの上限に multipart の区切りの余裕を足したもの）で止める。Content-Length は送り手が省けるので頼らない。超えたら `INPUT_VALIDATION_FAILED`（アップロードは `fieldErrors.file` に design-spec 6.7.3 の「ファイルが大きすぎます」、それ以外は `formErrors`）。
 
 ### 5.2 認証（Better Auth。`/api/auth`）
 
@@ -617,7 +621,7 @@ export const createAuth = (env: Env) =>
 | published → `published` | 更新する | 公開のルール | ブログ・コーディング記録: `content_updated_at`（更新日） |
 | published → `draft` | 非公開に戻す | 下書きのルール | — |
 
-- 下書きのルール・公開のルールの中身は design-spec 6.7.3。判定は `src/domain/publishing.ts` の関数で行い、足りない項目は `PUBLISH_REQUIREMENTS_NOT_MET`、形式の誤りは `INPUT_VALIDATION_FAILED` で返す。
+- 下書きのルール・公開のルールの中身は design-spec 6.7.3。判定は `src/domain/publishing.ts` の関数で行う。下書きのルール（`status: "draft"` でタイトルが日英とも空）と形式の誤りは `INPUT_VALIDATION_FAILED`（`fieldErrors`）、公開のルールで足りない項目（タイトルの不足を含む）は `PUBLISH_REQUIREMENTS_NOT_MET` で返す。
 - スラッグの自動生成と追従（design-spec 6.7.2）は管理画面が `GET /slugs/suggest` を使って行う。サーバーは保存のときに形式と重複だけを確かめる（重複は `SLUG_CONFLICT`）。
 - ブログ・コーディング記録の `publishedAt` は本文で受け取る。受け付ける値の制約は design-spec 6.7.3。
 
@@ -1671,12 +1675,12 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 
 | コード | HTTP | `data` | 使う場面 |
 |---|---|---|---|
-| `INPUT_VALIDATION_FAILED` | 422 | `{ "fieldErrors": { "ja.title": ["…"], "linkUrl": ["https:// で始めてください"] }, "formErrors": ["…"] }` | 形式の誤り・上限超え・存在しない ID（Zod のエラーを、インターセプターでこの形に変える） |
+| `INPUT_VALIDATION_FAILED` | 422 | `{ "fieldErrors": { "ja.title": ["…"], "linkUrl": ["https:// で始めてください"] }, "formErrors": ["…"] }` | 形式の誤り・上限超え・存在しない ID（Zod のエラーを、インターセプターでこの形に変える）。本文を解釈できない・本文が大きすぎるとき（5.1）は `formErrors` に入れる |
 | `PUBLISH_REQUIREMENTS_NOT_MET` | 422 | `{ "missing": [{ "field": "slug" }, { "field": "title", "lang": "en" }] }` | 公開・更新するのに足りない項目（design-spec 6.7.3） |
 | `SLUG_CONFLICT` | 409 | `{ "suggestion": "my-app-2" }` | 同じ種類の中でスラッグが重複 |
 | `STACK_KEY_CONFLICT` | 409 | `{ "suggestion": "react-2" }` | 使用技術の識別名が重複 |
 | `ORDER_OUT_OF_DATE` | 409 | — | 並べ替えの ID の集合が今のものと違う |
-| `NOT_FOUND` | 404 | — | ID が存在しない |
+| `NOT_FOUND` | 404 | — | ID が存在しない。手続きが見つからないパス（`defined: false`。5.1） |
 | `UNAUTHORIZED` | 401 | — | セッションがない・切れている |
 | `FORBIDDEN` | 403 | — | 管理者でないセッション |
 | `CSRF_TOKEN_MISMATCH` | 403 | — | CSRF 対策のヘッダーがない |
