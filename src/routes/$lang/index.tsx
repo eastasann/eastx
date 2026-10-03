@@ -1,29 +1,90 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { css } from 'styled-system/css'
-import { isLang, type Lang } from '~/i18n/detect'
+import { getTopPage } from '~/content/server-fns'
+import type { BlogPostItem, CareerItem, CodingLogItem, ProjectItem, WorkItem } from '~/content/types'
+import { isLang } from '~/i18n/detect'
+import { getMessages } from '~/i18n/messages'
+import { StackChipList } from '~/site/content-parts'
+import { pageHead, statusHead } from '~/site/head'
 import { SingleColumnLayout } from '~/site/layouts'
+import { ProfileSection } from '~/site/profile-section'
+import { PagedSection } from '~/site/section-pager'
+import { BlogPostRow, CareerRow, CodingLogRow, ProjectCard, WorkCard } from '~/site/top-items'
 
-// P1 トップの中身は Step 6（getTopPage）。ここでは SSR とサーバー関数の経路を通すだけ。
-// サーバー関数は誰でも呼べる HTTP エンドポイントになるので、入力は必ず検証する（SDD 7章）。
-// 公開側のバンドルに Zod を入れない方針のため、検証は素の関数で書く（ADR-008）
-const getSiteHeading = createServerFn({ method: 'GET' })
-  .validator((input: unknown): Lang => {
-    if (typeof input !== 'string' || !isLang(input)) throw new Error('lang は ja か en')
-    return input
-  })
-  .handler(() => ({ siteName: 'eastasian' }))
-
+// P1 トップ（design-spec 6.1）。中身はページを返す前にすべて用意する（読み込み中の表示を出さない。6.1.5）
 export const Route = createFileRoute('/$lang/')({
-  loader: ({ params }) => getSiteHeading({ data: params.lang }),
+  loader: ({ params }) => {
+    // 言語が ja・en 以外は `$lang` が C1 にする。ローダーは親と並んで走るので、ここでも読まずに止める
+    if (!isLang(params.lang)) throw notFound()
+    return getTopPage({ data: { lang: params.lang } })
+  },
+  head: ({ loaderData, match }) =>
+    loaderData ? pageHead(loaderData.lang, loaderData.meta) : statusHead(match.context.lang, 'error'),
   component: TopPage,
 })
 
 function TopPage() {
-  const { siteName } = Route.useLoaderData()
+  const view = Route.useLoaderData()
+  const { lang } = view
+  const messages = getMessages(lang)
+  const { section } = messages
   return (
     <SingleColumnLayout>
-      <h1 className={css({ textStyle: 'display' })}>{siteName}</h1>
+      {view.profile ? (
+        <ProfileSection profile={view.profile} lang={lang} messages={messages} />
+      ) : (
+        // プロフィールがないとき（データの移行か A3 の初回の保存の前。design-spec 6.1.5）も、ページの見出しは置く
+        <h1 className={css({ srOnly: true })}>{messages.siteName}</h1>
+      )}
+      {/* 0件のセクションは出さない（design-spec 6.1.5）。PagedSection は0件なら何も描かない。
+          型引数を明示するのは、renderItem の引数の型から items の型を推論できないため */}
+      <PagedSection<CareerItem>
+        id="career"
+        title={section.career}
+        items={view.careers}
+        messages={messages}
+        renderItem={(item) => <CareerRow item={item} lang={lang} messages={messages} />}
+      />
+      <PagedSection<ProjectItem>
+        id="projects"
+        title={section.projects}
+        items={view.projects}
+        messages={messages}
+        renderItem={(item) => <ProjectCard item={item} lang={lang} messages={messages} />}
+      />
+      <PagedSection<WorkItem>
+        id="works"
+        title={section.works}
+        items={view.works}
+        messages={messages}
+        renderItem={(item) => <WorkCard item={item} lang={lang} messages={messages} />}
+      />
+      {view.stacks.length > 0 && (
+        <section
+          id="stack"
+          aria-labelledby="stack-heading"
+          className={css({ display: 'flex', flexDirection: 'column', gap: 'stack' })}
+        >
+          <h2 id="stack-heading" className={css({ textStyle: 'heading-2' })}>
+            {section.stack}
+          </h2>
+          <StackChipList stacks={view.stacks} messages={messages} />
+        </section>
+      )}
+      <PagedSection<BlogPostItem>
+        id="blog"
+        title={section.blog}
+        items={view.blogPosts}
+        messages={messages}
+        renderItem={(item) => <BlogPostRow item={item} lang={lang} messages={messages} />}
+      />
+      <PagedSection<CodingLogItem>
+        id="coding"
+        title={section.coding}
+        items={view.codingLogs}
+        messages={messages}
+        renderItem={(item) => <CodingLogRow item={item} lang={lang} messages={messages} />}
+      />
     </SingleColumnLayout>
   )
 }

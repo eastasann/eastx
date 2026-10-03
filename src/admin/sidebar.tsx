@@ -4,7 +4,7 @@
  */
 import { useLocation, useRouter } from '@tanstack/react-router'
 import { type ComponentType, type MouseEvent, useState } from 'react'
-import { css, cx } from 'styled-system/css'
+import { css } from 'styled-system/css'
 import { authClient } from '~/auth/client'
 import {
   BoxIcon,
@@ -60,7 +60,9 @@ export interface SidebarContentProps {
   onNavigate?: () => void
 }
 
-const itemBase = css({
+// 縮めた項目は itemBase の余白・色を上書きするので、クラスを cx で並べず、スタイルを重ねて1つの css にする
+// （同じプロパティのクラスは、並べた順ではなくスタイルシートの順で勝ち負けが決まる）
+const itemBaseStyle = {
   display: 'flex',
   alignItems: 'center',
   gap: 'inline',
@@ -72,9 +74,11 @@ const itemBase = css({
   borderRadius: 'control',
   _hover: { bg: 'bg.muted' },
   '&[aria-current=page]': { color: 'accent.default', bg: 'accent.subtle' },
-})
+} as const
+const collapsedItemStyle = { justifyContent: 'center', px: 'none' } as const
 
-const collapsedItem = css({ justifyContent: 'center', px: 'none' })
+const itemBase = css(itemBaseStyle)
+const collapsedItem = css(itemBaseStyle, collapsedItemStyle)
 
 export function SidebarContent({ githubLogin, collapsed, onNavigate }: SidebarContentProps) {
   const router = useRouter()
@@ -103,7 +107,7 @@ export function SidebarContent({ githubLogin, collapsed, onNavigate }: SidebarCo
                   onClick={(event) => navigate(event, entry.to)}
                   aria-current={isCurrent(entry, pathname) ? 'page' : undefined}
                   aria-label={collapsed ? entry.label : undefined}
-                  className={cx(itemBase, collapsed && collapsedItem)}
+                  className={collapsed ? collapsedItem : itemBase}
                 >
                   <Icon />
                   {!collapsed && <span>{entry.label}</span>}
@@ -128,7 +132,9 @@ export function SidebarContent({ githubLogin, collapsed, onNavigate }: SidebarCo
       >
         {collapsed ? (
           <Tooltip content={`@${githubLogin}`} placement="right">
-            <p className={cx(itemBase, collapsedItem, css({ color: 'text.muted', _hover: { bg: 'transparent' } }))}>
+            <p
+              className={css(itemBaseStyle, collapsedItemStyle, { color: 'text.muted', _hover: { bg: 'transparent' } })}
+            >
               <UserIcon />
               <span className={css({ srOnly: true })}>@{githubLogin}</span>
             </p>
@@ -170,11 +176,11 @@ function LogoutButton({ collapsed }: { collapsed: boolean }) {
           onClick={logout}
           disabled={status === 'pending'}
           aria-label={collapsed ? 'ログアウト' : undefined}
-          className={cx(
-            itemBase,
-            collapsed && collapsedItem,
-            css({ cursor: 'pointer', textAlign: 'start', _disabled: { opacity: 'disabled', cursor: 'not-allowed' } }),
-          )}
+          className={css(itemBaseStyle, collapsed ? collapsedItemStyle : {}, {
+            cursor: 'pointer',
+            textAlign: 'start',
+            _disabled: { opacity: 'disabled', cursor: 'not-allowed' },
+          })}
         >
           <LogoutIcon />
           {!collapsed && <span>ログアウト</span>}

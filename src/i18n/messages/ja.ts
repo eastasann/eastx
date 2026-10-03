@@ -36,6 +36,8 @@ export const ja = {
   /** 表示中の言語で「言語あり」でない中身に付ける言語ラベル。引数は実際に出している中身の言語 */
   label: {
     onlyIn: (lang: Lang): string => `${LANG_NAMES[lang]}のみ`,
+    /** 使用技術のアイコンの列で、出しきれなかった数（「+N」）の読み上げ名 */
+    moreStacks: (count: number): string => `ほかに${count}個`,
     opensInNewTab: '別タブで開く',
     reference: '参考',
     updated: '更新',
@@ -54,6 +56,8 @@ export const ja = {
     coding: 'コーディング記録へ戻る',
   },
   neighbor: {
+    /** 詳細ページの前後のナビのまとまりの読み上げ名 */
+    nav: '前後のページ',
     prevWork: '前の作品',
     nextWork: '次の作品',
     prevProject: '前のプロジェクト',
@@ -64,6 +68,8 @@ export const ja = {
     olderLog: '古い記録',
   },
   paging: {
+    /** ページングの操作（◀ 現在 / 全体 ▶）のまとまりの読み上げ名 */
+    controls: (section: string): string => `${section}のページ`,
     previous: '前のページ',
     next: '次のページ',
     /** セクション見出しの右の「現在 / 全体」 */

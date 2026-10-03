@@ -226,7 +226,7 @@ make test が通る状態をゴールとする。
 
 ## Step 6: コア画面（P1 トップ・P2 作品詳細・P3 プロジェクト詳細）
 
-Status:
+Status: done 2026-10-04
 
 ```
 docs/design-spec.md の「6. コア画面詳細仕様」の 6.1・6.2 に従って、
@@ -270,7 +270,8 @@ Status:
 
 やること:
 1. P4 ブログ記事・P5 コーディング記録詳細（design-spec 6.3）: getBlogPost・getCodingLog（SDD 5.11）、
-   更新日の出し方、前後のナビ、SEO（ADR-019）
+   更新日の出し方、前後のナビ、SEO（ADR-019）。P1 のブログ・コーディング記録の行（src/site/top-items.tsx の PostRow）は、
+   P4・P5 のルートがなかったので URL で移っている。ルートを作ったら型付きの Link に替える
 2. 管理画面の共通の仕組み（src/admin/）:
    - oRPC のクライアント（OpenAPILink ＋ CSRF のプラグイン）と TanStack Query
    - 一覧ビュー（design-spec 6.6）: 絞り込み（クエリ。SDD 4.1）、全状態、削除の確認、公開サイトで見る、

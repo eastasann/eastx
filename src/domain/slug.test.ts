@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { firstAvailable, SLUG_MAX_LENGTH, SLUG_PATTERN, slugify, stackKeyBase } from './slug'
+import { firstAvailable, isSlug, SLUG_MAX_LENGTH, SLUG_PATTERN, slugify, stackKeyBase } from './slug'
 
 describe('slugify', () => {
   it('英小文字・数字・ハイフンにする', () => {
@@ -35,6 +35,17 @@ describe('SLUG_PATTERN', () => {
     expect(SLUG_PATTERN.test('My-App')).toBe(false)
     expect(SLUG_PATTERN.test('my_app')).toBe(false)
     expect(SLUG_PATTERN.test('')).toBe(false)
+  })
+})
+
+describe('isSlug', () => {
+  it('形式に合い、上限の文字数までならスラッグ', () => {
+    expect(isSlug('my-app-2')).toBe(true)
+    expect(isSlug('a'.repeat(SLUG_MAX_LENGTH))).toBe(true)
+  })
+
+  it('大文字・記号・空・上限を超える長さはスラッグではない', () => {
+    for (const value of ['My-App', 'a_b', '', 'a'.repeat(SLUG_MAX_LENGTH + 1)]) expect(isSlug(value)).toBe(false)
   })
 })
 

@@ -32,6 +32,7 @@ export const en = {
   },
   label: {
     onlyIn: (lang: Lang): string => `${LANG_NAMES[lang]} only`,
+    moreStacks: (count: number): string => `${count} more`,
     opensInNewTab: 'Opens in a new tab',
     reference: 'Reference',
     updated: 'Updated',
@@ -50,6 +51,7 @@ export const en = {
     coding: 'Back to Coding Log',
   },
   neighbor: {
+    nav: 'Previous and next',
     prevWork: 'Previous work',
     nextWork: 'Next work',
     prevProject: 'Previous project',
@@ -60,6 +62,7 @@ export const en = {
     olderLog: 'Older log',
   },
   paging: {
+    controls: (section: string): string => `${section} pages`,
     previous: 'Previous page',
     next: 'Next page',
     position: (current: number, total: number): string => `${current} / ${total}`,

@@ -3,6 +3,7 @@ import { getSiteChrome } from '~/content/server-fns'
 import { EMPTY_SITE_CHROME, type SiteChromeView } from '~/content/site-chrome'
 import { isLang } from '~/i18n/detect'
 import { getMessages } from '~/i18n/messages'
+import { statusHead } from '~/site/head'
 import { SiteChrome } from '~/site/layouts'
 import { ErrorPage, NotFoundPage } from '~/site/status-pages'
 
@@ -17,6 +18,15 @@ export const Route = createFileRoute('/$lang')({
     if (!isLang(params.lang)) throw notFound({ data: await getSiteChrome().catch(() => EMPTY_SITE_CHROME) })
     return getSiteChrome()
   },
+  // C1・C2 の <head>。子が当たらない・子が notFound() を投げたときも、このルートが受け手になる。
+  // 子が失敗したとき（C2）は、子のルート自身の head が出す
+  head: ({ match }) => {
+    if (match._notFound || match.status === 'notFound') return statusHead(match.context.lang, 'notFound')
+    if (match.status === 'error') return statusHead(match.context.lang, 'error')
+    return {}
+  },
+  // 公開側は毎回 SSR し、HTML はキャッシュしない（ADR-011）
+  headers: () => ({ 'Cache-Control': 'private, no-cache' }),
   component: LangLayout,
   notFoundComponent: LangNotFound,
   errorComponent: LangError,

@@ -406,15 +406,15 @@
 
 | ページ | `<title>` | 説明（description・og:description） | og:image |
 |---|---|---|---|
-| P1 トップ | `{サイト名} — {プロフィールの名前}` | プロフィールの肩書き。なければ自己紹介の抜粋 | 言語ごとの既定の画像 `/og/default-{lang}.png` |
+| P1 トップ | `{サイト名} — {プロフィールの名前}`。プロフィールがなければ `{サイト名}` | プロフィールの肩書き。なければ自己紹介の抜粋。プロフィールがなければなし | 言語ごとの既定の画像 `/og/default-{lang}.png` |
 | P2・P3 | `{タイトル} — {サイト名}` | 概要。なければ詳細本文の抜粋 | サムネイル。なければ既定の画像 |
 | P4・P5 | `{タイトル} — {サイト名}` | 本文の抜粋 | サムネイル。なければ既定の画像 |
 | C1・C2 | `{C1・C2 の見出し（辞書の文言）} — {サイト名}` | なし | 既定の画像 |
 
 - テキストは表示中の言語のもの（項目単位の代替表示は design-spec 1.4 に従う）。抜粋の作り方は design-spec 6.1.4。
 - `og:image` などの絶対 URL は `SITE_URL` から作る。`og:locale` は `ja_JP` ／ `en_US`、`og:locale:alternate` にもう一方を入れる。
-- 各ページに `<link rel="canonical">` と、`hreflang` の `ja`・`en`・`x-default`（`x-default` はルート `/`）を出す。
-- 検索エンジンへの指示: 管理画面は `<meta name="robots" content="noindex">`。Worker が返すレスポンスのうち、`/admin/*`・`/api/*` と staging のすべてに `X-Robots-Tag: noindex, nofollow` を付ける。`/robots.txt` は静的ファイルにせず Worker が環境ごとに返す（本番は `/admin` と `/api` を拒否、staging はすべてを拒否）。静的アセット（JS・CSS・フォント）には付かないが、検索の対象になるページはすべて Worker を通る。
+- P1〜P5 に `<link rel="canonical">` と、`hreflang` の `ja`・`en`・`x-default`（`x-default` はルート `/`）を出す。C1・C2 は存在しない・表示できない URL なので出さない。
+- 検索エンジンへの指示: 管理画面は `<meta name="robots" content="noindex">`。Worker が返すレスポンスのうち、`/admin/*`・`/api/*` と staging のすべてに `X-Robots-Tag: noindex, nofollow` を付ける。`/robots.txt` は静的ファイルにせず Worker が環境ごとに返す（本番は `/admin` と `/api` を拒否、staging とローカルはすべてを拒否）。静的アセット（JS・CSS・フォント）には付かないが、検索の対象になるページはすべて Worker を通る。
 - sitemap.xml は作らない。RSS はスコープ外（design-spec 9章）。
 
 **理由:** OGP 画像の動的生成（Satori など）は CPU とバンドルを食い、個人サイトでは割に合わない。サムネイルがあればそれで十分伝わる。sitemap を作らないのは、ページが少なく、トップからすべての詳細ページへリンクがあり、クローラーがたどれるため。
@@ -504,7 +504,7 @@
 - 編集ビューの `{id}` が `new` のときは新規作成のビュー。新規作成で初めて保存したら、URL を作成した項目の `/{id}` に置き換える（履歴を増やさない `replace`）。
 - `admin/_authed/route.tsx` は `ssr: false` のレイアウトで、`beforeLoad` でセッションを確かめ、なければ `/admin/login?redirect={開こうとしたパス}` へ移す。A1 はこのレイアウトの外に置く（`ssr: false`）。
 - トップのセクションの ID（ヘッダーのメニュー・戻るリンクのハッシュ）: `profile`、`career`、`projects`、`works`、`stack`、`blog`、`coding`。
-- セクション内ページングのページ番号は URL に載せない（design-spec 6.1.3）。詳細ページの戻るリンクは `/{lang}#{セクションID}` へ移り、どの項目を含むページを開くかを history state（`{ section, itemId }`）で渡す。ブラウザの「戻る」では、離れたときのページ番号を history state から戻す。
+- セクション内ページングのページ番号は URL に載せない（design-spec 6.1.3）。詳細ページの戻るリンクは `/{lang}#{セクションID}` へ移り、どの項目を含むページを開くかを history state（`{ section, itemId }`）で渡す。ブラウザの「戻る」では、離れたときのページ番号を戻す。ページ番号は history state ではなく、sessionStorage に履歴のキー（`__TSR_key`）ごとに持つ（`src/site/page-memory.ts`）。TanStack Router の history は `history.replaceState` を包んでいて、ページングのたびに書くとルーターが読み込み直し、URL にハッシュがあればそこへスクロールし直すため。同じ履歴にページ番号と `itemId` の両方があれば、ページ番号を使う（戻るリンクで来たあとにページングしていれば、離れたときのページ）。
 - 言語の切り替えは、同じルートのパラメーター `lang` だけを変えて移る。トップでは、表示中のセクションの ID を history state で渡し、移ったあとにそのセクションまでスクロールする。
 
 ### 4.2 画面以外のエンドポイント

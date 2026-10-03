@@ -28,7 +28,9 @@ export interface SelectProps {
   invalid?: boolean
 }
 
-const trigger = css({
+// input の display を上書きするので、クラスを cx で並べず1つの css にまとめる
+// （同じプロパティのクラスは、並べた順ではなくスタイルシートの順で勝ち負けが決まる）
+const trigger = css(input.raw(), {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -66,7 +68,7 @@ export function Select({
         {label}
       </ArkSelect.Label>
       <ArkSelect.Control>
-        <ArkSelect.Trigger className={cx(input(), trigger)}>
+        <ArkSelect.Trigger className={trigger}>
           <ArkSelect.ValueText placeholder={placeholder} />
           <ArkSelect.Indicator className={css({ color: 'text.muted', display: 'flex' })}>
             <ChevronDownIcon size="sm" />

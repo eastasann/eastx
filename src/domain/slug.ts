@@ -9,6 +9,11 @@ export const SLUG_MAX_LENGTH = 100
 /** スラッグ・識別名の形式（空でない、英小文字・数字・ハイフンだけ） */
 export const SLUG_PATTERN = /^[a-z0-9-]+$/
 
+/** スラッグの形か。公開側の URL の `{slug}` が、存在しうる値かを見る */
+export function isSlug(value: string): boolean {
+  return value.length <= SLUG_MAX_LENGTH && SLUG_PATTERN.test(value)
+}
+
 /**
  * 英語のタイトル（使用技術では表示名）からスラッグの元になる値を作る。変換して空になるときは null。
  * アクセント付きの文字は基の文字に戻し、英数字以外の並びはハイフン1つにまとめ、両端のハイフンを落とす。

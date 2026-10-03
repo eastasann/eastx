@@ -7,16 +7,17 @@ test('/ は言語の振り分けで /ja か /en に移る', async ({ page }) => 
   await expect(page).toHaveURL(/\/(ja|en)$/)
 })
 
-test('/ja が SSR でサイト名を出す', async ({ page }) => {
+// トップの見出しはプロフィールの名前（make e2e のデモデータ）
+test('/ja が SSR でトップを出す', async ({ page }) => {
   const response = await page.goto('/ja')
   expect(response?.status()).toBe(200)
-  await expect(page.getByRole('heading', { name: 'eastasian' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '東 アジア' })).toBeVisible()
 })
 
-test('/en が SSR でサイト名を出す', async ({ page }) => {
+test('/en が SSR でトップを出す', async ({ page }) => {
   const response = await page.goto('/en')
   expect(response?.status()).toBe(200)
-  await expect(page.getByRole('heading', { name: 'eastasian' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Asia Higashi' })).toBeVisible()
 })
 
 test('ja・en 以外の言語は 404', async ({ page }) => {

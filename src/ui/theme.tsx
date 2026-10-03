@@ -89,9 +89,12 @@ export function ThemeToggle({ labels, showLabel = false, className, ...rest }: T
       type="button"
       onClick={() => setPreference(next)}
       aria-label={labels.toggle(labels[preference], labels[next])}
+      // 文字付きは button の寄せ・余白を上書きするので、cx でクラスを並べず1つの css にまとめる
       className={cx(
-        button({ variant: 'ghost', shape: showLabel ? 'default' : 'icon' }),
-        showLabel && css({ justifyContent: 'flex-start', px: 'inset-dense' }),
+        css(
+          button.raw({ variant: 'ghost', shape: showLabel ? 'default' : 'icon' }),
+          showLabel ? { justifyContent: 'flex-start', px: 'inset-dense' } : {},
+        ),
         className,
       )}
     >

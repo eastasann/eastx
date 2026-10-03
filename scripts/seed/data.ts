@@ -271,18 +271,6 @@ export function buildSeed(options: SeedOptions): SeedData {
       stackKeys: ['go'],
     },
     {
-      slug: 'recipe-notes',
-      titleJa: 'レシピノート',
-      titleEn: 'Recipe Notes',
-      summaryJa: '家族で共有するレシピ帳。',
-      summaryEn: 'A recipe book shared with family.',
-      // 詳細本文が日本語だけ（/en の詳細で日本語の本文と注記が出る）
-      bodyJa: '## 背景\n\n家族のレシピを1か所にまとめたくて作りました。',
-      bodyEn: null,
-      thumbnailUrl: image.url('thumbnail', 'Recipe Notes'),
-      stackKeys: ['python', 'sqlite'],
-    },
-    {
       // 詳細本文なしで外部リンクだけ
       slug: 'landing-page',
       titleJa: 'ランディングページ',
@@ -301,6 +289,19 @@ export function buildSeed(options: SeedOptions): SeedData {
       summaryEn: 'Configuration files for my dev environment.',
       githubUrl: 'https://github.com/example/dotfiles',
       stackKeys: ['docker'],
+    },
+    {
+      slug: 'recipe-notes',
+      titleJa: 'レシピノート',
+      titleEn: 'Recipe Notes',
+      summaryJa: '家族で共有するレシピ帳。',
+      summaryEn: 'A recipe book shared with family.',
+      // 詳細本文が日本語だけ（/en の詳細で日本語の本文と注記が出る）。
+      // 2ページ目に置き、ページングした先から詳細へ移って「戻る」で元のページに戻る流れを確かめられるようにする
+      bodyJa: '## 背景\n\n家族のレシピを1か所にまとめたくて作りました。',
+      bodyEn: null,
+      thumbnailUrl: image.url('thumbnail', 'Recipe Notes'),
+      stackKeys: ['python', 'sqlite'],
     },
     {
       // 外部リンクも GitHub もなく押せない

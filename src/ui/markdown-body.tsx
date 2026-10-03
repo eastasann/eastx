@@ -78,12 +78,34 @@ const body = css({
   _dark: { '& .shiki span': { color: 'var(--shiki-dark)' } },
 })
 
-const copyButton = cx(
-  button({ variant: 'outline' }),
-  css({ position: 'absolute', top: 'inset-dense', right: 'inset-dense', h: 'auto', py: 'none', px: 'inset-dense' }),
-)
+// button の高さ・余白を上書きするので、cx でクラスを並べず1つの css にまとめる（同じプロパティのクラスは、
+// 並べた順ではなくスタイルシートの順で勝ち負けが決まる）
+const copyButton = css(button.raw({ variant: 'outline' }), {
+  position: 'absolute',
+  top: 'inset-dense',
+  right: 'inset-dense',
+  h: 'auto',
+  py: 'none',
+  px: 'inset-dense',
+})
 
 const COPIED_MS = 2000
+
+/** 読み込めない本文の画像の代わりの、背景色だけの枠（design-spec 6.1.5・6.2.3。壊れた画像のアイコンを出さない） */
+const brokenImageFrame = css({ display: 'block', aspectRatio: 'thumbnail', bg: 'bg.muted', borderRadius: 'image' })
+
+/** 画像を枠に置き換える。代替テキストは枠の読み上げ名に移す */
+function replaceWithFrame(image: HTMLImageElement): void {
+  const frame = document.createElement('span')
+  frame.className = brokenImageFrame
+  if (image.alt === '') {
+    frame.setAttribute('aria-hidden', 'true')
+  } else {
+    frame.setAttribute('role', 'img')
+    frame.setAttribute('aria-label', image.alt)
+  }
+  image.replaceWith(frame)
+}
 
 export function MarkdownBody({ html, copyLabels, lang, className }: MarkdownBodyProps) {
   const ref = useRef<HTMLDivElement>(null)
@@ -127,6 +149,30 @@ export function MarkdownBody({ html, copyLabels, lang, className }: MarkdownBody
       for (const copy of buttons) copy.remove()
     }
   }, [html, copyLabels.copied, copyLabels.copy, copyLabels.copyFailed])
+
+  // 本文の画像は React の外（innerHTML）にあるので、読み込みの失敗をここで受ける。
+  // SSR の HTML の画像は hydrate の前に失敗していることがあるので、読み込みが終わった画像は decode() で確かめる
+  // （naturalWidth は、大きさを持たない SVG だと読み込めても 0 になるので使わない）
+  // biome-ignore lint/correctness/useExhaustiveDependencies: html は effect の中では読まないが、画像が入れ替わるきっかけになる
+  useEffect(() => {
+    const root = ref.current
+    if (!root) return
+    const listeners: [HTMLImageElement, () => void][] = []
+    for (const image of root.querySelectorAll('img')) {
+      if (image.complete) {
+        image.decode().catch(() => {
+          if (image.isConnected) replaceWithFrame(image)
+        })
+        continue
+      }
+      const onError = () => replaceWithFrame(image)
+      image.addEventListener('error', onError, { once: true })
+      listeners.push([image, onError])
+    }
+    return () => {
+      for (const [image, onError] of listeners) image.removeEventListener('error', onError)
+    }
+  }, [html])
 
   return (
     <>
