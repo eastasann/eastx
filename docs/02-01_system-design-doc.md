@@ -280,7 +280,7 @@
 
 ### ADR-012: Markdown は unified ＋ rehype-sanitize ＋ Shiki で、公開側とプレビューで同じ描画をする
 
-**決定:** `src/markdown/` に描画の関数を1つ持ち、公開側（サーバー）と管理画面のプレビュー（ブラウザ）の両方から使う。処理は remark-parse → remark-gfm → remark-rehype（生の HTML は通さない）→ rehype-sanitize（GitHub のスキーマ）→ 見出しのレベルと外部リンクの処理 → Shiki（コードの色分け）→ HTML の文字列。Shiki は JavaScript の正規表現エンジンと、使う言語だけを読み込む細かいバンドルにする。テーマはライト・ダークの2つを CSS 変数で切り替える。
+**決定:** `src/markdown/` に描画の関数を1つ持ち、公開側（サーバー）と管理画面のプレビュー（ブラウザ）の両方から使う。処理は remark-parse → remark-gfm → remark-rehype（生の HTML は通さない）→ rehype-sanitize（GitHub のスキーマ）→ 見出しのレベルと外部リンクの処理 → Shiki（コードの色分け）→ HTML の文字列。Shiki は JavaScript の正規表現エンジンと、使う言語だけを読み込む細かいバンドルにする。テーマはライト・ダークの2つを CSS 変数で切り替える。コードブロックの「コピー」ボタンは描画結果に含めず、本文を出す部品（`src/ui/markdown-body.tsx`）がブラウザで付ける。描画結果を UI の言語に依らない形に保ち、本文の言語をキーにした Cache API（ADR-011）でそのまま使い回すため。
 
 **理由:** design-spec 6.3.1 のルールを1か所で実装し、プレビューと公開の見た目を一致させる。HTML の文字列を返すので、Cache API に入れやすい（ADR-011）。サニタイズを Shiki より前に置くのは、Shiki が付けるスタイルを消さないため。
 
@@ -315,6 +315,7 @@
 - 06 の型と Panda の対応: color → `colors`、space → `spacing`、size → `sizes`、radius → `radii`、border-width → `borderWidths`、shadow → `shadows`、duration → `durations`、cubicBezier → `easings`、opacity → `opacities`、z-index → `zIndex`、aspect-ratio → `aspectRatios`、fontFamily・fontWeight・font.size・letter-spacing → `fonts`・`fontWeights`・`fontSizes`・`letterSpacings`。typography（合成値）は Panda の `textStyles` に、transition（合成値）は `durations` と `easings` のセマンティックトークンの組に展開する。
 - Panda ではプリミティブ層もトークンになり、型では「セマンティック層だけを参照する」を止められない。そこでプリミティブは `primitive` の名前空間に出し、`make lint` の中で `src/` からの `primitive.` の参照を検査して止める。
 - スタイルは静的に書けるもの（`css()` に渡すオブジェクト、レシピとそのバリアント）だけにし、実行時に組み立てない。
+- トークンを通さない値は、ライブラリが実行時に渡す CSS 変数だけにする: Ark UI のトーストの積み重ね（`var(--x)`・`var(--z-index)` など）と、Shiki のテーマの色（`var(--shiki-light)`・`var(--shiki-dark)`。ADR-012）。どちらもデザインの値ではなく、ライブラリの出力をそのまま使う。
 
 **理由:** design-spec 4.4 の「見た目はすべてデザイントークン経由で指定し、コンポーネントに値を直接書かない」を、レビューではなく型の仕組みで守れる。Panda のトークンは「プリミティブ＋セマンティック（条件付き）」の2層で、06 の構造にそのまま対応する。ビルド時に CSS を生成するので、SSR でもランタイムの負荷がない。Ark UI は Panda と同じチームが作っていて、キーボード操作や読み上げをライブラリに任せられる。Style Dictionary を使わないのは、06 で使う DTCG の型が少なく（color・dimension・fontFamily・fontWeight・duration・cubicBezier・number・shadow・typography・transition）、出力先も Panda の2層だけなので、設定と変換の仕組みを1つ増やすより、短いスクリプトの方が単純なため。
 
@@ -459,7 +460,7 @@
 | oRPC の `OpenAPIHandler`・`OpenAPILink` と、Zod v4 からの openapi.json の生成 | 005・008 | `RPCHandler` ＋ `RPCLink` に切り替え、OpenAPI は生成だけにする |
 | Better Auth の GitHub ログイン、hooks での拒否、実際のエラーコード（1.7.7 の実ログインで確認済み。additionalFields の input: false は mapProfileToUser 由来も拒むため外し、update-user を塞ぐ形に 5.2 を直した） | 009 | 5.2 のエラーコードの表を実際の値に直す |
 | 生成したトークンでの Panda（strictTokens）のビルド | 014 | Panda の PostCSS の設定を見直す |
-| 長くコードの多い記事の Markdown の描画にかかる CPU 時間 | 012 | Shiki の言語を減らす、描画結果のキャッシュを確かめる |
+| 長くコードの多い記事の Markdown の描画にかかる CPU 時間（Node.js 24（V8）で計測済み。ハイライターの生成は約 30ms。コード20個の普通の記事は初回約 140ms・2回目から約 10ms。16万字・コード1,600行・10言語の記事は初回約 590ms・2回目から約 270ms。Workers の CPU 時間の上限に十分収まり、描画結果は Cache API に入るので、言語は減らさない。workerd の上での描画とキャッシュは結合テストで通す） | 012 | Shiki の言語を減らす、描画結果のキャッシュを確かめる |
 | `wrangler deploy --dry-run` でのバンドルの大きさが圧縮後 10MB に収まる | 002 | 重い依存の見直し、管理画面の依存の遅延読み込み |
 | Biome の `noRestrictedImports` で公開側からの import を止められる | 020 | 検査スクリプト |
 | drizzle-kit の SQL が D1 に適用できる | 007 | SQL を手で直す |
@@ -484,8 +485,8 @@
 | `/{lang}/projects/{slug}` | `$lang/projects.$slug.tsx` | P3 プロジェクト詳細 |
 | `/{lang}/blog/{slug}` | `$lang/blog.$slug.tsx` | P4 ブログ記事 |
 | `/{lang}/coding/{slug}` | `$lang/coding.$slug.tsx` | P5 コーディング記録詳細 |
-| 公開側で一致しないパス、`$lang` が `ja`・`en` 以外、中身が見つからない | `$lang/route.tsx` と `__root.tsx` の `notFoundComponent` | C1（HTTP 404） |
-| 公開側で中身の取得に失敗 | `$lang/route.tsx` の `errorComponent` | C2（HTTP 500） |
+| 公開側で一致しないパス、`$lang` が `ja`・`en` 以外、中身が見つからない | `$lang/route.tsx` の `notFoundComponent`（`__root.tsx` の `notFoundComponent` は、どのルートにも当たらないパスの受け皿） | C1（HTTP 404） |
+| 公開側で中身の取得に失敗 | `$lang/route.tsx` の `errorComponent` と、ルーターの `defaultErrorComponent`（公開側の各画面のルート） | C2（HTTP 500） |
 | `/admin/login` | `admin/login.tsx` | A1 |
 | `/admin` | `admin/_authed/index.tsx` | A2 |
 | `/admin/profile` | `admin/_authed/profile.tsx` | A3 |
@@ -498,7 +499,8 @@
 | 管理画面で一致しないパス | `admin/_authed/$.tsx`（スプラット。`beforeLoad` で `/admin` へ移す） | 画面なし。design-spec 6.6 の「存在しない管理画面の URL」の扱い |
 
 - 管理画面の一覧は、絞り込みをクエリで持つ: `?status=draft|published`（A4〜A6・A8・A9）、`?kind=work|education`（A4）、`?kind=learning_log|snippet|problem|memo`（A9）。ダッシュボードの下書き件数からは `?status=draft` 付きで移る。
-- `$lang` が `ja`・`en` 以外のときの C1 の言語は、design-spec 3.1 のとおりルート `/` と同じ振り分けで決める。
+- `$lang` が `ja`・`en` 以外のときの C1 の言語は、design-spec 3.1 のとおりルート `/` と同じ振り分けで決める。`$lang/route.tsx` の `beforeLoad` が表示の言語を決めて context に入れ、ローダーが `getSiteChrome`（5.11）でヘッダーとフッターの中身を読む。`ja`・`en` 以外のときは、読んだ結果を `notFound({ data })` に載せて投げ、C1 がそれでヘッダーとフッターを出す。C1・C2 は、ルーターが `$lang` のレイアウトの中（`Outlet`）に描くとき（子のルートが当たらない・子が失敗した）と、レイアウトの代わりに描くとき（`$lang` 自身が `notFound()`・失敗した）があるので、ヘッダーとフッターの部品（`src/site/layouts.tsx` の `SiteChrome`）は、すでに外側にあれば二重に出さない。
+- C2 は、取得に失敗したルートの `errorComponent` で出す。TanStack Router は SSR で、失敗したルート自身の `errorComponent`（なければルーターの `defaultErrorComponent`）を使い、親のルートへは上げない。そこで `src/router.tsx` の `defaultErrorComponent`（`src/site/status-pages.tsx` の `DefaultRouteError`）が、`$lang` の下なら C2 を出し、それ以外（管理画面）はライブラリの既定の表示にする。公開側の画面のルートは個別に `errorComponent` を付けない。見つからないとき（`notFound()`）は親へ上がるので、各ルートに `notFoundComponent` は要らない。
 - 編集ビューの `{id}` が `new` のときは新規作成のビュー。新規作成で初めて保存したら、URL を作成した項目の `/{id}` に置き換える（履歴を増やさない `replace`）。
 - `admin/_authed/route.tsx` は `ssr: false` のレイアウトで、`beforeLoad` でセッションを確かめ、なければ `/admin/login?redirect={開こうとしたパス}` へ移す。A1 はこのレイアウトの外に置く（`ssr: false`）。
 - トップのセクションの ID（ヘッダーのメニュー・戻るリンクのハッシュ）: `profile`、`career`、`projects`、`works`、`stack`、`blog`、`coding`。
@@ -1069,6 +1071,7 @@ type PageMeta = { title: string; description: string | null; ogImageUrl: string;
 | `getProjectDetail` | `{ lang, slug }` | `ProjectDetailView` | 同上 |
 | `getBlogPost` | `{ lang, slug }` | `BlogPostView` | 存在しない・非公開 → `notFound()` |
 | `getCodingLog` | `{ lang, slug }` | `CodingLogView` | 同上 |
+| `getSiteChrome` | なし | `SiteChromeView` | — |
 
 ```ts
 type TopPageView = {
@@ -1126,11 +1129,19 @@ type BlogPostView = {
   newer: Neighbor; older: Neighbor
 }
 type CodingLogView = BlogPostView & { kind: CodingLogKind; referenceUrl: string | null }
+
+/** 公開側の全画面（C1・C2 を含む）のヘッダーとフッター（design-spec 6.1.2）。`$lang/route.tsx` のローダーが読む */
+type SectionId = 'career' | 'projects' | 'works' | 'stack' | 'blog' | 'coding'
+type SiteChromeView = {
+  sections: SectionId[]                     // P1 に出るセクション（中身が1件以上。design-spec 6.1.5）。並びは P1 と同じ
+  socialLinks: { service: SocialService; url: string; label: string | null }[]  // プロフィールのSNSリンク。プロフィールがなければ空
+}
 ```
 
 - 各配列は design-spec 6.1.3 の並び順で返す。0件の配列はそのまま返し、セクションを出すかどうかは画面が決める。
 - `getTopPage` は1回の `db.batch()` で全セクションを読む。抜粋のために本文は先頭 2,000 字だけを読む（`substr`）。切った位置でコードブロックが閉じていなければ、その開始の行から後ろを捨ててから抜粋を作る（design-spec 6.1.4 の「コードブロックを取り除く」と同じ結果にするため）。
 - 詳細ページの `body` が両方の言語で空のブログ・コーディング記録は、公開のルールで起こらない。
+- `getSiteChrome` の `sections` と、P1 がセクションを出すかの判定（`getTopPage` の配列が0件か）は同じ規則にする。使用技術は「トップに表示する」の技術が1件以上で出す。中身が言語に依らないので入力を取らない。
 
 ---
 
@@ -1699,7 +1710,7 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 
 `message` は日本語（管理画面だけが使うため）。
 
-公開側のサーバー関数は、見つからなければ `notFound()`（C1、HTTP 404）、それ以外の失敗は例外のまま投げ、ルートの `errorComponent`（C2、HTTP 500）で受ける。
+公開側のサーバー関数は、見つからなければ `notFound()`（C1、HTTP 404）を投げ、ルートの `notFoundComponent` で受ける。それ以外の失敗は、ERROR のログ（`route` はサーバー関数の名前）を出してから、文面を `INTERNAL_SERVER_ERROR` に置き換えた例外を投げ、ルートの `errorComponent`（C2、HTTP 500）で受ける。TanStack Start は投げた例外のメッセージを SSR の HTML とサーバー関数の応答に載せてブラウザへ渡すので、D1 のエラーの文面をそのまま投げない（`src/content/server-fns.ts`）。
 
 ### フロントエンドでの表示方針
 
@@ -1710,11 +1721,11 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 | バリデーションエラー | `INPUT_VALIDATION_FAILED` → `fieldErrors` のキーに対応する入力欄の下に赤字で出す。`PUBLISH_REQUIREMENTS_NOT_MET` → 足りない項目を一覧で出し、該当する言語タブと入力欄に印を付ける。`SLUG_CONFLICT` → スラッグ欄の下に出し、`suggestion` を候補として示す |
 | 通信・サーバーエラー | 管理画面: design-spec 6.5〜6.7.4 の「取得に失敗」「保存に失敗」「削除に失敗」「並べ替えの保存に失敗」の表示。入力は消さない。公開側: C2 |
 | 認可エラー | `UNAUTHORIZED` → design-spec 6.4 の「ログインの有効期限切れ」の流れ。編集中ならフォームの状態を localStorage の `eastx:backup:{種類}:{id か new}` に一時保存してから、`/admin/login?redirect={今のパス}` へ移す。`FORBIDDEN` → ログアウトして（失敗しても）、`/admin/login?error=forbidden` に移して design-spec 6.4 の「管理者でないアカウント」の表示 |
-| 想定外のエラー | Sentry に送る。管理画面は通信・サーバーエラーと同じ表示、公開側は C2。開発中（`ENVIRONMENT=local`）だけ詳細を出す |
+| 想定外のエラー | Sentry に送る。管理画面は通信・サーバーエラーと同じ表示で、開発中（`ENVIRONMENT=local`）だけ詳細を出す。公開側は C2 で、詳細は画面に出さずログで見る（上の公開側のサーバー関数の扱い） |
 
 ### ログとの対応
 
-- リクエストID は Cloudflare の `cf-ray`（ローカルでは UUID）。Worker の入口で決め、`x-request-id` のレスポンスヘッダー、`INTERNAL_SERVER_ERROR` の `data.requestId`、すべてのログ行、Sentry のタグ（`request_id`）に入れる。
+- リクエストID は Cloudflare の `cf-ray`（ローカルでは UUID）。Worker の入口で決め、`x-request-id` のレスポンスヘッダー、`INTERNAL_SERVER_ERROR` の `data.requestId`、すべてのログ行、Sentry のタグ（`request_id`）に入れる。公開側の SSR とサーバー関数のログ行は、TanStack Start の中で `cf-ray` のリクエストヘッダーを直接読む（ローカルではログ行ごとの UUID）。
 - ログは JSON の1行（`{ "level": "error", "msg": "...", "requestId": "...", "route": "PUT /api/admin/works/{id}", "code": "SLUG_CONFLICT" }`）で `console.log` ／ `console.error` に出し、Workers Logs で検索する（11章）。
 - ログレベルの使い分けは `docs/05_operation-runbook.md` 1章。Sentry に送る範囲は11章。
 
@@ -1727,8 +1738,8 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 | 項目 | 実装 |
 |---|---|
 | ライブラリ | 使わない（ADR-013） |
-| メッセージカタログ | `src/i18n/messages/ja.ts`（型の基準）と `en.ts`（`satisfies Messages`）。領域ごとに入れ子にする（例: `section.career`、`label.jaOnly`、`paging.next`、`notice.bodyOnlyIn`）。値に差し込みがあるものは関数にする（例: `notice.bodyOnlyIn: (lang) => ...`）。管理画面の文言は辞書にせず、日本語を直接書く |
-| ロケールの判定 | 公開側はルートのパラメーター `lang`（`ja`／`en` 以外は C1）が常に正。ルート `/` の振り分けの順序は design-spec 1.4 で、`src/routes/index.tsx` のサーバーハンドラーが Cookie `eastx-lang` と `Accept-Language`（q 値で並べた最優先の言語タグ）を読んで 302 を返す |
+| メッセージカタログ | `src/i18n/messages/ja.ts`（型の基準）と `en.ts`（`satisfies Messages`）。領域ごとに入れ子にする（例: `section.career`、`label.onlyIn`、`paging.next`、`notice.postOnlyIn`）。値に差し込みがあるものは関数にする（例: `notice.postOnlyIn: (lang) => ...`。引数は実際に出している中身の言語）。管理画面の文言は辞書にせず、日本語を直接書く |
+| ロケールの判定 | 公開側はルートのパラメーター `lang`（`ja`／`en` 以外は C1）が常に正。ルート `/` の振り分けの順序は design-spec 1.4 で、`src/routes/index.tsx` のサーバーハンドラーが Cookie `eastx-lang` と `Accept-Language`（q 値で並べた最優先の言語タグ）を読んで 302 を返す。`$lang` が `ja`・`en` 以外の C1 も同じ判定で言語を決める（`__root.tsx` の `beforeLoad` が `createIsomorphicFn` で、サーバーではリクエストのヘッダー、ブラウザでは `document.cookie` と `navigator.languages` を読んで context に入れ、`$lang/route.tsx` の `beforeLoad` が使う） |
 | 言語の記憶 | Cookie `eastx-lang`（属性は7章）。言語を切り替えたときにクライアントで書く |
 | 代替表示と言語ラベル | `src/domain/languages.ts`（言語ありの判定）と `src/content/localize.ts`（`LocalizedText`・`Availability` を作る）で行う。画面は `lang` 属性を `LocalizedText.lang` から付けるだけ |
 | 日付の書式 | 表記は design-spec 1.4。実装は `src/i18n/format.ts` で、日時は `Intl.DateTimeFormat` に `timeZone: 'Asia/Tokyo'` を付け、英語の月は `month: 'short'` にする。年月（`YYYY-MM`）は時刻を持たないので、その月の1日を `timeZone: 'UTC'` で整形してずれを防ぐ。管理画面の表記は `formatToParts` の部品から組み立てる |

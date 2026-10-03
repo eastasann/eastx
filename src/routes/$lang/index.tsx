@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { css } from 'styled-system/css'
 import { isLang, type Lang } from '~/i18n/detect'
+import { SingleColumnLayout } from '~/site/layouts'
 
 // P1 トップの中身は Step 6（getTopPage）。ここでは SSR とサーバー関数の経路を通すだけ。
 // サーバー関数は誰でも呼べる HTTP エンドポイントになるので、入力は必ず検証する（SDD 7章）。
@@ -21,8 +22,8 @@ export const Route = createFileRoute('/$lang/')({
 function TopPage() {
   const { siteName } = Route.useLoaderData()
   return (
-    <main className={css({ p: 'section' })}>
+    <SingleColumnLayout>
       <h1 className={css({ textStyle: 'display' })}>{siteName}</h1>
-    </main>
+    </SingleColumnLayout>
   )
 }

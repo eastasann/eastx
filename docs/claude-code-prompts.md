@@ -186,7 +186,7 @@ Better Auth で GitHub ログインを実装し、管理画面を守ってくだ
 
 ## Step 5: 共通UIコンポーネント
 
-Status:
+Status: done 2026-10-04
 
 ```
 docs/design-spec.md の「4. デザインシステム」と 6.1.2 に従って、
@@ -246,6 +246,11 @@ docs/design-spec.md の「6. コア画面詳細仕様」の 6.1・6.2 に従っ�
 5. 既定の OGP 画像 public/og/default-{ja,en}.png（1200×630）と favicon。画像はトークンの色で作った
    HTML を Playwright で撮るスクリプト（scripts/og/）で生成してコミットする
 6. 結合テスト: 公開中だけを返す、並び順、前後のナビ、詳細ページを持たないものは返さない、言語の代替
+7. P1 は L1（src/site/layouts.tsx の SingleColumnLayout）に載せ、各セクションに SDD 4.1 のセクションの ID を付ける。
+   言語の切り替えで表示中のセクションへスクロールする処理（src/site/section-scroll.ts。Step 5 で作成済み。
+   セクションのある画面がないので Step 5 では確かめられなかった）を、トップで作品のセクションまでスクロールして
+   EN に切り替え、/en でも作品のセクションが画面の上端にあることと、そのあと詳細ページから「戻る」で
+   離れたときのスクロールの位置に戻ることを E2E で確かめる
 
 make db-seed のデータで make dev を開き、ja と en の両方で「トップ → 作品をページング → 作品詳細 →
 戻るで元のページ」が動き、make db-seed-empty でブログ・コーディング記録のセクションとメニューが消え、

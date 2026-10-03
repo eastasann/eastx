@@ -1079,6 +1079,10 @@
     },
     "space": {
       "$type": "dimension",
+      "none": {
+        "$value": "{primitive.space.0}",
+        "$description": "端に寄せる位置（固定ヘッダーの top、全面に広げる部品の inset）と、余白を消すとき"
+      },
       "gutter": {
         "$value": "{primitive.space.4}",
         "$description": "画面の左右の余白"
@@ -1137,6 +1141,10 @@
       "icon-sm": {
         "$value": "{primitive.size.16}"
       },
+      "popover": {
+        "$value": "{primitive.size.240}",
+        "$description": "浮いている部品（メニュー・セレクトの一覧・トースト）の最小幅と、ツールチップの最大幅"
+      },
       "avatar": {
         "$value": "{primitive.size.96}",
         "$description": "プロフィールの写真"
@@ -1178,6 +1186,10 @@
       "focus-ring": {
         "$value": "{primitive.border-width.2}",
         "$description": "キーボードのフォーカスの輪の太さ"
+      },
+      "emphasis": {
+        "$value": "{primitive.border-width.2}",
+        "$description": "目印の線（選んでいるタブの下線・引用の左の線・トーストの状態の線）"
       }
     },
     "shadow": {

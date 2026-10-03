@@ -1,10 +1,16 @@
-import { createRootRoute, HeadContent, Scripts, useParams } from '@tanstack/react-router'
+import { createRootRoute, HeadContent, Scripts, useMatch, useRouterState } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
-import { css } from 'styled-system/css'
-import { isLang } from '~/i18n/detect'
+import { EMPTY_SITE_CHROME } from '~/content/site-chrome'
+import { getMessages } from '~/i18n/messages'
+import { SiteChrome } from '~/site/layouts'
+import { NotFoundPage } from '~/site/status-pages'
 import appCss from '~/styles/index.css?url'
+import { readPreferredLang, readThemePreference, THEME_INIT_SCRIPT } from '~/ui/preferences'
+import { ThemeProvider } from '~/ui/theme'
 
 export const Route = createRootRoute({
+  // 表示設定は SSR でもブラウザでも同じ値から描くため、リクエスト（ブラウザでは document.cookie）から読む
+  beforeLoad: () => ({ theme: readThemePreference(), preferredLang: readPreferredLang() }),
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -13,30 +19,46 @@ export const Route = createRootRoute({
     ],
     links: [{ rel: 'stylesheet', href: appCss }],
   }),
-  notFoundComponent: NotFound,
+  notFoundComponent: RootNotFound,
   shellComponent: RootDocument,
 })
 
-// C1（見つからないページ）の画面は Step 5 で作る。ここでは HTTP 404 の確認に足る表示だけ
-function NotFound() {
+/**
+ * どのルートにも当たらないパスの受け皿（SDD 4.1）。公開側のパスは `$lang` が受けるので、ここに来るのは
+ * `$lang` の外で見つからないときだけ。ヘッダーとフッターの中身は読んでいないので、セクションと SNS は出さない
+ */
+function RootNotFound() {
+  const { preferredLang } = Route.useRouteContext()
+  const messages = getMessages(preferredLang)
   return (
-    <main className={css({ p: 'section', bg: 'bg.canvas', color: 'text.default' })}>
-      <h1 className={css({ textStyle: 'heading-1' })}>404 Not Found</h1>
-    </main>
+    <SiteChrome lang={preferredLang} chrome={EMPTY_SITE_CHROME} messages={messages}>
+      <NotFoundPage lang={preferredLang} messages={messages} />
+    </SiteChrome>
   )
 }
 
+/** <html lang> は URL の言語（SDD 9章）。URL に言語がない C1 は `$lang` が決めた表示の言語、管理画面は日本語 */
+function useDocumentLang(): string {
+  const langMatch = useMatch({ from: '/$lang', shouldThrow: false })
+  const isAdmin = useRouterState({ select: (state) => state.location.pathname.startsWith('/admin') })
+  const { preferredLang } = Route.useRouteContext()
+  if (langMatch) return langMatch.context.lang
+  return isAdmin ? 'ja' : preferredLang
+}
+
 function RootDocument({ children }: { children: ReactNode }) {
-  // <html lang> は URL の言語（SDD 9章）。URL に言語がない画面（C1 など）の言語の決め方は
-  // C1 を作る Step 5 で design-spec 3.1 に合わせる
-  const { lang } = useParams({ strict: false })
+  const { theme } = Route.useRouteContext()
+  const lang = useDocumentLang()
   return (
-    <html lang={isLang(lang) ? lang : 'ja'}>
+    // data-theme は <head> のスクリプトが描画の前に入れるので、サーバーの HTML とは違ってよい
+    <html lang={lang} suppressHydrationWarning>
       <head>
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: 中身は固定の文字列（THEME_INIT_SCRIPT）だけ */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
-      <body className={css({ bg: 'bg.canvas', color: 'text.default' })}>
-        {children}
+      <body>
+        <ThemeProvider initial={theme}>{children}</ThemeProvider>
         <Scripts />
       </body>
     </html>

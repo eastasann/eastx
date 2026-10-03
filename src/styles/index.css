@@ -1,1 +1,5 @@
 @layer reset, base, tokens, recipes, utilities;
+
+/* 欧文の可変フォントだけを自前配信する（SDD 7章。font-display: swap は fontsource の既定） */
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";

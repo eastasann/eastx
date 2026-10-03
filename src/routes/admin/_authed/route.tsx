@@ -1,7 +1,6 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
-import { useState } from 'react'
-import { css } from 'styled-system/css'
 import { SESSION_CHECK_FAILED_ERROR } from '~/admin/auth'
+import { AdminShell } from '~/admin/layouts'
 import { authClient } from '~/auth/client'
 
 /**
@@ -27,72 +26,11 @@ export const Route = createFileRoute('/admin/_authed')({
   component: AuthedLayout,
 })
 
-// サイドメニューの項目・テーマの切り替えと L4〜L6 のレイアウトは Step 5。ここでは下部のユーザー名とログアウト
 function AuthedLayout() {
   const { user } = Route.useRouteContext()
   return (
-    <div className={css({ display: 'flex', minH: 'dvh' })}>
-      <nav
-        aria-label="管理メニュー"
-        className={css({
-          w: 'sidebar',
-          flexShrink: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          gap: 'stack-dense',
-          p: 'inset-dense',
-          bg: 'bg.subtle',
-          borderRightWidth: 'default',
-          borderRightStyle: 'solid',
-          borderRightColor: 'border.default',
-        })}
-      >
-        <p className={css({ textStyle: 'meta', color: 'text.muted' })}>@{user.githubLogin}</p>
-        <LogoutButton />
-      </nav>
-      <main className={css({ flex: '1', p: 'inset' })}>
-        <Outlet />
-      </main>
-    </div>
-  )
-}
-
-function LogoutButton() {
-  const [status, setStatus] = useState<'idle' | 'pending' | 'failed'>('idle')
-
-  async function logout() {
-    setStatus('pending')
-    const result = await authClient.signOut().catch(() => null)
-    if (result === null || result.error) {
-      setStatus('failed')
-      return
-    }
-    // ログアウトしたセッションの画面の状態とキャッシュを持ち越さないよう、ページを読み込み直す（src/admin/api.ts と同じ）
-    window.location.replace('/admin/login?loggedOut=1')
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={logout}
-        disabled={status === 'pending'}
-        className={css({
-          textStyle: 'ui',
-          textAlign: 'start',
-          color: 'text.default',
-          cursor: 'pointer',
-          _hover: { color: 'accent.hover' },
-          _focusVisible: { outlineWidth: 'focus-ring', outlineStyle: 'solid', outlineColor: 'focus-ring' },
-          _disabled: { opacity: 'disabled', cursor: 'not-allowed' },
-        })}
-      >
-        ログアウト
-      </button>
-      <p role="status" className={css({ textStyle: 'body-sm', color: 'danger.default', _empty: { display: 'none' } })}>
-        {status === 'failed' ? 'ログアウトできませんでした。もう一度お試しください' : null}
-      </p>
-    </>
+    <AdminShell githubLogin={user.githubLogin}>
+      <Outlet />
+    </AdminShell>
   )
 }

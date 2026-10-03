@@ -14,6 +14,7 @@ export default defineConfig({
         },
       },
       {
+        resolve: { tsconfigPaths: true },
         plugins: [
           cloudflareTest(async () => ({
             // バインディングは wrangler.jsonc（トップレベル = ローカル）から読む。

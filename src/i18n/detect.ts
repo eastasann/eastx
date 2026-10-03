@@ -5,6 +5,9 @@
  */
 
 export const LANGS = ['ja', 'en'] as const
+
+/** 選んだ言語を覚える Cookie（SDD 7章） */
+export const LANG_COOKIE = 'eastx-lang'
 export type Lang = (typeof LANGS)[number]
 
 export function isLang(value: string | undefined | null): value is Lang {
@@ -39,7 +42,7 @@ export function primaryLanguageTag(acceptLanguage: string | null): string | unde
 }
 
 export function detectLang(cookieHeader: string | null, acceptLanguage: string | null): Lang {
-  const saved = readCookie(cookieHeader, 'eastx-lang')
+  const saved = readCookie(cookieHeader, LANG_COOKIE)
   if (isLang(saved)) return saved
   const primary = primaryLanguageTag(acceptLanguage)
   return primary?.toLowerCase().startsWith('ja') ? 'ja' : 'en'

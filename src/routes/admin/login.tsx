@@ -2,9 +2,11 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useState } from 'react'
 import { css } from 'styled-system/css'
 import { LOGIN_MESSAGES, loginErrorState, parseLoginSearch, safeRedirect } from '~/admin/auth'
+import { CenteredCardLayout } from '~/admin/layouts'
 import { authClient } from '~/auth/client'
+import { button } from '~/ui/recipes'
 
-// A1 ログイン（design-spec 6.4）。レイアウトは L3 中央カード。部品への切り出しは Step 5
+// A1 ログイン（design-spec 6.4）。レイアウトは L3 中央カード
 export const Route = createFileRoute('/admin/login')({
   ssr: false,
   validateSearch: parseLoginSearch,
@@ -51,64 +53,23 @@ function LoginPage() {
   })()
 
   return (
-    <main
-      className={css({
-        minH: 'dvh',
-        display: 'grid',
-        placeItems: 'center',
-        p: 'gutter',
-        bg: 'bg.subtle',
-      })}
-    >
-      <div
+    <CenteredCardLayout>
+      <h1 className={css({ textStyle: 'heading-2', textAlign: 'center' })}>eastasian 管理画面</h1>
+      <button type="button" onClick={signIn} disabled={status === 'pending'} className={button()}>
+        GitHubでログイン
+      </button>
+      {/* 役割を途中で変えると読み上げが追従しないので、1つの status の領域で状態の変化を伝える */}
+      <p
+        role="status"
         className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'stack',
-          p: 'inset',
-          bg: 'surface.default',
-          borderWidth: 'default',
-          borderStyle: 'solid',
-          borderColor: 'border.default',
-          borderRadius: 'card',
+          textStyle: 'body-sm',
+          textAlign: 'center',
+          color: message?.tone === 'danger' ? 'danger.default' : 'text.muted',
+          _empty: { display: 'none' },
         })}
       >
-        <h1 className={css({ textStyle: 'heading-2', textAlign: 'center' })}>eastasian 管理画面</h1>
-        <button
-          type="button"
-          onClick={signIn}
-          disabled={status === 'pending'}
-          className={css({
-            h: 'control',
-            px: 'inline',
-            textStyle: 'ui',
-            color: 'text.on-accent',
-            bg: 'accent.default',
-            borderRadius: 'control',
-            cursor: 'pointer',
-            transitionProperty: 'background-color',
-            transitionDuration: 'motion.hover',
-            transitionTimingFunction: 'motion.hover',
-            _hover: { bg: 'accent.hover' },
-            _focusVisible: { outlineWidth: 'focus-ring', outlineStyle: 'solid', outlineColor: 'focus-ring' },
-            _disabled: { opacity: 'disabled', cursor: 'not-allowed', _hover: { bg: 'accent.default' } },
-          })}
-        >
-          GitHubでログイン
-        </button>
-        {/* 役割を途中で変えると読み上げが追従しないので、1つの status の領域で状態の変化を伝える */}
-        <p
-          role="status"
-          className={css({
-            textStyle: 'body-sm',
-            textAlign: 'center',
-            color: message?.tone === 'danger' ? 'danger.default' : 'text.muted',
-            _empty: { display: 'none' },
-          })}
-        >
-          {message?.text}
-        </p>
-      </div>
-    </main>
+        {message?.text}
+      </p>
+    </CenteredCardLayout>
   )
 }
