@@ -1,0 +1,124 @@
+# 昇格 PR のマージ（deploy/*/version の変更）で、変わった環境へデプロイする（docs/04_deployment-procedure.md 2章）。
+# どちらの起動でも、出すのはその時点の main の deploy/{環境}/version に宣言された SHA（宣言と違う SHA は出さない）。
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - deploy/staging/version
+      - deploy/production/version
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: デプロイし直す環境
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+
+# 明示した shell: bash は -eo pipefail で走る（既定の bash -e ではパイプの前段の失敗が消える）
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  targets:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      envs: ${{ steps.envs.outputs.envs }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: envs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ENV: ${{ inputs.environment }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            envs="$INPUT_ENV"
+          else
+            # main の作成と、前の先頭が取れない push（force push）では差分が決まらない。
+            # 空として扱うと宣言が変わったのにデプロイしないので、止めて手動実行に回す
+            if [[ "$BEFORE" =~ ^0+$ ]] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+              echo "push の前の main（${BEFORE}）が取れない。Actions の手動実行で環境を選んでデプロイする" >&2
+              exit 1
+            fi
+            envs=$(git diff --name-only "$BEFORE" HEAD -- deploy \
+              | sed -nE 's#^deploy/(staging|production)/version$#\1#p')
+          fi
+          echo "envs=$(printf '%s\n' $envs | jq -Rnc '[inputs | select(length > 0)]')" >>"$GITHUB_OUTPUT"
+
+  deploy:
+    needs: targets
+    if: needs.targets.outputs.envs != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        env: ${{ fromJSON(needs.targets.outputs.envs) }}
+    # シークレットは GitHub の Environment（staging ／ production）に置き、デプロイできるブランチを main に限る。
+    # リポジトリのシークレットにすると、push できる人がほかのブランチのワークフローから読める（04 3章 Step 6）
+    environment: ${{ matrix.env }}
+    # 同じ環境のデプロイを重ねない。走っている途中のデプロイは取り消さない。待っているものは最新の1つだけが残る。
+    # 順番は push の順と限らないので、宣言は起動したコミットではなくその時点の main から読み、最後に走ったものが最新の宣言を出す
+    concurrency:
+      group: deploy-${{ matrix.env }}
+      cancel-in-progress: false
+    env:
+      TARGET_ENV: ${{ matrix.env }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - id: version
+        run: |
+          sha=$(tr -d '[:space:]' <"deploy/${TARGET_ENV}/version")
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "deploy/${TARGET_ENV}/version の値が40桁の SHA でない: '${sha}'" >&2
+            exit 1
+          fi
+          echo "sha=${sha}" >>"$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.version.outputs.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      # ビルドの前に当てる。ビルド後は Cloudflare プラグインが書き出したデプロイ用の設定が優先され、--env が効かない
+      # Cloudflare のトークンは、使うステップにだけ渡す（依存のインストールやビルドから読めないように）
+      - name: Apply D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bunx wrangler d1 migrations apply DB --env "$TARGET_ENV" --remote
+      - name: Build
+        run: CLOUDFLARE_ENV="$TARGET_ENV" make build
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SHA: ${{ steps.version.outputs.sha }}
+        run: bunx wrangler deploy --message "deploy ${SHA}"
+      - name: Smoke test
+        run: |
+          # 公開の origin は、ビルドが環境ごとに書き出した設定の SITE_URL（wrangler.jsonc が正）
+          origin=$(jq -r '.vars.SITE_URL' dist/server/wrangler.json)
+          # 初回は Custom Domain の DNS と証明書の準備を待つので、繰り返し試す
+          for path in /ja /en /api/auth/get-session; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --retry 12 --retry-delay 10 --retry-all-errors "${origin}${path}" || true)
+            echo "${path}: ${code}"
+            [ "$code" = 200 ] || exit 1
+          done

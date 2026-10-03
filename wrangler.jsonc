@@ -1,5 +1,6 @@
 // Workers・バインディング・環境の設定。トップレベルはローカル専用でデプロイしない（docs/03_dev-setup.md 5章）。
-// env.staging・env.production は Step 9（CI/CD）で足す。
+// env の中ではバインディングと vars がトップレベルから引き継がれないので、環境ごとにすべて書く。
+// <...> の値は docs/04_deployment-procedure.md 3章 Step 2〜5 で用意したものに置き換える。
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "eastx-local",
@@ -20,5 +21,55 @@
   "ratelimits": [
     { "name": "AUTH_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
     { "name": "ADMIN_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } }
-  ]
+  ],
+  "env": {
+    "staging": {
+      "name": "eastx-staging",
+      "routes": [{ "pattern": "x-staging.eastasian.dev", "custom_domain": true }],
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "SITE_URL": "https://x-staging.eastasian.dev",
+        "ADMIN_GITHUB_USER_ID": "<GitHub の数値 ID>",
+        "GITHUB_CLIENT_ID": "<staging 用 OAuth App の Client ID>",
+        "SENTRY_DSN": "<Sentry の DSN>"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "eastx-db-staging",
+          "database_id": "<作成時に出た ID>",
+          "migrations_dir": "drizzle/migrations"
+        }
+      ],
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "eastx-media-staging" }],
+      "ratelimits": [
+        { "name": "AUTH_RATE_LIMITER", "namespace_id": "2001", "simple": { "limit": 10, "period": 60 } },
+        { "name": "ADMIN_RATE_LIMITER", "namespace_id": "2002", "simple": { "limit": 300, "period": 60 } }
+      ]
+    },
+    "production": {
+      "name": "eastx",
+      "routes": [{ "pattern": "x.eastasian.dev", "custom_domain": true }],
+      "vars": {
+        "ENVIRONMENT": "production",
+        "SITE_URL": "https://x.eastasian.dev",
+        "ADMIN_GITHUB_USER_ID": "<GitHub の数値 ID>",
+        "GITHUB_CLIENT_ID": "<本番用 OAuth App の Client ID>",
+        "SENTRY_DSN": "<Sentry の DSN>"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "eastx-db",
+          "database_id": "<作成時に出た ID>",
+          "migrations_dir": "drizzle/migrations"
+        }
+      ],
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "eastx-media" }],
+      "ratelimits": [
+        { "name": "AUTH_RATE_LIMITER", "namespace_id": "3001", "simple": { "limit": 10, "period": 60 } },
+        { "name": "ADMIN_RATE_LIMITER", "namespace_id": "3002", "simple": { "limit": 300, "period": 60 } }
+      ]
+    }
+  }
 }

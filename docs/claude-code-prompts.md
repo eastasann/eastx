@@ -321,7 +321,7 @@ make test が通る状態をゴールとする。
 
 ## Step 9: CI/CD
 
-Status:
+Status: done 2026-10-04
 
 ```
 docs/04_deployment-procedure.md と docs/03_dev-setup.md に従って、CI/CD を実装してください。
@@ -334,7 +334,7 @@ IaC ツールは使わない（ADR-017）。
    ユーザーが 04 3章 Step 2〜5 で用意するので、03 5章の例と同じ <...> の形で置く
 2. .github/workflows/ci.yml（04 2章）: PR と main への push で lint → typecheck → test → build → e2e
 3. 昇格の確認（promotion-check）: 判定をスクリプトにし（scripts/promotion-check.sh）、
-   deploy/*/version だけを変えた PR で ci.yml から呼ぶ
+   deploy/*/version を変えた PR で ci.yml から呼ぶ（それだけを変えた PR ではコードの検査を省く）
 4. .github/workflows/deploy.yml（04 2章）: 変わった環境ごとに、SHA のチェックアウト → マイグレーション →
    CLOUDFLARE_ENV でビルド → wrangler deploy → 疎通確認。concurrency を付ける
 5. scripts/promote.sh と make promote（03 9章）
@@ -344,6 +344,27 @@ make build（CLOUDFLARE_ENV=staging と production）と wrangler の dry-run �
 promotion-check のスクリプトがローカルで「正しい SHA」「main の祖先でない SHA」「staging に出していない SHA を本番へ」
 の3通りを正しく判定し、このステップの PR で ci.yml が緑になる状態をゴールとする。
 初回の staging のデプロイのあとに、ADR-022 の staging で見る項目を確かめる。
+```
+
+---
+
+## Step 9.1: GitHub の PR で CI を緑にし、staging で ADR-022 を確かめる
+
+Status: blocked 2026-10-04
+理由: ユーザーの決定と認証情報が要る。手元の main は origin/main より Step 1〜9 の11コミット先にあり、PR に載せるにはこれを GitHub へ出す方法（ブランチと PR の切り方）をユーザーが決める必要がある。この環境では origin（git@github.com）への SSH が Permission denied (publickey) で push できない。staging の確認は 04 3章 Step 1〜7 のクラウドの準備（Cloudflare・OAuth App・Sentry・GitHub の Environment とルールセット）が前提
+
+```
+Step 9 で作った CI/CD を GitHub の上で動かして確かめてください。
+
+先に読む: docs/04_deployment-procedure.md 2章・3章、docs/03_dev-setup.md 9章、SDD ADR-022
+
+やること:
+1. 手元の main の未 push のコミットを、ユーザーが決めた方法で GitHub に出し、PR で ci.yml（changes・ci）が緑になることを確かめる。
+   赤なら根本原因を直す
+2. ユーザーが 04 3章 Step 1〜6 を終えたあと、Step 7 の最初の staging の昇格 PR で promotion-check と deploy.yml が通ることを確かめる
+3. 初回の staging のデプロイのあとに、ADR-022 の staging で見る項目（Custom Domain の上での動作、実際にデプロイしたバンドル）を確かめる
+
+本番の資格情報は使わない。--remote の操作はしない（デプロイは昇格 PR のマージで deploy.yml が行う）。
 ```
 
 ---

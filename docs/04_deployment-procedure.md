@@ -42,26 +42,30 @@
 bun install（--frozen-lockfile）→ make lint → make typecheck → make test → make build → make e2e
 ```
 
-`deploy/*/version` だけを変えた PR では、上の代わりに promotion-check を走らせる:
+E2E の前に `.dev.vars.example` から `.dev.vars` を作り、`ADMIN_GITHUB_USER_ID` に固定の ID を入れる（管理者のセッションのフィクスチャが使う。GitHub には行かないので実在しない ID でよい。`docs/03_dev-setup.md` 7章）。
+
+`deploy/*/version` を変えた PR では、promotion-check（`scripts/promotion-check.sh`）を走らせる。判定には PR の側ではなく `main` のスクリプトを使う（PR がスクリプトを書き換えて自分の確認を通せないように）。`deploy/*/version` だけを変えた PR では、上のコードの検査を省く。
 
 - 書かれた値が40桁の SHA で、`main` の祖先であること
-- 本番のときは、その SHA が `deploy/staging/version` の過去の値（`git log -p deploy/staging/version`）にあること
+- 本番のときは、その SHA が `main` の `deploy/staging/version` の過去の値（第1親の履歴。`git log --first-parent -p deploy/staging/version`）にあること。同じ PR で staging と本番を同時に書き換えても、本番は通らない。昇格 PR をマージコミットで入れても、PR ブランチの途中のコミットの値は数えない
 
-**deploy.yml**（`main` への push で、`deploy/*/version` が変わったとき。手動実行もできる）:
+**deploy.yml**（`main` への push で、`deploy/*/version` が変わったとき。手動実行では、選んだ環境をもう一度デプロイする）:
 
 ```
 変わった環境ごとに:
-  1. deploy/{環境}/version から SHA を読み、その SHA をチェックアウト
+  1. その時点の main の deploy/{環境}/version から SHA を読み、その SHA をチェックアウト
   2. bun install（--frozen-lockfile）
   3. D1 のマイグレーションを適用（wrangler d1 migrations apply DB --env {環境} --remote）
   4. CLOUDFLARE_ENV={環境} でビルド（make build）
   5. wrangler deploy（メッセージに SHA を入れる）
-  6. 疎通確認（/ja・/en が 200、/api/auth/get-session が 200）
+  6. 疎通確認（その環境の SITE_URL で /ja・/en が 200、/api/auth/get-session が 200）
 ```
 
 - マイグレーションはビルドの前に当てる。ビルド後は Cloudflare プラグインが書き出したデプロイ用の設定が優先され、`--env` が効かなくなるため。
 - マイグレーションが失敗したら、その時点で止まる（デプロイしない）。
-- 同じ環境のデプロイが重ならないよう、`concurrency: deploy-{環境}` を付ける。
+- 同じ環境のデプロイが重ならないよう、`concurrency: deploy-{環境}` を付ける。待っているデプロイは最新の1つだけが残り、走る順は push の順と限らないので、SHA は起動したコミットではなくその時点の `main` から読む。
+- push の前の `main` が取れない（`main` の作成、force push）ときは、変わった環境が決まらないので止まる。Actions の手動実行で環境を選んでデプロイする。
+- デプロイのジョブは GitHub の Environment（`staging` ／ `production`）で走り、Cloudflare のシークレットはそこから読む（3章 Step 6）。シークレットを渡すのはマイグレーションとデプロイのステップだけにする。
 
 ## 3. 初回クラウドセットアップ
 
@@ -118,12 +122,16 @@ Worker がまだないときは、`secret put` が Worker を作るか聞いて�
 2. SDD 11章の設定で Uptime Monitoring を作る（アラートの条件は `docs/05_operation-runbook.md` 2章）。
 3. アラートの通知先を自分のメールにする。
 
-### Step 6: GitHub Secrets の設定
+### Step 6: GitHub の Environment・シークレット・ルールセット
+
+リポジトリの Settings → Environments で `staging` と `production` を作り、それぞれの Deployment branches and tags を `main` だけにする。シークレットはリポジトリではなく、両方の Environment に登録する（リポジトリのシークレットは、push できる人がほかのブランチのワークフローから読めるため）。リポジトリのシークレットに同じ名前のものがあれば消す。
 
 | Secret 名 | 内容 |
 |----------|------|
 | `CLOUDFLARE_API_TOKEN` | Cloudflare の API トークン。テンプレート「Edit Cloudflare Workers」に、D1 の Edit を足したもの（Workers Scripts・Workers Routes・Workers R2 Storage・D1・Account Settings の読み取り） |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare のアカウント ID |
+
+Settings → Rules → Rulesets で `main` のルールセットを作り、PR を必須にし、ステータスチェック `ci` と `promotion-check`（ワークフロー ci.yml のジョブ）を必須にする。バイパスは誰にも許さない。promotion-check を通らない昇格 PR はこれでマージできなくなる（deploy.yml は確認をやり直さない）。`if:` で飛ばされたジョブは成功として扱われるので、昇格でない PR も止まらない。
 
 ### Step 7: 最初のデプロイとデータの移行
 
@@ -159,6 +167,8 @@ Worker がまだないときは、`secret put` が Worker を作るか聞いて�
 ### 通常のロールバック（環境プロモーション）
 
 `deploy/{環境}/version` を前の SHA に戻す PR（昇格 PR の revert）をマージする。デプロイと同じパイプラインが走るので、これが基本の手段。D1 のマイグレーションは戻らないので、前の SHA のコードが今のスキーマで動くこと（4章のチェック）が前提になる。
+
+その環境の最初の昇格は、戻す先の SHA が無い（revert すると宣言が空になり、promotion-check とデプロイが止まる）。下の緊急ロールバックか、直した SHA の新しい昇格で対処する。
 
 ### アプリケーションの緊急ロールバック
 

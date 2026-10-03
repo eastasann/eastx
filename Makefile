@@ -81,6 +81,6 @@ db-studio:
 doc-lint:
 	scripts/doc-lint.sh --docs
 
-# 昇格のスクリプトは Step 9 で作る（docs/claude-code-prompts.md）
+# 昇格 PR 用のブランチとコミットを作る（docs/03_dev-setup.md 9章）。SHA= で SHA を指定できる
 promote:
 	scripts/promote.sh $(ENV) $(SHA)
