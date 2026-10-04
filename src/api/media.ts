@@ -1,7 +1,7 @@
 /**
  * `GET /media/{key}`: R2 の画像の配信（SDD 5.10・ADR-010）。
  * まず Cache API を見て、なければ R2 から読み、長期キャッシュのヘッダーを付けて
- * Cache API に入れてから返す。キーは不変（UUID）なので immutable にできる。
+ * Cache API に入れてから返す。キーは不変（UUID か中身のハッシュを含む。ADR-010）なので immutable にできる。
  */
 import { env } from 'cloudflare:workers'
 
@@ -22,7 +22,7 @@ export async function serveMedia(request: Request): Promise<Response> {
   // R2 のキーは 1024 バイトまで。超えると MEDIA.get が null ではなく例外を返すため、先に 404 にする
   if (new TextEncoder().encode(key).byteLength > 1024) return new Response(null, { status: 404 })
 
-  // キャッシュキーからクエリを落とす。キーの中身は不変（UUID）なので、
+  // キャッシュキーからクエリを落とす。キーの中身は不変なので、
   // クエリ違いで同じオブジェクトのエントリが増えたり、キャッシュを素通りされたりしない
   const cacheKey = `${url.origin}${url.pathname}`
   // lib.dom の CacheStorage が Workers のランタイム型より優先されて default が見えないため読み替える

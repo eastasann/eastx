@@ -10,11 +10,11 @@
  * 作ったセッションは、ユーザーを消すとき ON DELETE CASCADE で消える。使い回した管理者の行のセッションは個別に消す。
  */
 import { test as base } from '@playwright/test'
-import { betterAuth } from 'better-auth'
 import { eq } from 'drizzle-orm'
 import { type DrizzleD1Database, drizzle } from 'drizzle-orm/d1'
 import { getPlatformProxy } from 'wrangler'
 import * as schema from '../../src/db/schema'
+import { sessionCookieSettings } from '../support/session-cookie'
 import { signCookieValue } from '../support/signed-cookie'
 
 type Db = DrizzleD1Database<typeof schema>
@@ -72,19 +72,11 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       })
       try {
         if (proxy.env.ENVIRONMENT !== 'local') throw new Error(`ENVIRONMENT=${proxy.env.ENVIRONMENT} の設定を開いた`)
-        // Cookie の名前と、BETTER_AUTH_SECRET が空のときに Better Auth が使う値は、ライブラリ自身に決めさせる。
-        // cookiePrefix は src/auth/server.ts と同じ値にする（違えばログインできずにテストが落ちる）
-        const auth = betterAuth({
-          baseURL: proxy.env.SITE_URL,
-          secret: proxy.env.BETTER_AUTH_SECRET,
-          advanced: { cookiePrefix: 'eastx' },
-          logger: { disabled: true },
-        })
-        const context = await auth.$context
+        const { cookieName, secret } = await sessionCookieSettings(proxy.env)
         await use({
           db: drizzle(proxy.env.DB, { schema }),
-          cookieName: context.authCookies.sessionToken.name,
-          secret: context.secret,
+          cookieName,
+          secret,
           adminGithubUserId: proxy.env.ADMIN_GITHUB_USER_ID,
         })
       } finally {

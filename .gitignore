@@ -18,3 +18,6 @@ coverage/
 playwright-report/
 
 .DS_Store
+
+# データ移行の出力（scripts/migrate-legacy/migrate.ts が作る）
+scripts/migrate-legacy/out/
