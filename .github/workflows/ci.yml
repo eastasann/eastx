@@ -78,16 +78,18 @@ jobs:
         with:
           node-version: 24
       - run: bun install --frozen-lockfile
+      - name: Prepare .dev.vars
+        # wrangler types は .dev.vars のキーを Env 型に含めるので、最初の make（gen → typecheck）より
+        # 前に置かないとローカルと違う Env 型が生成されて typecheck が落ちる。E2E の管理者のセッション
+        # （tests/e2e/fixtures.ts の login({ admin: true })）も .dev.vars の ADMIN_GITHUB_USER_ID の
+        # 管理者として作られる。GitHub には行かないので、実在しない固定の ID でよい
+        run: |
+          cp .dev.vars.example .dev.vars
+          sed -i 's/^ADMIN_GITHUB_USER_ID=.*/ADMIN_GITHUB_USER_ID=1000001/' .dev.vars
       - run: make lint
       - run: make typecheck
       - run: make test
       - run: make build
-      - name: Prepare .dev.vars for E2E
-        # E2E の管理者のセッション（tests/e2e/fixtures.ts の login({ admin: true })）は .dev.vars の
-        # ADMIN_GITHUB_USER_ID の管理者として作られる。GitHub には行かないので、実在しない固定の ID でよい
-        run: |
-          cp .dev.vars.example .dev.vars
-          sed -i 's/^ADMIN_GITHUB_USER_ID=.*/ADMIN_GITHUB_USER_ID=1000001/' .dev.vars
       - run: bunx playwright install --with-deps chromium
       - run: make e2e
       - if: failure()
