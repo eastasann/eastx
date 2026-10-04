@@ -29,15 +29,15 @@
       "vars": {
         "ENVIRONMENT": "staging",
         "SITE_URL": "https://x-staging.eastasian.dev",
-        "ADMIN_GITHUB_USER_ID": "<GitHub の数値 ID>",
-        "GITHUB_CLIENT_ID": "<staging 用 OAuth App の Client ID>",
-        "SENTRY_DSN": "<Sentry の DSN>"
+        "ADMIN_GITHUB_USER_ID": "47363417",
+        "GITHUB_CLIENT_ID": "Ov23liCmlagV7L1nfs2H",
+        "SENTRY_DSN": "https://86bf04c614706b763de157ab2173c829@o4512062851514368.ingest.us.sentry.io/4512196366237696"
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "eastx-db-staging",
-          "database_id": "<作成時に出た ID>",
+          "database_id": "db631f54-5fdc-40a5-ab06-8d718760c97a",
           "migrations_dir": "drizzle/migrations"
         }
       ],
@@ -53,15 +53,15 @@
       "vars": {
         "ENVIRONMENT": "production",
         "SITE_URL": "https://x.eastasian.dev",
-        "ADMIN_GITHUB_USER_ID": "<GitHub の数値 ID>",
-        "GITHUB_CLIENT_ID": "<本番用 OAuth App の Client ID>",
-        "SENTRY_DSN": "<Sentry の DSN>"
+        "ADMIN_GITHUB_USER_ID": "47363417",
+        "GITHUB_CLIENT_ID": "Ov23lixncjamszIXx3qw",
+        "SENTRY_DSN": "https://86bf04c614706b763de157ab2173c829@o4512062851514368.ingest.us.sentry.io/4512196366237696"
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "eastx-db",
-          "database_id": "<作成時に出た ID>",
+          "database_id": "3a74374b-106b-49e1-a352-dd690ec740e7",
           "migrations_dir": "drizzle/migrations"
         }
       ],
