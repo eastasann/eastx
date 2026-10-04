@@ -118,7 +118,7 @@ jobs:
           origin=$(jq -r '.vars.SITE_URL' dist/server/wrangler.json)
           # 初回は Custom Domain の DNS と証明書の準備を待つので、繰り返し試す
           for path in /ja /en /api/auth/get-session; do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --retry 12 --retry-delay 10 --retry-all-errors "${origin}${path}" || true)
+            code=$(curl -sSf -o /dev/null -w '%{http_code}' --retry 12 --retry-delay 10 --retry-all-errors "${origin}${path}" || true)
             echo "${path}: ${code}"
             [ "$code" = 200 ] || exit 1
           done
