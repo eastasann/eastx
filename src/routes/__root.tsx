@@ -1,7 +1,9 @@
 import { createRootRoute, HeadContent, Scripts, useMatch, useRouterState } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { EMPTY_SITE_CHROME } from '~/content/site-chrome'
 import { getMessages } from '~/i18n/messages'
+import { initBrowserMonitoring } from '~/monitoring/browser'
+import { getBrowserMonitoringConfig } from '~/monitoring/config'
 import { SiteChrome } from '~/site/layouts'
 import { NotFoundPage } from '~/site/status-pages'
 import appCss from '~/styles/index.css?url'
@@ -11,6 +13,9 @@ import { ThemeProvider } from '~/ui/theme'
 export const Route = createRootRoute({
   // 表示設定は SSR でもブラウザでも同じ値から描くため、リクエスト（ブラウザでは document.cookie）から読む
   beforeLoad: () => ({ theme: readThemePreference(), preferredLang: readPreferredLang() }),
+  // 設定は環境ごとに決まっていて変わらないので、SSR で1回だけ読む（画面の移動のたびにサーバー関数を呼ばない）
+  loader: () => getBrowserMonitoringConfig(),
+  shouldReload: false,
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -51,7 +56,11 @@ function useDocumentLang(): string {
 
 function RootDocument({ children }: { children: ReactNode }) {
   const { theme } = Route.useRouteContext()
+  const monitoring = Route.useLoaderData()
   const lang = useDocumentLang()
+  useEffect(() => {
+    initBrowserMonitoring(monitoring)
+  }, [monitoring])
   return (
     // data-theme は <head> のスクリプトが描画の前に入れるので、サーバーの HTML とは違ってよい
     <html lang={lang} suppressHydrationWarning>

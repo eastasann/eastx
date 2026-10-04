@@ -19,7 +19,7 @@ import { getHighlighter, rehypeHighlight } from './highlight'
  * 描画の処理（プラグイン・サニタイズのスキーマ・Shiki の設定・出力の形）を変えたら上げる。
  * Cache API のキーに入るので、上げると古い描画結果が使われなくなる（ADR-011）
  */
-export const RENDER_VERSION = 1
+export const RENDER_VERSION = 2
 
 /** 脚注の見出しと戻るリンクの読み上げ名。本文の言語で出す（描画結果は本文の言語ごとにキャッシュする。ADR-011） */
 const FOOTNOTE_LABELS: Record<Lang, { label: string; back: (index: number) => string }> = {

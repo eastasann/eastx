@@ -42,9 +42,9 @@ export function ErrorPage({ messages }: { messages: Messages }) {
 }
 
 /**
- * ルーターの既定の errorComponent（src/router.tsx）。TanStack Router は SSR で、失敗したルート自身の errorComponent
- * （なければこの既定）を使い、親へ上げないので、公開側の画面のルートはここで C2 を出す（SDD 4.1）。
- * `$lang` の外（管理画面）はライブラリの既定の表示のまま
+ * ルーターの既定の errorComponent（src/router.tsx）の公開側の表示。TanStack Router は SSR で、失敗したルート自身の
+ * errorComponent（なければこの既定）を使い、親へ上げないので、公開側の画面のルートはここで C2 を出す（SDD 4.1）。
+ * 管理画面は src/router.tsx が別の表示に分ける。`$lang` の外のそれ以外はライブラリの既定の表示のまま
  */
 export function DefaultRouteError({ error }: ErrorComponentProps) {
   const match = useMatch({ from: '/$lang', shouldThrow: false })

@@ -1,11 +1,10 @@
 import { relations, sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-// ---- 値の定義 ----------------------------------------------------------
-export const STATUSES = ['draft', 'published'] as const
-export const SOCIAL_SERVICES = ['github', 'linkedin', 'instagram', 'x', 'zenn', 'qiita', 'other'] as const
-export const CAREER_KINDS = ['work', 'education'] as const
-export const CODING_LOG_KINDS = ['learning_log', 'snippet', 'problem', 'memo'] as const
+import { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STATUSES } from './enums'
+
+// ---- 値の定義（ブラウザからも読むので enums.ts に置く） ---------------------
+export { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STATUSES }
 
 // ---- 共通のカラム ------------------------------------------------------
 const id = () =>

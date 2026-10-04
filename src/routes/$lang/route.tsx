@@ -1,8 +1,9 @@
-import { createFileRoute, notFound, Outlet, useMatch } from '@tanstack/react-router'
+import { createFileRoute, type ErrorComponentProps, notFound, Outlet, useMatch } from '@tanstack/react-router'
 import { getSiteChrome } from '~/content/server-fns'
 import { EMPTY_SITE_CHROME, type SiteChromeView } from '~/content/site-chrome'
 import { isLang } from '~/i18n/detect'
 import { getMessages } from '~/i18n/messages'
+import { useReportBrowserError } from '~/monitoring/browser'
 import { statusHead } from '~/site/head'
 import { SiteChrome } from '~/site/layouts'
 import { ErrorPage, NotFoundPage } from '~/site/status-pages'
@@ -56,7 +57,8 @@ function LangNotFound({ data }: { data?: unknown }) {
 }
 
 /** ヘッダーとフッターの中身の取得に失敗したとき。中身がないので、セクションと SNS は出さない */
-function LangError() {
+function LangError({ error }: ErrorComponentProps) {
+  useReportBrowserError(error)
   const { lang } = Route.useRouteContext()
   const messages = getMessages(lang)
   return (

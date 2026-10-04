@@ -10,6 +10,7 @@ import { SimpleCsrfProtectionHandlerPlugin } from '@orpc/server/plugins'
 import { Elysia } from 'elysia'
 import { CloudflareAdapter } from 'elysia/adapter/cloudflare-worker'
 import { getAuth } from '../auth/server'
+import { captureServerError, requestIdOf } from '../monitoring/server'
 import { API_BASE_PATH } from './constants'
 import { baseErrors } from './contract/common'
 import { UPLOAD_MAX_BYTES } from './contract/misc'
@@ -38,10 +39,6 @@ const rpcHandler = new OpenAPIHandler(router, {
  * アップロードの上限に、multipart の区切りと他の項目のぶんの余裕を足す
  */
 const MAX_BODY_BYTES = UPLOAD_MAX_BYTES + 64 * 1024
-
-function requestIdOf(request: Request): string {
-  return request.headers.get('cf-ray') ?? crypto.randomUUID()
-}
 
 /** Cache API や fetch から得たレスポンスはヘッダーが変更できないので、作り直してから付ける */
 function withRequestId(response: Response, requestId: string): Response {
@@ -126,6 +123,28 @@ function notFound(request: Request, requestId: string): Response {
 }
 
 /**
+ * ハンドラーが投げた想定外の例外（R2・Better Auth の失敗など）。Elysia の既定は例外の文面をそのまま本文に出すので、
+ * SDD 8章の INTERNAL_SERVER_ERROR の形にし、ERROR のログと Sentry に中身を送る
+ */
+function internalError(request: Request, error: unknown): Response {
+  const requestId = requestIdOf(request)
+  const code = 'INTERNAL_SERVER_ERROR'
+  const { status, message } = baseErrors[code]
+  log('error', {
+    msg: message,
+    requestId,
+    route: `${request.method} ${new URL(request.url).pathname}`,
+    code,
+    error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+  })
+  captureServerError(error, requestId)
+  return withRequestId(
+    Response.json({ defined: true, code, status, message, data: { requestId } }, { status }),
+    requestId,
+  )
+}
+
+/**
  * 本文を Elysia に読ませない parse の指定。aot: false の動的ハンドラーは parse: 'none' を解釈せず、
  * Content-Type に従って本文を読んでしまう（Elysia 1.4.30）。parse の関数が値を返すとそれを本文として扱い
  * 読み込みを飛ばすので、本文に触れずに印だけを返す。本文は受け渡した先（oRPC）が読む
@@ -136,6 +155,8 @@ const skipBodyParsing = () => BODY_NOT_PARSED
 // Workers は実行時のコード生成（new Function）を許さず、AOT の compile() が workerd で失敗するため
 // aot: false で動かす（ADR-004 の代わりの案）
 export const app = new Elysia({ adapter: CloudflareAdapter, aot: false })
+  // 後に続くルートにかかるので、ルートより先に置く
+  .onError(({ request, error }) => internalError(request, error))
   .all(
     '/api/admin/*',
     async ({ request }) => {

@@ -3,7 +3,7 @@
  */
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { loadSiteChrome } from '../../src/content/site-chrome'
+import { loadSiteChrome } from '../../src/content/load-site-chrome'
 import { getDb } from '../../src/db/client'
 import { blogPost, career, codingLog, profile, project, socialLink, stack, work } from '../../src/db/schema'
 

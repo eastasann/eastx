@@ -13,6 +13,8 @@ worker-configuration.d.ts
 
 # テストの出力
 test-results/
+coverage/
+.lighthouseci/
 playwright-report/
 
 .DS_Store

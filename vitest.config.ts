@@ -3,6 +3,21 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    // 行カバレッジの目標は SDD 10章。対象は純粋関数の層だけで、ユニットテストで測る。
+    // v8 のカバレッジは workerd の上で動かない（node:inspector が無い）ので、make test は
+    // unit の project にだけ --coverage を付けて走らせる
+    coverage: {
+      provider: 'v8',
+      include: ['src/domain/**/*.ts', 'src/i18n/**/*.ts', 'src/markdown/**/*.ts'],
+      exclude: ['**/*.test.ts'],
+      reporter: ['text'],
+      // ディレクトリごとに測り、ほかのディレクトリの高さで1つの不足が隠れないようにする
+      thresholds: {
+        'src/domain/**': { lines: 90 },
+        'src/i18n/**': { lines: 90 },
+        'src/markdown/**': { lines: 90 },
+      },
+    },
     projects: [
       {
         // src/ の ~/ の別名（tsconfig.json の paths）を vite.config.ts と同じ方法で解決する

@@ -5,12 +5,15 @@
 import { oc } from '@orpc/contract'
 import { z } from 'zod'
 import ja from 'zod/v4/locales/ja.js'
-import { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STATUSES } from '../../db/schema'
+import { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STATUSES } from '../../db/enums'
 import { hasAnyTitle } from '../../domain/publishing'
 import { SLUG_MAX_LENGTH, SLUG_PATTERN } from '../../domain/slug'
 
 // 入力欄の下に出す理由（SDD 8章の fieldErrors）は日本語。管理画面だけが使う
 z.config(ja())
+// JIT（new Function）を使わない。Zod は初めての検証で new Function を試して JIT の可否を決めるので、
+// 管理画面では CSP（SDD 7章。script-src に 'unsafe-eval' を入れない）の違反が出る。Workers は元から JIT を使わない
+z.config({ jitless: true })
 
 // ---- 文字数などの技術的な上限（SDD 5.0） ----------------------------------
 export const LIMITS = {

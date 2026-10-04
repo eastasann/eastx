@@ -4,6 +4,7 @@ import { css } from 'styled-system/css'
 import { LOGIN_MESSAGES, loginErrorState, parseLoginSearch, safeRedirect } from '~/admin/auth'
 import { CenteredCardLayout } from '~/admin/layouts'
 import { authClient } from '~/auth/client'
+import { reportBrowserError } from '~/monitoring/browser'
 import { button } from '~/ui/recipes'
 
 // A1 ログイン（design-spec 6.4）。レイアウトは L3 中央カード
@@ -15,8 +16,16 @@ export const Route = createFileRoute('/admin/login')({
     // ログイン済みで開いたら戻る先へ送る。error が付いているとき（管理者でないセッションが残っている場合を含む）は
     // 送り返すと A1 と管理画面の間を行き来するので、A1 のまま状態を出す
     if (search.error !== undefined) return
-    // 確かめられないときは未ログインとして A1 をそのまま出す。ログインし直せば済むので、ここでは通信エラーを出さない
-    const { data } = await authClient.getSession().catch(() => ({ data: null }))
+    // 確かめられないときは未ログインとして A1 をそのまま出す。ログインし直せば済むので、ここでは通信エラーを出さない。
+    // ルートの設定（beforeLoad）は公開側と同じバンドルに入るので、Better Auth のクライアントはここで読み込む（SDD 7章）。
+    // 読み込めない（デプロイで古いチャンクが消えたなど）ときも A1 をそのまま出し、想定外のエラーとして送る
+    const { data } = await import('~/auth/client').then(
+      ({ authClient }) => authClient.getSession().catch(() => ({ data: null })),
+      (error: unknown) => {
+        reportBrowserError(error)
+        return { data: null }
+      },
+    )
     if (data) throw redirect({ href: safeRedirect(search.redirect), replace: true })
   },
   component: LoginPage,
