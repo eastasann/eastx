@@ -136,7 +136,7 @@ Settings → Rules → Rulesets で `main` のルールセットを作り、PR �
 ### Step 7: 最初のデプロイとデータの移行
 
 1. Step 2〜5 の値を書いた `wrangler.jsonc` を、通常の PR で `main` に入れる。
-2. `make promote ENV=staging` で昇格 PR を作ってマージする。Custom Domain（DNS レコードと証明書）はこのデプロイで作られる。
+2. `make promote ENV=staging` で昇格 PR を作ってマージする。最初の昇格 PR なので、ci の promotion-check と、マージ後の deploy.yml が通ることをここで確かめる。Custom Domain（DNS レコードと証明書）はこのデプロイで作られる。
 3. https://x-staging.eastasian.dev/admin から GitHub でログインする（初回のログインで管理者が登録される。SDD ADR-009）。この時点では中身が空で、トップには何も出ない。
 4. staging にデータを移す（本番の予行）。変換スクリプト（`scripts/migrate-legacy/`）が作った SQL と画像を入れる。
 
@@ -147,7 +147,7 @@ Settings → Rules → Rulesets で `main` のルールセットを作り、PR �
    bunx wrangler r2 object put eastx-media-staging/uploads/legacy/{ファイル名} --remote --file {ローカルのファイル}
    ```
 
-5. staging の管理画面で中身を確かめて公開し、6章のデプロイ後確認をする。
+5. staging の管理画面で中身を確かめて公開し、6章のデプロイ後確認をする。あわせて SDD ADR-022 の「staging でしか見られないもの」（Custom Domain の上での動作、実際にデプロイしたバンドル）をここで確かめる。
 6. `make promote ENV=production` で本番に出し、3〜5 と同じ手順（`--env production`、R2 は `eastx-media`）でログイン・データの移行・確認・公開をする。
 
 ## 4. リリース前チェックリスト

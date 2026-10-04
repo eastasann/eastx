@@ -350,8 +350,7 @@ promotion-check のスクリプトがローカルで「正しい SHA」「main �
 
 ## Step 9.1: GitHub の PR で CI を緑にし、staging で ADR-022 を確かめる
 
-Status: blocked 2026-10-04
-理由: ユーザーの決定と認証情報が要る。手元の main は origin/main より Step 1〜9 の11コミット先にあり、PR に載せるにはこれを GitHub へ出す方法（ブランチと PR の切り方）をユーザーが決める必要がある。この環境では origin（git@github.com）への SSH が Permission denied (publickey) で push できない。staging の確認は 04 3章 Step 1〜7 のクラウドの準備（Cloudflare・OAuth App・Sentry・GitHub の Environment とルールセット）が前提
+Status: done 2026-10-04
 
 ```
 Step 9 で作った CI/CD を GitHub の上で動かして確かめてください。
@@ -359,10 +358,14 @@ Step 9 で作った CI/CD を GitHub の上で動かして確かめてくださ�
 先に読む: docs/04_deployment-procedure.md 2章・3章、docs/03_dev-setup.md 9章、SDD ADR-022
 
 やること:
-1. 手元の main の未 push のコミットを、ユーザーが決めた方法で GitHub に出し、PR で ci.yml（changes・ci）が緑になることを確かめる。
-   赤なら根本原因を直す
-2. ユーザーが 04 3章 Step 1〜6 を終えたあと、Step 7 の最初の staging の昇格 PR で promotion-check と deploy.yml が通ることを確かめる
-3. 初回の staging のデプロイのあとに、ADR-022 の staging で見る項目（Custom Domain の上での動作、実際にデプロイしたバンドル）を確かめる
+1. 手元の main の未 push のコミットを、ユーザーが決めた方法で GitHub に出し、ci.yml（changes・ci）が
+   緑になることを確かめる。赤なら根本原因を直す
+   → 2026-10-04 完了: ユーザーの合意で origin を HTTPS（gh の認証）に切り替えて main を push。
+     初回は ci.yml が .dev.vars を E2E の直前にしか作らず、wrangler types がローカルと違う Env 型を
+     生成して typecheck が落ちた。準備を最初の make の前に移して緑（run 37172285005）。
+     deploy.yml の初回の赤は deploy/*/version が空（未昇格）に対する設計どおりの拒否で、修正不要
+2. staging の確認（最初の昇格 PR での promotion-check・deploy.yml、ADR-022 の staging の項目)は、
+   クラウドの準備が前提のため docs/04_deployment-procedure.md 3章 Step 7 の手順に移した
 
 本番の資格情報は使わない。--remote の操作はしない（デプロイは昇格 PR のマージで deploy.yml が行う）。
 ```
