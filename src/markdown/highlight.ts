@@ -29,14 +29,19 @@ const LANGS = [
   () => import('shiki/langs/diff.mjs'),
 ]
 
-const THEMES = { light: 'github-light', dark: 'github-dark' } as const
+// トークンの色がすべて、コードブロックの地の色（bg.subtle）に対して 4.5:1 以上になるテーマ（ADR-012）。
+// github-light の赤（キーワード）と github-dark の灰色（コメント）は届かない
+const THEMES = { light: 'github-light-high-contrast', dark: 'github-dark-default' } as const
 
 let highlighter: Promise<HighlighterCore> | undefined
 
 /** 同じ isolate の中では1回だけ作る。作るのに失敗したら、次の呼び出しでやり直す */
 export function getHighlighter(): Promise<HighlighterCore> {
   highlighter ??= createHighlighterCore({
-    themes: [() => import('shiki/themes/github-light.mjs'), () => import('shiki/themes/github-dark.mjs')],
+    themes: [
+      () => import('shiki/themes/github-light-high-contrast.mjs'),
+      () => import('shiki/themes/github-dark-default.mjs'),
+    ],
     langs: LANGS,
     engine: createJavaScriptRegexEngine(),
   }).catch((error: unknown) => {

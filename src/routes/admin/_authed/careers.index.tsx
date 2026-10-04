@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { CareersListPage, type CareersSearch } from '~/admin/careers'
 import { pickEnum } from '~/admin/search'
-import { CAREER_KINDS, STATUSES } from '~/db/schema'
+import { CAREER_KINDS, STATUSES } from '~/db/enums'
 
 // A4 経歴管理の一覧（design-spec 6.6）。絞り込みはクエリで持つ（SDD 4.1）
 export const Route = createFileRoute('/admin/_authed/careers/')({

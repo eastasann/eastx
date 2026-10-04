@@ -374,7 +374,7 @@ Step 9 で作った CI/CD を GitHub の上で動かして確かめてくださ�
 
 ## Step 10: テスト + 仕上げ
 
-Status:
+Status: done 2026-10-04
 
 ```
 テストとコード品質・運用の仕上げをしてください。
@@ -404,7 +404,7 @@ make test と make e2e が全パスし、make lint がエラー0、カバレッ�
 
 ## Step 11: 今のサイトからのデータ移行
 
-Status:
+Status: done 2026-10-04
 
 ```
 design-spec 9章「データ移行」に従って、今のサイトのデータを移す変換スクリプトを作ってください。
@@ -412,7 +412,7 @@ design-spec 9章「データ移行」に従って、今のサイトのデータ�
 先に読む: design-spec 9章、SDD 6章（6.5 今の DB からの対応）・ADR-006・010、docs/04_deployment-procedure.md 3章 Step 7
 
 やること:
-1. scripts/migrate-legacy/: https://eastasian.vercel.app/ の日英のページの __NEXT_DATA__ から、
+1. scripts/migrate-legacy/: https://eastasian.vercel.app/ のトップページの __NEXT_DATA__（日英が1ページに入っている）から、
    プロフィール・経歴・作品・プロジェクト・使用技術を取り出す
 2. SDD 6章の形に変換する（SDD 6.5 の対応。今の説明は summary に入れる。移したものは下書きで入れる）。
    1文のパラメーターは100個まで（ADR-006）

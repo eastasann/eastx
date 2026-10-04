@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { app } from '../../src/api/app'
 import { handlerInterceptors } from '../../src/api/errors'
 import { call, createSession } from './helpers'
@@ -181,5 +181,39 @@ describe('GET /media/{key}', () => {
   it('R2 のキー上限（1024 バイト）を超えるキーも 404（500 にしない）', async () => {
     const res = await app.fetch(new Request(`http://localhost/media/${'a'.repeat(1100)}`))
     expect(res.status).toBe(404)
+  })
+
+  describe('R2 の失敗', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('INTERNAL_SERVER_ERROR の形で返し、例外の文面は出さない（SDD 8章）', async () => {
+      vi.spyOn(env.MEDIA, 'get').mockRejectedValue(new Error('R2 の内部の文面'))
+      const res = await app.fetch(
+        new Request('http://localhost/media/uploads/2026/10/missing-in-cache.png', {
+          headers: { 'cf-ray': '9d0e1f0000000000-NRT' },
+        }),
+      )
+      expect(res.status).toBe(500)
+      expect(res.headers.get('x-request-id')).toBe('9d0e1f0000000000-NRT')
+      const body = await res.text()
+      expect(body).not.toContain('R2 の内部の文面')
+      expect(JSON.parse(body)).toEqual({
+        defined: true,
+        code: 'INTERNAL_SERVER_ERROR',
+        status: 500,
+        message: 'サーバーでエラーが発生しました',
+        data: { requestId: '9d0e1f0000000000-NRT' },
+      })
+    })
+
+    it('ローカルのリクエストID（UUID）も、ヘッダーと本文で同じ値', async () => {
+      vi.spyOn(env.MEDIA, 'get').mockRejectedValue(new Error('down'))
+      const res = await app.fetch(new Request('http://localhost/media/uploads/2026/10/missing-in-cache-2.png'))
+      const body = (await res.json()) as { data: { requestId: string } }
+      expect(res.headers.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/)
+      expect(body.data.requestId).toBe(res.headers.get('x-request-id'))
+    })
   })
 })

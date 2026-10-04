@@ -193,7 +193,7 @@
 **トレードオフ:**
 - SQLite なので、UUID・enum・日付の型を持たない（文字列と CHECK 制約で表す。6章）。書き込みは1か所（プライマリ）に集まる。
 - 対話的なトランザクションがない（Drizzle の `db.transaction()` は使えず、まとめて確定できるのは `db.batch()` の単位だけ）。そのため、確認してから書く処理（スラッグの重複の確認、並べ替えの ID の集合の照合、`sort_order` の最小値 − 1）は原子的にならない。対処: 一意インデックスを最後の守りにして、制約違反を `SLUG_CONFLICT`・`STACK_KEY_CONFLICT` に変える。管理者は1人なので、残りの競合は 409 で返すだけにする（Non-Goal）。いっしょに確定すべき書き込み（作品の更新と `work_stack` の置き換えなど）は、1回の `batch` で送る。
-- 1つの文に入れられるパラメーターは100個まで。複数行の insert（シード・データ移行・SNS リンクの置き換え）は件数を分ける。
+- 1つの文に入れられるパラメーターは100個まで。複数行の insert（シード・SNS リンクの置き換え）は件数を分ける。データ移行の SQL はファイルで流すので値を文に埋め込み、パラメーターの代わりに1文の長さ（100,000バイト）の上限に収まるよう文を分ける。
 - データの移行は、今の公開サイトから抽出したデータ（design-spec 9章）を変換するスクリプトで行う（今の DB のダンプは使わない）。
 - 捨てた案: Postgres ＋ Hyperdrive（Neon など）は、型が豊富で今の DB と同じ系統だが、外部サービスが1つ増え、ローカルに Docker が要る。
 
@@ -246,7 +246,7 @@
 ### ADR-010: 画像は R2 に置き、Worker の `/media/*` から配信する
 
 **決定:**
-- 画像は R2 のバケット（`MEDIA` バインディング。場所のヒントは `apac`）に `uploads/{yyyy}/{mm}/{uuid}.{拡張子}`（年月は UTC）のキーで置く。DB には `/media/uploads/...` というルート相対のパスを持つ。
+- 画像は R2 のバケット（`MEDIA` バインディング。場所のヒントは `apac`）に `uploads/{yyyy}/{mm}/{uuid}.{拡張子}`（年月は UTC）のキーで置く。DB には `/media/uploads/...` というルート相対のパスを持つ。今のサイトから移した画像だけは、UUID の代わりに中身のハッシュを入れた `uploads/legacy/` のキーで置く（6.5）。
 - `/media/*` は Elysia が処理する。まず Cache API（`caches.default`）を見て、なければ R2 から読み、`Cache-Control: public, max-age=31536000, immutable` を付けて Cache API に入れてから返す。
 - アップロードの上限と形式は 5.10。
 
@@ -280,7 +280,7 @@
 
 ### ADR-012: Markdown は unified ＋ rehype-sanitize ＋ Shiki で、公開側とプレビューで同じ描画をする
 
-**決定:** `src/markdown/` に描画の関数を1つ持ち、公開側（サーバー）と管理画面のプレビュー（ブラウザ）の両方から使う。処理は remark-parse → remark-gfm → remark-rehype（生の HTML は通さない）→ rehype-sanitize（GitHub のスキーマ）→ 見出しのレベルと外部リンクの処理 → Shiki（コードの色分け）→ HTML の文字列。Shiki は JavaScript の正規表現エンジンと、使う言語だけを読み込む細かいバンドルにする。テーマはライト・ダークの2つを CSS 変数で切り替える。コードブロックの「コピー」ボタンは描画結果に含めず、本文を出す部品（`src/ui/markdown-body.tsx`）がブラウザで付ける。描画結果を UI の言語に依らない形に保ち、本文の言語をキーにした Cache API（ADR-011）でそのまま使い回すため。
+**決定:** `src/markdown/` に描画の関数を1つ持ち、公開側（サーバー）と管理画面のプレビュー（ブラウザ）の両方から使う。処理は remark-parse → remark-gfm → remark-rehype（生の HTML は通さない）→ rehype-sanitize（GitHub のスキーマ）→ 見出しのレベルと外部リンクの処理 → Shiki（コードの色分け）→ HTML の文字列。Shiki は JavaScript の正規表現エンジンと、使う言語だけを読み込む細かいバンドルにする。テーマはライト・ダークの2つを CSS 変数で切り替える。テーマは、トークンの色がすべてコードブロックの地の色（`bg.subtle`）に対して 4.5:1 以上になるもの（ライトは `github-light-high-contrast`、ダークは `github-dark-default`）にする（SDD 10章のアクセシビリティの検査）。コードブロックの「コピー」ボタンは描画結果に含めず、本文を出す部品（`src/ui/markdown-body.tsx`）がブラウザで付ける。描画結果を UI の言語に依らない形に保ち、本文の言語をキーにした Cache API（ADR-011）でそのまま使い回すため。
 
 **理由:** design-spec 6.3.1 のルールを1か所で実装し、プレビューと公開の見た目を一致させる。HTML の文字列を返すので、Cache API に入れやすい（ADR-011）。サニタイズを Shiki より前に置くのは、Shiki が付けるスタイルを消さないため。
 
@@ -1206,10 +1206,14 @@ import { relations, sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 // ---- 値の定義 ----------------------------------------------------------
-export const STATUSES = ['draft', 'published'] as const
-export const SOCIAL_SERVICES = ['github', 'linkedin', 'instagram', 'x', 'zenn', 'qiita', 'other'] as const
-export const CAREER_KINDS = ['work', 'education'] as const
-export const CODING_LOG_KINDS = ['learning_log', 'snippet', 'problem', 'memo'] as const
+// src/db/enums.ts:
+//   STATUSES = ['draft', 'published']
+//   SOCIAL_SERVICES = ['github', 'linkedin', 'instagram', 'x', 'zenn', 'qiita', 'other']
+//   CAREER_KINDS = ['work', 'education']
+//   CODING_LOG_KINDS = ['learning_log', 'snippet', 'problem', 'memo']
+// ブラウザで動くコード（公開側の表示、管理画面）は enums.ts から読み、Drizzle をバンドルに入れない（7章「パフォーマンス」）
+import { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STATUSES } from './enums'
+export { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STATUSES }
 
 // ---- 共通のカラム ------------------------------------------------------
 const id = () => text('id').primaryKey().$defaultFn(() => crypto.randomUUID())
@@ -1611,7 +1615,7 @@ export default defineConfig({
 | なし | `blog_post` | 新しく作る |
 | なし | `admin_user` ほか Better Auth のテーブル | 新しく作る（GitHub ログイン用） |
 
-移行の手順と方針（今の説明を `summary` に入れる、最初は下書きで入れる、など）は design-spec 9章。変換スクリプトは `scripts/migrate-legacy/` に置き、D1 に流す SQL を生成する。画像は R2 の `uploads/legacy/` に置き直し、パスを書き換える。
+移行の手順と方針（今の説明を `summary` に入れる、最初は下書きで入れる、など）は design-spec 9章。変換スクリプトは `scripts/migrate-legacy/` に置き、D1 に流す SQL を生成する。画像は R2 の `uploads/legacy/{ファイル名}-{中身の SHA-256 の先頭8桁}.{拡張子}` に置き直し、パスを書き換える。ファイル名は今のファイル名から拡張子を除いて英小文字・数字・ハイフンに直したもので、拡張子は形式から決める。`/media/*` はキーの中身が変わらない前提で長くキャッシュさせる（ADR-010）ので、キーに中身のハッシュを入れる。SQL は消す文を含まず、流す先の D1 の中身が空であることを前提にする（空でなければプロフィールの一意制約で失敗する）。
 
 ---
 
@@ -1651,7 +1655,7 @@ export default defineConfig({
 | CORS | 開けない（同じ origin からだけ使う）。`Access-Control-Allow-Origin` を返さない |
 | レート制限 | ADR-021（対象・単位・回数） |
 | Cookie | セッション: `__Secure-eastx.session_token`（HttpOnly・Secure・SameSite=Lax・Path=/）。表示設定: `eastx-lang`（`ja`／`en`）と `eastx-theme`（`system`／`light`／`dark`）。どちらも1年、HttpOnly ではない（クライアントで書く） |
-| セキュリティヘッダー | Worker が HTML と API のレスポンスに付ける: `Strict-Transport-Security: max-age=31536000; includeSubDomains`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、`Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.ingest.sentry.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`。`script-src` の `'unsafe-inline'` はテーマの初期化と SSR のデータ受け渡しのため。訪問者が中身を書き込む経路がないので許容し、nonce 方式は今後の改善とする |
+| セキュリティヘッダー | Worker が HTML と API のレスポンスに付ける（`src/response-headers.ts`）: `Strict-Transport-Security: max-age=31536000; includeSubDomains`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、`Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' {Sentry の送り先}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`。`{Sentry の送り先}` は `SENTRY_DSN` の origin（`https://o123.ingest.us.sentry.io` など。host は組織とリージョンで変わり、固定のワイルドカードでは合わない）で、DSN が空・読めない・https でないなら書かない。`script-src` の `'unsafe-inline'` はテーマの初期化と SSR のデータ受け渡しのため。訪問者が中身を書き込む経路がないので許容し、nonce 方式は今後の改善とする。`'unsafe-eval'` は入れないので、ブラウザで動く Zod は JIT を切る（`jitless`）。`/media/*` には付けず、5.10 のヘッダー（`nosniff` と SVG の sandbox の CSP）だけにする |
 | 個人情報 | 訪問者の個人情報は集めない（フォーム・アカウント・アクセス解析なし）。管理者については GitHub の数値 ID・ユーザー名・名前・メール・アバター URL（`admin_user`）、セッションの IP と User-Agent（`admin_session`。30日で失効）、GitHub のアクセストークン（`admin_account`。`read:user`・`user:email` だけ）を持つ。画面には GitHub のユーザー名だけを出す。暗号化はしない（D1 の保存時の暗号化に任せる） |
 | 検索エンジン | 管理画面・API・staging は noindex（ADR-019） |
 
@@ -1673,7 +1677,7 @@ export default defineConfig({
 - Markdown の描画結果を Cache API に置く（ADR-011）。Shiki は使う言語だけを読み込む（ADR-012）。
 - 画像は長期キャッシュ（ADR-010）。サムネイルには `width`・`height` か `aspect-ratio` を指定してレイアウトのずれを防ぎ、ファーストビューの外は `loading="lazy"`。
 - フォントは、`docs/06_design-tokens.json` の `font.family` のうち欧文の可変フォントだけを `@fontsource-variable` で自前配信し、`font-display: swap` にする。和文のフォントは配信しない（OS のフォントを使う）。
-- 管理画面（`/admin/*`）は別のチャンクにし、CodeMirror・dnd-kit・Shiki は公開側のバンドルに入れない。
+- 管理画面（`/admin/*`）は別のチャンクにし、CodeMirror・dnd-kit・Shiki は公開側のバンドルに入れない。ルートの設定（`beforeLoad`・`validateSearch`）は画面の部品と違って公開側と同じバンドルに入るので、管理画面のルートの設定が使う重いモジュール（Better Auth のクライアント、トースト）は `import()` で読み込む。ブラウザで動くコードは Drizzle を import しない（値の定義は `src/db/enums.ts`。6.4）。
 - 過剰な対策（ページ単位のキャッシュ、D1 の読み取りレプリカ）は、目標を外れてから検討する。
 
 ---
@@ -1725,7 +1729,7 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 
 ### ログとの対応
 
-- リクエストID は Cloudflare の `cf-ray`（ローカルでは UUID）。Worker の入口で決め、`x-request-id` のレスポンスヘッダー、`INTERNAL_SERVER_ERROR` の `data.requestId`、すべてのログ行、Sentry のタグ（`request_id`）に入れる。公開側の SSR とサーバー関数のログ行は、TanStack Start の中で `cf-ray` のリクエストヘッダーを直接読む（ローカルではログ行ごとの UUID）。
+- リクエストID は Cloudflare の `cf-ray`（ローカルでは UUID）。Worker の入口で決め、`x-request-id` のレスポンスヘッダー、`INTERNAL_SERVER_ERROR` の `data.requestId`、すべてのログ行、Sentry のタグ（`request_id`）に入れる。入口・CMS API・公開側のサーバー関数は同じ関数（`src/monitoring/server.ts` の `requestIdOf`）でリクエストから決め、同じリクエストには同じ値を使う。
 - ログは JSON の1行（`{ "level": "error", "msg": "...", "requestId": "...", "route": "PUT /api/admin/works/{id}", "code": "SLUG_CONFLICT" }`）で `console.log` ／ `console.error` に出し、Workers Logs で検索する（11章）。
 - ログレベルの使い分けは `docs/05_operation-runbook.md` 1章。Sentry に送る範囲は11章。
 
@@ -1757,7 +1761,7 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 | 公開側の読み取り | 同上 | 各サーバー関数の正常系と、下書き・詳細本文なしが返らないこと | 公開中だけを返す、並び順、前後のナビ、言語の代替 |
 | E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元 |
 | アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P5・A1・A2 で重大（serious 以上）な違反 0件 | 自動で検出できる範囲 |
-| Lighthouse | Lighthouse CI（`@lhci/cli`。モバイルの設定） | PRD 5章の Lighthouse の目標を assert する | デモデータを入れたプレビューの P1 と、P2〜P5 の各1ページ |
+| Lighthouse | Lighthouse CI（`@lhci/cli`。モバイルの設定） | PRD 5章の Lighthouse の目標を、3回の中央値で assert する | デモデータを入れたプレビューの P1 と、P2〜P5 の各1ページ。本番では Cloudflare の拠点が HTML・JS・CSS を圧縮するが、ローカルのプレビューは圧縮しないので、gzip で圧縮して中継する（`scripts/lhci/server.ts`。本番の brotli より縮まない側で測る）。ローカルの robots.txt はすべてを拒否する（ADR-019）ので、SEO の `is-crawlable` の項目は外して測る |
 
 - API 結合テストの 401・403 の確認は、CSRF のヘッダーを付けたリクエストで行う（5.1）。ヘッダーがないときに 403 になることも別に確かめる。
 - E2E のログイン: テスト用のヘルパーが、ローカルの D1 に管理者とセッションを作り、Better Auth と同じ方式で署名した Cookie をブラウザに入れる。本番のコードにテスト用の入口は作らない。
@@ -1773,7 +1777,7 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 |------|--------|------|
 | リクエストのログ | Workers Logs | `wrangler.jsonc` の `observability.enabled: true`、`head_sampling_rate: 1`（全件）。アプリのログは JSON の1行（8章） |
 | エラー追跡（サーバー） | Sentry（`@sentry/cloudflare`） | `src/server.ts` を `withSentry` で包む。`environment` は `ENVIRONMENT`、`tracesSampleRate` は本番 0.1・staging 1.0。5xx と想定外の例外だけ送る |
-| エラー追跡（ブラウザ） | Sentry（`@sentry/react`） | DSN はルートのローダーがサーバーの `SENTRY_DSN` から渡す（ビルド時の環境変数にしない）。React のエラー境界で受けたものを送る |
+| エラー追跡（ブラウザ） | Sentry（`@sentry/react`） | DSN はルートのローダーがサーバーの `SENTRY_DSN` から渡す（ビルド時の環境変数にしない）。SDK は DSN があるときだけ読み込む（`src/monitoring/browser.ts`）。React のエラー境界（ルートの errorComponent）で受けたものと、SDK の既定で拾う捕まえていない例外を送る。サーバーが送ったうえで中身を伏せた公開側のサーバー関数の失敗（8章）は送らない。Web Vitals（TTFB・LCP。7章の測り方）は `browserTracingIntegration` のページ読み込みの計測で送り、`tracesSampleRate` はサーバーと同じ |
 | 稼働監視 | Sentry Uptime Monitoring | 本番の `https://x.eastasian.dev/ja` を5分ごと |
 | メトリクス | Cloudflare ダッシュボード（Workers・D1・R2） | リクエスト数・エラー率・CPU 時間・D1 の読み書き行数を見る |
 | リアルタイムのログ | `wrangler tail` | 障害調査のときに使う |

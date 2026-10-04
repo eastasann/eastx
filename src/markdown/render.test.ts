@@ -85,7 +85,9 @@ describe('renderMarkdown', () => {
   describe('コードブロック', () => {
     it('言語ごとに色分けし、コピーのボタンを付ける場所で包む', async () => {
       const html = await renderMarkdown('```ts\nconst a: number = 1\n```', JA)
-      expect(html).toMatch(/^<div data-code-block=""><pre class="shiki shiki-themes github-light github-dark"/)
+      expect(html).toMatch(
+        /^<div data-code-block=""><pre class="shiki shiki-themes github-light-high-contrast github-dark-default"/,
+      )
       expect(html).toContain('--shiki-light:')
       expect(html).toContain('--shiki-dark:')
       expect(html).toContain('const')

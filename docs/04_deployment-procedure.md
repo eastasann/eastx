@@ -138,14 +138,29 @@ Settings → Rules → Rulesets で `main` のルールセットを作り、PR �
 1. Step 2〜5 の値を書いた `wrangler.jsonc` を、通常の PR で `main` に入れる。
 2. `make promote ENV=staging` で昇格 PR を作ってマージする。最初の昇格 PR なので、ci の promotion-check と、マージ後の deploy.yml が通ることをここで確かめる。Custom Domain（DNS レコードと証明書）はこのデプロイで作られる。
 3. https://x-staging.eastasian.dev/admin から GitHub でログインする（初回のログインで管理者が登録される。SDD ADR-009）。この時点では中身が空で、トップには何も出ない。
-4. staging にデータを移す（本番の予行）。変換スクリプト（`scripts/migrate-legacy/`）が作った SQL と画像を入れる。
+4. staging にデータを移す（本番の予行）。リポジトリのルートで、変換スクリプト（`scripts/migrate-legacy/`）で今のサイトから取り出して変換し、ローカルで確かめてから、出力した画像と SQL を入れる。
 
    ```bash
-   # データ（移したものは下書きで入る。design-spec 9章）
-   bunx wrangler d1 execute DB --env staging --remote --file {変換スクリプトが出した SQL}
-   # 画像（変換スクリプトが出した一覧の1件ずつ）
-   bunx wrangler r2 object put eastx-media-staging/uploads/legacy/{ファイル名} --remote --file {ローカルのファイル}
+   # 取り出しと変換。scripts/migrate-legacy/out/ に legacy.sql・images/・images.tsv・counts.json を書き出す
+   bun scripts/migrate-legacy/migrate.ts
+   # ローカルでの確認。マイグレーションだけを当てた一時の D1・R2 に入れ、件数の一致と管理画面の日英の中身を見る
+   bun scripts/migrate-legacy/verify.ts
+   # 画像を先に置く（images.tsv の1行が R2 のキー・ローカルのファイル・形式）。SQL を先に流すと、
+   # 入れた時点で公開サイトに出るプロフィール・使用技術の画像が、置き終わるまで 404 になる
+   while IFS=$'\t' read -r key file type; do
+     bunx wrangler r2 object put "eastx-media-staging/$key" --remote --file "$file" --content-type "$type" < /dev/null
+   done < scripts/migrate-legacy/out/images.tsv
+   # データ（経歴・作品・プロジェクトは下書きで入る。プロフィール・SNSリンク・使用技術はすぐ公開サイトに出る。design-spec 9章）
+   bunx wrangler d1 execute DB --env staging --remote --file scripts/migrate-legacy/out/legacy.sql
    ```
+
+   - `verify.ts` には、`.dev.vars` の `ADMIN_GITHUB_USER_ID` と Playwright の Chromium（`make setup` が入れる）が要る。ポート 3000 を空けておく。ローカルの設定でビルドし直すので `dist/` を上書きする。
+   - SQL は消す文を含まず、中身が空の D1 に入れる前提で作る。A3 でプロフィールを先に保存していると、プロフィールの一意制約で失敗する。
+   - `d1 execute` が途中で失敗し、一部のテーブルだけ入ったときは、入った中身を消してから流し直す（作品・プロジェクト・使用技術を消すと紐づけも消える）。
+
+     ```bash
+     bunx wrangler d1 execute DB --env staging --remote --command "delete from work; delete from project; delete from stack; delete from career; delete from social_link; delete from profile;"
+     ```
 
 5. staging の管理画面で中身を確かめて公開し、6章のデプロイ後確認をする。あわせて SDD ADR-022 の「staging でしか見られないもの」（Custom Domain の上での動作、実際にデプロイしたバンドル）をここで確かめる。
 6. `make promote ENV=production` で本番に出し、3〜5 と同じ手順（`--env production`、R2 は `eastx-media`）でログイン・データの移行・確認・公開をする。

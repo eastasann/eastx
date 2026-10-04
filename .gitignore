@@ -13,6 +13,11 @@ worker-configuration.d.ts
 
 # テストの出力
 test-results/
+coverage/
+.lighthouseci/
 playwright-report/
 
 .DS_Store
+
+# データ移行の出力（scripts/migrate-legacy/migrate.ts が作る）
+scripts/migrate-legacy/out/

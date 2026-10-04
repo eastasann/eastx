@@ -7,6 +7,7 @@
 import { ORPCError, ValidationError } from '@orpc/server'
 import type { StandardHandlerOptions } from '@orpc/server/standard'
 import type { MissingField } from '../domain/publishing'
+import { captureServerError } from '../monitoring/server'
 import { API_BASE_PATH } from './constants'
 import type { RequestContext } from './context'
 import { baseErrors, publishRequirementsError, slugConflictError, stackKeyConflictError } from './contract/common'
@@ -133,6 +134,7 @@ export const handlerInterceptors: Interceptors<'interceptors'> = [
           ...fields,
           error: cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause),
         })
+        captureServerError(cause, context.requestId)
       } else {
         log('warn', fields)
       }

@@ -34,16 +34,19 @@ dev: gen
 build: gen
 	bunx vite build
 
+# カバレッジ（vitest.config.ts）は workerd の上で測れないので、unit にだけ付けて project ごとに走らせる
 test: gen
-	bunx vitest run
+	bunx vitest run --project unit --coverage
+	bunx vitest run --project integration
 
-# アクセシビリティ（axe）と Lighthouse CI は Step 10 で足す
-# （docs/03_dev-setup.md 7章が定める e2e の完成形。docs/claude-code-prompts.md Step 10）
+# E2E とアクセシビリティ（Playwright・axe）のあと、Lighthouse CI（lighthouserc.cjs）で同じビルドとデモデータを測る
 e2e: gen
 	bunx vite build
 	$(MAKE) db-migrate
 	$(MAKE) db-seed
 	bunx playwright test
+	bunx lhci collect
+	bunx lhci assert
 
 lint: gen
 	bunx biome check .

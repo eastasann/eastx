@@ -48,11 +48,14 @@ eastx/
 │   ├── seed/                      # デモデータの SQL とダミー画像を作る
 │   ├── migrate-legacy/            # 今のサイトのデータを移す変換スクリプト
 │   ├── og/                        # 既定の OGP 画像を作る
+│   ├── lhci/server.ts             # Lighthouse CI が測るプレビュー（gzip で圧縮して中継する。SDD 10章）
 │   ├── promote.sh                 # 昇格 PR 用のブランチとバージョンファイルを作る
 │   ├── promotion-check.sh         # 昇格 PR の SHA の確認（ci.yml が呼ぶ）
 │   └── doc-lint.sh                # ドキュメントと実体の整合検査
 ├── src/
 │   ├── server.ts                  # Worker の入口（/api/*・/media/* → Elysia、それ以外 → TanStack Start）
+│   ├── response-headers.ts        # セキュリティヘッダーと X-Robots-Tag（SDD 7章・ADR-019）
+│   ├── monitoring/                # Sentry（サーバー・ブラウザ。SDD 11章）
 │   ├── api/                       # CMS API（Elysia ＋ oRPC）
 │   │   ├── app.ts                 #   Elysia のアプリ
 │   │   ├── contract/              #   oRPC のコントラクト（パス・入出力・エラー）
@@ -77,17 +80,19 @@ eastx/
 ├── CLAUDE.md                      # 実装エージェントの前提知識（AGENTS.md はこのファイルへのリンク）
 ├── biome.json
 ├── drizzle.config.ts
+├── lighthouserc.cjs               # Lighthouse CI の対象のページと目標（SDD 10章）
 ├── Makefile                       # 主要コマンドの唯一の真実源（8章）
 ├── package.json / bun.lock
 ├── panda.config.ts
 ├── playwright.config.ts
+├── README.md                      # リポジトリの入口（始め方と docs/README.md への案内）
 ├── tsconfig.json
 ├── vite.config.ts
 ├── vitest.config.ts
 └── wrangler.jsonc                 # Workers・バインディング・環境の設定（5章）
 ```
 
-Git に入れないもの: `.dev.vars`、`.wrangler/`（ローカルの D1・R2 のデータ）、`styled-system/`（Panda の生成物）、`src/styles/tokens.generated.ts`、`src/routeTree.gen.ts`、`worker-configuration.d.ts`（wrangler の型）、`dist/`、`node_modules/`。
+Git に入れないもの: `.dev.vars`、`.wrangler/`（ローカルの D1・R2 のデータ）、`coverage/`・`.lighthouseci/`・`test-results/`（テストの出力）、`styled-system/`（Panda の生成物）、`src/styles/tokens.generated.ts`、`src/routeTree.gen.ts`、`worker-configuration.d.ts`（wrangler の型）、`dist/`、`node_modules/`。
 
 ---
 
@@ -253,8 +258,8 @@ staging・本番の OAuth App は `docs/04_deployment-procedure.md` 3章。
 
 | ターゲット | 中身 |
 |---|---|
-| `make test` | Vitest のユニットテスト（Node.js）と結合テスト（`@cloudflare/vitest-pool-workers` で workerd 上、ローカルの D1・R2）をまとめて走らせる |
-| `make e2e` | ビルドしたアプリをローカルで起動し、デモデータを入れて、Playwright（Chromium）で E2E とアクセシビリティの検査、Lighthouse CI で PRD 5章の Lighthouse の目標の検査を走らせる |
+| `make test` | Vitest のユニットテスト（Node.js）と結合テスト（`@cloudflare/vitest-pool-workers` で workerd 上、ローカルの D1・R2）を走らせる。ユニットテストではカバレッジ（SDD 10章の目標）も測り、目標を下回ると失敗する。v8 のカバレッジは workerd の上で動かないので、結合テストでは測らない |
+| `make e2e` | ビルドしたアプリをローカルで起動し、デモデータを入れて、Playwright（Chromium）で E2E とアクセシビリティの検査、Lighthouse CI（`lighthouserc.cjs`）で PRD 5章の Lighthouse の目標の検査を走らせる。コアフローの E2E（`tests/e2e/core-flows.spec.ts`）は受入スイートを兼ねる |
 
 - 何をどの層で確かめるか、カバレッジの目標は SDD 10章。
 - 結合テストは、テストファイルごとにマイグレーションを当てた空の D1 で走る（`@cloudflare/vitest-pool-workers` はテストファイルごとに保存先を分ける）。同じファイルの中のテストは D1 を共有するので、ほかのテストが入れた行に頼らず、一意の値がぶつからないように書く。手元の `.wrangler/` のデータは使わない。

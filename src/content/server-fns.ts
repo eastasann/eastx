@@ -8,14 +8,15 @@
 import { env } from 'cloudflare:workers'
 import { isNotFound } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
-import { getRequestHeader } from '@tanstack/react-start/server'
+import { getRequest } from '@tanstack/react-start/server'
 import { getDb } from '~/db/client'
 import { isSlug } from '~/domain/slug'
 import { isLang, type Lang } from '~/i18n/detect'
+import { captureServerError, requestIdOf } from '~/monitoring/server'
+import { loadSiteChrome } from './load-site-chrome'
 import { type DetailInput, loadProjectDetail, loadWorkDetail } from './portfolio-detail'
 import { loadBlogPost, loadCodingLog } from './post-detail'
 import type { ContentContext } from './shared'
-import { loadSiteChrome } from './site-chrome'
 import { loadTopPage } from './top-page'
 
 /**
@@ -28,8 +29,9 @@ async function guarded<T>(route: string, read: () => Promise<T>): Promise<T> {
     return await read()
   } catch (error) {
     if (isNotFound(error)) throw error
-    const requestId = getRequestHeader('cf-ray') ?? crypto.randomUUID()
+    const requestId = requestIdOf(getRequest())
     console.error(JSON.stringify({ level: 'error', msg: 'public read failed', requestId, route, error: String(error) }))
+    captureServerError(error, requestId)
     throw new Error('INTERNAL_SERVER_ERROR')
   }
 }
