@@ -33,7 +33,16 @@ import {
 } from './editor'
 import { isAuthError, isNotFoundError } from './errors'
 import { ImageField, SelectField, TextField } from './fields'
-import { CODING_LOG_KIND_LABELS, displayTitle, languagesLabel, NOTICES, STATUS_LABELS } from './labels'
+import {
+  CODING_LOG_KIND_LABELS,
+  displayTitle,
+  languagesLabel,
+  listLabel,
+  NOTICES,
+  newItemTitle,
+  SECTION_LABELS,
+  STATUS_LABELS,
+} from './labels'
 import { FormLayout, ListLayout, SplitEditSkeleton } from './layouts'
 import { AdminLink } from './link'
 import { AdminList } from './list-view'
@@ -49,15 +58,13 @@ type Post = BlogPost | CodingLog
 
 const KINDS = {
   'blog-post': {
-    name: 'ブログ',
-    itemName: 'ブログ記事',
+    name: SECTION_LABELS.blog,
     listHref: '/admin/blog',
     queryKey: 'blog-posts',
     publicPath: (slug: string) => `/ja/blog/${slug}`,
   },
   'coding-log': {
-    name: 'コーディング記録',
-    itemName: 'コーディング記録',
+    name: SECTION_LABELS.coding,
     listHref: '/admin/coding',
     queryKey: 'coding-logs',
     publicPath: (slug: string) => `/ja/coding/${slug}`,
@@ -139,7 +146,7 @@ export function PostsListPage({ kind, search }: { kind: PostKind; search: PostsS
       }
     >
       <AdminList
-        label={`${config.name}の一覧`}
+        label={listLabel(config.name)}
         query={{ status: query.status, data: query.data?.items, refetch: query.refetch }}
         columns={[
           ...(kind === 'coding-log'
@@ -256,14 +263,14 @@ export function PostEditPage({ kind, id }: { kind: PostKind; id: string }) {
     enabled: !isNew,
   })
   const editor = useEditorKey(id)
-  const back = <BackLink href={config.listHref}>{config.name}一覧</BackLink>
+  const back = <BackLink href={config.listHref}>{config.name}</BackLink>
 
   if (!isNew && query.status === 'pending') {
-    return <SplitEditSkeleton back={back} title={config.itemName} actions={disabledActions()} />
+    return <SplitEditSkeleton back={back} title={config.name} actions={disabledActions()} />
   }
   if (!isNew && query.status === 'error') {
     return (
-      <FormLayout back={back} title={config.itemName} actions={disabledActions()}>
+      <FormLayout back={back} title={config.name} actions={disabledActions()}>
         {isNotFoundError(query.error) ? (
           <EditNotFound listHref={config.listHref} />
         ) : (
@@ -375,8 +382,7 @@ function PostEditor({
     }
   }
 
-  const title =
-    saved === null ? `${config.itemName}の新規作成` : displayTitle({ ja: saved.ja.title, en: saved.en.title })
+  const title = saved === null ? newItemTitle(config.name) : displayTitle({ ja: saved.ja.title, en: saved.en.title })
   const flow = usePublishFlow({
     title,
     pending: save.pending,
@@ -488,7 +494,7 @@ function PostEditor({
   return (
     <editor.BusyProvider>
       <LongFormEditView
-        back={<BackLink href={config.listHref}>{config.name}一覧</BackLink>}
+        back={<BackLink href={config.listHref}>{config.name}</BackLink>}
         title={title}
         status={editor.status}
         saveStatus={editor.saveStatus}

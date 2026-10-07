@@ -10,7 +10,7 @@ import { formatAdminDate } from '~/i18n/format'
 import { ExternalLinkIcon, PlusIcon } from '~/ui/icons'
 import { button, card } from '~/ui/recipes'
 import { api } from './api'
-import { displayTitle } from './labels'
+import { displayTitle, SECTION_LABELS } from './labels'
 import { ListLayout } from './layouts'
 import { AdminLink } from './link'
 import { LoadError, Skeleton } from './states'
@@ -31,11 +31,11 @@ const LIST_HREFS: Record<DraftType, string> = {
 }
 
 const TYPE_LABELS: Record<DraftType, string> = {
-  career: '経歴',
-  project: 'プロジェクト',
-  work: '作品',
-  'blog-post': 'ブログ',
-  'coding-log': 'コーディング記録',
+  career: SECTION_LABELS.career,
+  project: SECTION_LABELS.projects,
+  work: SECTION_LABELS.works,
+  'blog-post': SECTION_LABELS.blog,
+  'coding-log': SECTION_LABELS.coding,
 }
 
 /** 件数カードの並び（サイドメニューと同じ。design-spec 3.3） */
@@ -65,7 +65,7 @@ function CountCards({ counts }: { counts: Counts | undefined }) {
   return (
     <ul aria-label="種類ごとの件数" className={css({ display: 'flex', flexWrap: 'wrap', gap: 'inline' })}>
       {CARDS.map((entry) => {
-        const title = entry.type === 'stack' ? '使用技術' : TYPE_LABELS[entry.type]
+        const title = entry.type === 'stack' ? SECTION_LABELS.stack : TYPE_LABELS[entry.type]
         const href = entry.type === 'stack' ? '/admin/stacks' : LIST_HREFS[entry.type]
         return (
           <li

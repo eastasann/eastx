@@ -5,16 +5,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-const MENU = [
-  'ダッシュボード',
-  'プロフィール',
-  '経歴',
-  'プロジェクト',
-  '作品',
-  '使用技術',
-  'ブログ',
-  'コーディング記録',
-]
+const MENU = ['ダッシュボード', 'プロフィール', 'Career', 'Projects', 'Lab', 'Tech Stack', 'Blog', 'Coding Log']
 
 async function expectNoHorizontalOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
@@ -66,8 +57,8 @@ test.describe('タブレット幅（768〜1023px）', () => {
     const box = await nav.boundingBox()
     expect(box?.width).toBeLessThan(80)
 
-    await nav.getByRole('link', { name: '作品' }).hover()
-    await expect(page.getByRole('tooltip')).toHaveText('作品')
+    await nav.getByRole('link', { name: 'Lab' }).hover()
+    await expect(page.getByRole('tooltip')).toHaveText('Lab')
     await expect(page.getByRole('heading', { name: 'ダッシュボード' })).toBeVisible()
     await expectNoHorizontalOverflow(page)
   })

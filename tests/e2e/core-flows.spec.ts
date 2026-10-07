@@ -21,7 +21,7 @@ test.describe('訪問者', () => {
     const profile = page.locator('#profile')
     await expect(profile.getByRole('heading', { level: 1, name: '東 アジア' })).toBeVisible()
     await expect(profile.getByText('ソフトウェアエンジニア').first()).toBeVisible()
-    await expect(page.getByRole('heading', { level: 2, name: '経歴' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: 'Career' })).toBeVisible()
     await expect(page.locator('#career').getByText('シニアエンジニア')).toBeVisible()
 
     // プロジェクト欄（10件以下なのでページングなし）の行を ▸ で広げて中身を見て、プロジェクト詳細へ → 戻る
@@ -31,19 +31,19 @@ test.describe('訪問者', () => {
     await projects.getByRole('link', { name: '決済基盤の刷新' }).click()
     await expect(page).toHaveURL('/ja/projects/payment-renewal')
     await expect(page.getByRole('heading', { level: 1, name: '決済基盤の刷新' })).toBeVisible()
-    await page.getByRole('link', { name: 'プロジェクトへ戻る' }).click()
+    await page.getByRole('link', { name: 'Projects へ戻る' }).click()
     await expect(page).toHaveURL('/ja#projects')
     await expect(projects.getByRole('link', { name: '決済基盤の刷新' })).toBeVisible()
 
     // 作品欄をページングして作品詳細へ → 戻るで元のページ（2ページ目）
     const works = page.locator('#works')
-    const workPaging = works.getByRole('group', { name: '作品のページ' })
+    const workPaging = works.getByRole('group', { name: 'Lab のページ' })
     await workPaging.getByRole('button', { name: '次のページ' }).click()
     await expect(workPaging).toContainText('2 / 2')
     await works.getByRole('link', { name: 'レシピノート' }).click()
     await expect(page).toHaveURL('/ja/works/recipe-notes')
     await expect(page.getByRole('heading', { level: 1, name: 'レシピノート' })).toBeVisible()
-    await page.getByRole('link', { name: '作品へ戻る' }).click()
+    await page.getByRole('link', { name: 'Lab へ戻る' }).click()
     await expect(page).toHaveURL('/ja#works')
     await expect(workPaging).toContainText('2 / 2')
 
@@ -57,7 +57,7 @@ test.describe('訪問者', () => {
     await expect(visit).toHaveAttribute('target', '_blank')
     await expect(visit).toHaveAttribute('rel', /noopener/)
     // 戻るリンクは、いま見ている作品を含むページを開く
-    await page.getByRole('link', { name: '作品へ戻る' }).click()
+    await page.getByRole('link', { name: 'Lab へ戻る' }).click()
     await expect(workPaging).toContainText('1 / 2')
     await expect(works.getByRole('link', { name: '家計簿アプリ' })).toBeVisible()
 
@@ -81,7 +81,7 @@ test.describe('訪問者', () => {
   test('人となりを知る: ブログ欄をページング → 記事を読む → トップのブログ欄へ戻る', async ({ page }) => {
     await gotoHydrated(page, '/ja')
     const blog = page.locator('#blog')
-    const paging = blog.getByRole('group', { name: 'ブログのページ' })
+    const paging = blog.getByRole('group', { name: 'Blog のページ' })
     await expect(paging).toContainText('1 /')
     await paging.getByRole('button', { name: '次のページ' }).click()
     await expect(paging).toContainText('2 /')
@@ -93,7 +93,7 @@ test.describe('訪問者', () => {
     await expect(page).toHaveURL(/\/ja\/blog\/[a-z0-9-]+$/)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(title)
 
-    await page.getByRole('link', { name: 'ブログへ戻る' }).click()
+    await page.getByRole('link', { name: 'Blog へ戻る' }).click()
     await expect(page).toHaveURL('/ja#blog')
     await expect(paging).toContainText('2 /')
     await expect(blog.getByRole('link', { name: title })).toBeVisible()
@@ -102,7 +102,7 @@ test.describe('訪問者', () => {
     const log = page.locator('#coding ul:not([inert])').getByRole('article').first().getByRole('link').first()
     await log.click()
     await expect(page).toHaveURL(/\/ja\/coding\/[a-z0-9-]+$/)
-    await page.getByRole('link', { name: 'コーディング記録へ戻る' }).click()
+    await page.getByRole('link', { name: 'Coding Log へ戻る' }).click()
     await expect(page).toHaveURL('/ja#coding')
   })
 })
@@ -122,7 +122,7 @@ test.describe('管理者', () => {
 
     await page.goto('/admin')
     await expect(page.getByRole('heading', { level: 1, name: 'ダッシュボード' })).toBeVisible()
-    await page.getByRole('navigation').getByRole('link', { name: '作品' }).click()
+    await page.getByRole('navigation').getByRole('link', { name: 'Lab' }).click()
     await expect(page).toHaveURL('/admin/works')
     await page.getByRole('link', { name: '新規作成' }).first().click()
     await expect(page).toHaveURL('/admin/works/new')
@@ -147,7 +147,7 @@ test.describe('管理者', () => {
     await expect(preview.getByRole('heading', { name: '受入' })).toBeVisible()
     await expect(preview.getByText('受入テストの本文です。')).toBeVisible()
 
-    const table = page.getByRole('table', { name: '作品の一覧' })
+    const table = page.getByRole('table', { name: 'Lab の一覧' })
     try {
       await page.getByRole('button', { name: '公開する' }).click()
       await expect(page.getByText('公開しました')).toBeVisible()

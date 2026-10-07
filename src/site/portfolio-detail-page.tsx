@@ -23,12 +23,7 @@ const outlineLink = css(button.raw({ variant: 'outline' }), { textDecoration: 'n
 export function PortfolioDetailPage(props: PortfolioDetailProps) {
   const { lang, messages, kind, view } = props
   const githubUrl = props.kind === 'works' ? props.view.githubUrl : null
-  const notice =
-    view.body.lang === lang
-      ? null
-      : kind === 'works'
-        ? messages.notice.workBodyOnlyIn(view.body.lang)
-        : messages.notice.projectBodyOnlyIn(view.body.lang)
+  const notice = view.body.lang === lang ? null : messages.notice.bodyOnlyIn(view.body.lang)
 
   return (
     <ArticleLayout

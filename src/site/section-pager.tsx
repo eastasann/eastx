@@ -8,6 +8,7 @@ import { useLocation } from '@tanstack/react-router'
 import { type KeyboardEvent, type PointerEvent, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { css, cx } from 'styled-system/css'
 import type { Messages } from '~/i18n/messages'
+import { SECTION_NAME_LANG } from '~/i18n/section-names'
 import { ChevronLeftIcon, ChevronRightIcon } from '~/ui/icons'
 import { button } from '~/ui/recipes'
 import type { PagedSectionId } from './history-state'
@@ -127,10 +128,15 @@ export function PagedSection<T extends { id: string }>({
           // biome-ignore lint/a11y/useSemanticElements: ボタンとページ表示のまとまり。fieldset はフォームの部品ではないので使わない
           <div
             role="group"
-            aria-label={messages.paging.controls(title)}
+            // 名前は見出し（英語のセクションの名前。lang="en"）と続く語を並べて作る（「Lab のページ」）。aria-label にすると
+            // 名前の lang が読み上げに効かない
+            aria-labelledby={`${headingId} ${headingId}-paging`}
             onKeyDown={onKeyDown}
             className={css({ display: 'flex', alignItems: 'center', gap: 'inline' })}
           >
+            <span id={`${headingId}-paging`} hidden>
+              {messages.paging.controlsSuffix}
+            </span>
             <button
               type="button"
               aria-label={messages.paging.previous}
@@ -231,7 +237,7 @@ export function SectionHeading({ id, title, children }: { id: string; title: str
         borderBottomColor: 'border.default',
       })}
     >
-      <h2 id={id} className={css({ textStyle: 'section-label', color: 'text.muted' })}>
+      <h2 id={id} lang={SECTION_NAME_LANG} className={css({ textStyle: 'section-label', color: 'text.muted' })}>
         {title}
       </h2>
       {children && (

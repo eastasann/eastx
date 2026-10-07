@@ -24,7 +24,7 @@ test('トップのブログの行から P4 を開き、前後のナビで移り�
   ).toBeVisible()
   await expect(page).toHaveTitle(/ — eastasian$/)
 
-  await page.getByRole('link', { name: 'ブログへ戻る' }).click()
+  await page.getByRole('link', { name: 'Blog へ戻る' }).click()
   await expect(page).toHaveURL(/\/ja#blog$/)
 })
 

@@ -36,7 +36,16 @@ import {
 } from './editor'
 import { isAuthError, isNotFoundError } from './errors'
 import { MarkdownField, SelectField, TextField } from './fields'
-import { CAREER_KIND_LABELS, displayTitle, languagesLabel, NOTICES, STATUS_LABELS } from './labels'
+import {
+  CAREER_KIND_LABELS,
+  displayTitle,
+  languagesLabel,
+  listLabel,
+  NOTICES,
+  newItemTitle,
+  SECTION_LABELS,
+  STATUS_LABELS,
+} from './labels'
 import { FormLayout, ListLayout } from './layouts'
 import { AdminLink } from './link'
 import { AdminList } from './list-view'
@@ -70,7 +79,7 @@ export function CareersListPage({ search }: { search: CareersSearch }) {
 
   return (
     <ListLayout
-      title="経歴"
+      title={SECTION_LABELS.career}
       actions={
         <>
           <Select
@@ -105,7 +114,7 @@ export function CareersListPage({ search }: { search: CareersSearch }) {
       }
     >
       <AdminList
-        label="経歴の一覧"
+        label={listLabel(SECTION_LABELS.career)}
         query={{ status: query.status, data: query.data?.items, refetch: query.refetch }}
         columns={[
           { key: 'kind', header: '種類', cell: (item) => CAREER_KIND_LABELS[item.kind] },
@@ -206,18 +215,18 @@ export function CareerEditPage({ id }: { id: string }) {
     enabled: !isNew,
   })
   const editor = useEditorKey(id)
-  const back = <BackLink href={LIST_HREF}>経歴一覧</BackLink>
+  const back = <BackLink href={LIST_HREF}>{SECTION_LABELS.career}</BackLink>
 
   if (!isNew && query.status === 'pending') {
     return (
-      <FormLayout back={back} title="経歴" actions={disabledActions()}>
+      <FormLayout back={back} title={SECTION_LABELS.career} actions={disabledActions()}>
         <EditLoading />
       </FormLayout>
     )
   }
   if (!isNew && query.status === 'error') {
     return (
-      <FormLayout back={back} title="経歴" actions={disabledActions()}>
+      <FormLayout back={back} title={SECTION_LABELS.career} actions={disabledActions()}>
         {isNotFoundError(query.error) ? (
           <EditNotFound listHref={LIST_HREF} />
         ) : (
@@ -288,7 +297,8 @@ function CareerEditor({ initial, onCreated }: { initial: Career | null; onCreate
     }
   }
 
-  const title = saved === null ? '経歴の新規作成' : displayTitle({ ja: saved.ja.title, en: saved.en.title })
+  const title =
+    saved === null ? newItemTitle(SECTION_LABELS.career) : displayTitle({ ja: saved.ja.title, en: saved.en.title })
   const flow = usePublishFlow({
     title,
     pending: save.pending,
@@ -358,7 +368,7 @@ function CareerEditor({ initial, onCreated }: { initial: Career | null; onCreate
   return (
     <editor.BusyProvider>
       <FormLayout
-        back={<BackLink href={LIST_HREF}>経歴一覧</BackLink>}
+        back={<BackLink href={LIST_HREF}>{SECTION_LABELS.career}</BackLink>}
         title={title}
         status={
           <>

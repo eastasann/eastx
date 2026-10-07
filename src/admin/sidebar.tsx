@@ -20,6 +20,7 @@ import {
 import { ThemeToggle } from '~/ui/theme'
 import { Tooltip } from '~/ui/tooltip'
 import { browserStorage, stopAndClearBackups } from './backup'
+import { SECTION_LABELS } from './labels'
 import { AdminLink } from './link'
 
 interface MenuEntry {
@@ -32,12 +33,12 @@ interface MenuEntry {
 export const ADMIN_MENU: readonly MenuEntry[] = [
   { to: '/admin', label: 'ダッシュボード', icon: DashboardIcon },
   { to: '/admin/profile', label: 'プロフィール', icon: UserIcon },
-  { to: '/admin/careers', label: '経歴', icon: BriefcaseIcon },
-  { to: '/admin/projects', label: 'プロジェクト', icon: FolderIcon },
-  { to: '/admin/works', label: '作品', icon: BoxIcon },
-  { to: '/admin/stacks', label: '使用技術', icon: LayersIcon },
-  { to: '/admin/blog', label: 'ブログ', icon: PenIcon },
-  { to: '/admin/coding', label: 'コーディング記録', icon: CodeIcon },
+  { to: '/admin/careers', label: SECTION_LABELS.career, icon: BriefcaseIcon },
+  { to: '/admin/projects', label: SECTION_LABELS.projects, icon: FolderIcon },
+  { to: '/admin/works', label: SECTION_LABELS.works, icon: BoxIcon },
+  { to: '/admin/stacks', label: SECTION_LABELS.stack, icon: LayersIcon },
+  { to: '/admin/blog', label: SECTION_LABELS.blog, icon: PenIcon },
+  { to: '/admin/coding', label: SECTION_LABELS.coding, icon: CodeIcon },
 ]
 
 const THEME_LABELS = {

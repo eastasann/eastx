@@ -1,19 +1,12 @@
 import type { Lang } from '../detect'
+import { SECTION_NAMES } from '../section-names'
 import type { Messages } from './ja'
 
 const LANG_NAMES: Record<Lang, string> = { ja: 'Japanese', en: 'English' }
 
 export const en = {
   siteName: 'eastasian',
-  section: {
-    profile: 'Profile',
-    career: 'Career',
-    projects: 'Projects',
-    works: 'Works',
-    stack: 'Tech Stack',
-    blog: 'Blog',
-    coding: 'Coding Log',
-  },
+  section: { profile: 'Profile', ...SECTION_NAMES },
   careerKind: { work: 'Work', education: 'Education' },
   codingLogKind: {
     learning_log: 'Learning Log',
@@ -38,29 +31,20 @@ export const en = {
   notice: {
     postOnlyIn: (lang: Lang): string => `This post is available in ${LANG_NAMES[lang]} only.`,
     codingLogOnlyIn: (lang: Lang): string => `This log is available in ${LANG_NAMES[lang]} only.`,
-    workBodyOnlyIn: (lang: Lang): string => `The description of this work is available in ${LANG_NAMES[lang]} only.`,
-    projectBodyOnlyIn: (lang: Lang): string =>
-      `The description of this project is available in ${LANG_NAMES[lang]} only.`,
+    bodyOnlyIn: (lang: Lang): string => `This description is available in ${LANG_NAMES[lang]} only.`,
   },
-  back: {
-    works: 'Back to Works',
-    projects: 'Back to Projects',
-    blog: 'Back to Blog',
-    coding: 'Back to Coding Log',
-  },
+  backLink: (): { before: string; after: string } => ({ before: 'Back to', after: '' }),
   neighbor: {
     nav: 'Previous and next',
-    prevWork: 'Previous work',
-    nextWork: 'Next work',
-    prevProject: 'Previous project',
-    nextProject: 'Next project',
+    previous: 'Previous',
+    next: 'Next',
     newerPost: 'Newer post',
     olderPost: 'Older post',
     newerLog: 'Newer log',
     olderLog: 'Older log',
   },
   paging: {
-    controls: (section: string): string => `${section} pages`,
+    controlsSuffix: 'pages',
     previous: 'Previous page',
     next: 'Next page',
     position: (current: number, total: number): string => `${current} / ${total}`,

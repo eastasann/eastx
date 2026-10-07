@@ -96,9 +96,9 @@ test.describe('管理画面', () => {
 
   /** 編集ビュー（L5 の作品・ブログ、L6 の経歴）。一覧の先頭の項目を開く */
   const EDIT_VIEWS = [
-    { name: 'A5 作品の編集', list: '/admin/works', table: '作品の一覧' },
-    { name: 'A8 ブログの編集', list: '/admin/blog', table: 'ブログの一覧' },
-    { name: 'A4 経歴の編集', list: '/admin/careers', table: '経歴の一覧' },
+    { name: 'A5 作品の編集', list: '/admin/works', table: 'Lab の一覧' },
+    { name: 'A8 ブログの編集', list: '/admin/blog', table: 'Blog の一覧' },
+    { name: 'A4 経歴の編集', list: '/admin/careers', table: 'Career の一覧' },
   ] as const
 
   for (const { name, list, table } of EDIT_VIEWS) {
