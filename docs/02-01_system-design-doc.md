@@ -516,7 +516,7 @@
 | `/media/*` | Elysia → R2 | 画像の配信（5.10） |
 | TanStack Start のサーバー関数 | TanStack Start | 公開側の読み取り（5.11）。URL は TanStack Start が決める（`/_serverFn/...`） |
 | `/robots.txt` | TanStack Start のサーバールート（`src/routes/robots[.]txt.ts`） | 環境ごとに中身を変える（ADR-019） |
-| `/og/*`、`/favicon.svg`、ビルドした JS・CSS・フォント | 静的アセット（`public/` とビルドの出力） | Worker を通さずに返る（ADR-002） |
+| `/og/*`、`/favicon.png`、`/apple-touch-icon.png`、ビルドした JS・CSS・フォント | 静的アセット（`public/` とビルドの出力） | Worker を通さずに返る（ADR-002） |
 
 ---
 

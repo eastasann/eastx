@@ -1,10 +1,12 @@
 /**
- * 既定の OGP 画像（public/og/default-{ja,en}.png、1200×630）と favicon（public/favicon.svg）を作る（ADR-019）。
- * 色と書体は docs/06_design-tokens.json のセマンティック層（ライト）から読み、トークンを変えたら作り直してコミットする。
- * 画像はトークンの色で組んだ HTML を Playwright の Chromium で撮る。実行: `bun scripts/og/generate.ts`
+ * 既定の OGP 画像（public/og/default-{ja,en}.png、1200×630）と、favicon（public/favicon.png）・iOS のホーム画面の
+ * アイコン（public/apple-touch-icon.png）を作る（ADR-019）。
+ * OGP 画像の色と書体は docs/06_design-tokens.json のセマンティック層（ライト）から読み、トークンを変えたら作り直してコミットする。
+ * favicon とホーム画面のアイコンは、持ち主の絵（scripts/og/favicon-source.png）の円の部分を切り抜いて作る。
+ * OGP 画像はトークンの色で組んだ HTML を、アイコンは元の絵を切り抜く HTML を、Playwright の Chromium で撮る。実行: `bun scripts/og/generate.ts`
  * （Chromium は make setup が入れる）。和文は OS のゴシック体で描くので、撮る環境で字形が変わりうる
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { chromium } from '@playwright/test'
 import { LANGS } from '../../src/i18n/detect'
@@ -31,7 +33,6 @@ const color = {
   text: token('semantic.color.light.text.default'),
   muted: token('semantic.color.light.text.muted'),
   accent: token('semantic.color.light.accent.default'),
-  onAccent: token('semantic.color.light.text.on-accent'),
 }
 // 書体はセマンティック層の display（ページの大見出しと同じ）から、参照をたどって読む
 const display = leaves.get('semantic.typography.display')?.value as { fontFamily?: string } | undefined
@@ -70,13 +71,44 @@ function ogHtml(lang: (typeof LANGS)[number]): string {
 </html>`
 }
 
-/** 角を丸めた四角に「e」の形。文字ではなく線で描き、閲覧する環境のフォントに左右されないようにする */
-const favicon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <title>${getMessages('ja').siteName}</title>
-  <rect width="24" height="24" rx="5" fill="${color.accent}"/>
-  <path d="M7 12h10a5 5 0 1 0-1.46 3.54" fill="none" stroke="${color.onAccent}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
-`
+/**
+ * 元の絵（1254×1254）の中の円の外接正方形。絵を差し替えたら測り直す。円の外の黒い地を落として、小さく縮めても
+ * 人物が分かる大きさにする
+ */
+const ICON_SOURCE = resolve(import.meta.dirname, 'favicon-source.png')
+const ICON_SOURCE_SIZE = 1254
+const CIRCLE = { left: 193, top: 185, size: 870 }
+
+/**
+ * 円の外接正方形を `size` の大きさで描く HTML。`round` なら円の外を透明にする（favicon）。ホーム画面のアイコンは iOS が
+ * 透明を埋めてしまうので円にせず、元の絵の黒い角を残す
+ */
+function iconHtml(size: number, round: boolean): string {
+  const scale = size / CIRCLE.size
+  const src = `data:image/png;base64,${readFileSync(ICON_SOURCE).toString('base64')}`
+  return `<!doctype html>
+<html>
+<head>
+<style>
+  html, body { margin: 0; background: transparent; }
+  .icon { width: ${size}px; height: ${size}px; overflow: hidden; position: relative; ${round ? 'border-radius: 50%;' : ''} }
+  .icon img {
+    position: absolute;
+    left: ${-CIRCLE.left * scale}px;
+    top: ${-CIRCLE.top * scale}px;
+    width: ${ICON_SOURCE_SIZE * scale}px;
+    height: ${ICON_SOURCE_SIZE * scale}px;
+  }
+</style>
+</head>
+<body><div class="icon"><img src="${src}" alt=""></div></body>
+</html>`
+}
+
+const ICONS = [
+  { path: 'public/favicon.png', size: 64, round: true },
+  { path: 'public/apple-touch-icon.png', size: 180, round: false },
+] as const
 
 const browser = await chromium.launch()
 try {
@@ -88,9 +120,19 @@ try {
     await page.screenshot({ path: out, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } })
     console.log(`og: ${out} を作った`)
   }
+  for (const icon of ICONS) {
+    const iconPage = await browser.newPage({ viewport: { width: icon.size, height: icon.size }, deviceScaleFactor: 1 })
+    await iconPage.setContent(iconHtml(icon.size, icon.round))
+    await iconPage.locator('img').evaluate((image: HTMLImageElement) => image.decode())
+    const out = resolve(root, icon.path)
+    await iconPage.screenshot({
+      path: out,
+      omitBackground: true,
+      clip: { x: 0, y: 0, width: icon.size, height: icon.size },
+    })
+    await iconPage.close()
+    console.log(`og: ${out} を作った`)
+  }
 } finally {
   await browser.close()
 }
-
-writeFileSync(resolve(root, 'public/favicon.svg'), favicon)
-console.log(`og: ${resolve(root, 'public/favicon.svg')} を作った`)
