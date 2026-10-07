@@ -1,6 +1,7 @@
 /**
  * ダイアログ（Ark UI の Dialog に見た目を付けたもの）。フォーカスの閉じ込め・Esc で閉じる・背景のスクロールの停止は Ark UI が持つ。
- * `placement: 'start'` は画面の左端から出す引き出しで、モバイル幅のメニュー（公開側のヘッダー・管理画面のサイドメニュー）に使う
+ * `placement: 'start'` は画面の左端から出す引き出しで、モバイル幅のメニュー（公開側のヘッダー・管理画面のサイドメニュー）に使う。
+ * `placement: 'end'` は右端から出す引き出しで、管理画面の L5 の設定パネル（幅の狭いとき）に使う
  */
 import { Dialog as ArkDialog } from '@ark-ui/react/dialog'
 import { Portal } from '@ark-ui/react/portal'
@@ -18,6 +19,7 @@ const positioner = cva({
     placement: {
       center: { alignItems: 'center', justifyContent: 'center', p: 'gutter' },
       start: { alignItems: 'stretch', justifyContent: 'flex-start' },
+      end: { alignItems: 'stretch', justifyContent: 'flex-end' },
     },
   },
 })
@@ -28,6 +30,7 @@ const content = cva({
     placement: {
       center: { maxW: 'content', maxH: 'dvh' },
       start: { w: 'sidebar' },
+      end: { w: 'settings-panel' },
     },
   },
 })
@@ -43,7 +46,14 @@ export interface DialogProps {
   description?: ReactNode
   /** 閉じるボタンの読み上げ名（公開側は表示中の言語で渡す） */
   closeLabel: string
-  placement?: 'center' | 'start'
+  placement?: 'center' | 'start' | 'end'
+  /**
+   * 閉じているあいだも中身を描いたまま隠す。中身の部品が閉じているあいだも動き続ける必要があるとき
+   * （設定の引き出しのスラッグの欄は、英語のタイトルに追従してスラッグを作り続ける）
+   */
+  keepMounted?: boolean
+  /** 開いたときにフォーカスを移す要素（省くと最初にフォーカスできる要素） */
+  initialFocusEl?: () => HTMLElement | null
   children: ReactNode
 }
 
@@ -55,10 +65,18 @@ export function Dialog({
   description,
   closeLabel,
   placement = 'center',
+  keepMounted = false,
+  initialFocusEl,
   children,
 }: DialogProps) {
   return (
-    <ArkDialog.Root open={open} onOpenChange={(details) => onOpenChange(details.open)} lazyMount unmountOnExit>
+    <ArkDialog.Root
+      open={open}
+      onOpenChange={(details) => onOpenChange(details.open)}
+      lazyMount={!keepMounted}
+      unmountOnExit={!keepMounted}
+      initialFocusEl={initialFocusEl}
+    >
       <Portal>
         <ArkDialog.Backdrop className={cx(backdrop, fade)} />
         <ArkDialog.Positioner className={positioner({ placement })}>

@@ -2,12 +2,11 @@
  * A8 ブログ管理・A9 コーディング記録管理（design-spec 6.6・6.7、SDD 5.9）。一覧は L4、編集は L5。
  * 形の違いは、コーディング記録が種類と参考リンクを持つことだけなので、1つの部品で両方を扱う
  */
-import { useForm, useStore } from '@tanstack/react-form'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
 import { css, cx } from 'styled-system/css'
 import { z } from 'zod'
+import { LIMITS } from '~/api/contract/common'
 import { blogPostInput, type blogPostOutput, codingLogInput, type codingLogOutput } from '~/api/contract/posts'
 import { CODING_LOG_KINDS } from '~/db/enums'
 import { languagesOf } from '~/domain/languages'
@@ -15,34 +14,30 @@ import type { Status, Transition } from '~/domain/publishing'
 import type { Lang } from '~/i18n/detect'
 import { formatAdminDate, fromTokyoDateTimeInput, toTokyoDateTimeInput } from '~/i18n/format'
 import { PlusIcon } from '~/ui/icons'
-import { button, label } from '~/ui/recipes'
+import { button } from '~/ui/recipes'
 import { Select } from '~/ui/select'
 import { toaster } from '~/ui/toast'
 import { api } from './api'
-import { backupKey } from './backup'
-import { ConfirmDialog } from './confirm-dialog'
 import {
   BackLink,
   checkWithSchema,
   EditLoadError,
-  EditLoading,
   EditNotFound,
-  LanguageTabs,
   PublishActions,
   RestoreBanner,
   SaveProblems,
+  StatusBadge,
+  useEditor,
   useEditorKey,
-  useEditSession,
-  useSaveState,
+  usePublishFlow,
 } from './editor'
 import { isAuthError, isNotFoundError } from './errors'
 import { ImageField, SelectField, TextField } from './fields'
-import { rebaseValues } from './form-values'
 import { CODING_LOG_KIND_LABELS, displayTitle, languagesLabel, NOTICES, STATUS_LABELS } from './labels'
-import { FormLayout, ListLayout, SplitEditLayout } from './layouts'
+import { FormLayout, ListLayout, SplitEditSkeleton } from './layouts'
 import { AdminLink } from './link'
 import { AdminList } from './list-view'
-import { bodyEditors, SLUG_CHANGE_WARNING, SlugField, slugChanged, useBusy } from './long-form'
+import { LongFormEditView, SlugField, slugChanged, useLongFormView } from './long-form'
 import { ALL } from './search'
 
 export type PostKind = 'blog-post' | 'coding-log'
@@ -161,11 +156,7 @@ export function PostsListPage({ kind, search }: { kind: PostKind; search: PostsS
             key: 'status',
             header: '状態',
             mobile: true,
-            cell: (item) => (
-              <span className={label({ tone: item.status === 'published' ? 'accent' : 'neutral' })}>
-                {STATUS_LABELS[item.status]}
-              </span>
-            ),
+            cell: (item) => <StatusBadge status={item.status} />,
           },
           { key: 'languages', header: '言語', cell: (item) => languagesLabel(item.languages) },
           {
@@ -244,6 +235,18 @@ function getItem(kind: PostKind, id: string): Promise<Post> {
 
 const FIELD_LABELS = { title: 'タイトル', body: '本文', slug: 'スラッグ' }
 
+/** 設定パネルの欄（design-spec 6.7 の「L5 の欄の置き場所」） */
+const SETTINGS_KEYS: Record<PostKind, readonly string[]> = {
+  'blog-post': ['slug', 'publishedAt', 'thumbnailUrl'],
+  'coding-log': ['slug', 'kind', 'publishedAt', 'referenceUrl', 'thumbnailUrl'],
+}
+
+const LOCALIZED_KEYS = ['ja.title', 'en.title', 'ja.body', 'en.body']
+
+function disabledActions() {
+  return <PublishActions status={null} pending={null} disabled onSave={() => {}} onUnpublish={() => {}} />
+}
+
 export function PostEditPage({ kind, id }: { kind: PostKind; id: string }) {
   const config = KINDS[kind]
   const isNew = id === 'new'
@@ -254,24 +257,17 @@ export function PostEditPage({ kind, id }: { kind: PostKind; id: string }) {
   })
   const editor = useEditorKey(id)
   const back = <BackLink href={config.listHref}>{config.name}一覧</BackLink>
-  const disabledActions = (
-    <PublishActions status={null} pending={null} disabled hideStatus onSave={() => {}} onUnpublish={() => {}} />
-  )
 
   if (!isNew && query.status === 'pending') {
-    return (
-      <FormLayout back={back} title={config.itemName}>
-        <EditLoading actions={disabledActions} />
-      </FormLayout>
-    )
+    return <SplitEditSkeleton back={back} title={config.itemName} actions={disabledActions()} />
   }
   if (!isNew && query.status === 'error') {
     return (
-      <FormLayout back={back} title={config.itemName}>
+      <FormLayout back={back} title={config.itemName} actions={disabledActions()}>
         {isNotFoundError(query.error) ? (
           <EditNotFound listHref={config.listHref} />
         ) : (
-          <EditLoadError onRetry={() => query.refetch()} actions={disabledActions} />
+          <EditLoadError onRetry={() => query.refetch()} />
         )}
       </FormLayout>
     )
@@ -286,8 +282,6 @@ export function PostEditPage({ kind, id }: { kind: PostKind; id: string }) {
   )
 }
 
-type Confirm = { type: 'unpublish' } | { type: 'delete' } | { type: 'slug'; action: Transition }
-
 function PostEditor({
   kind,
   initial,
@@ -300,24 +294,20 @@ function PostEditor({
   const config = KINDS[kind]
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [saved, setSaved] = useState(initial)
-  const [baseline, setBaseline] = useState(() => toForm(initial))
-  const [confirm, setConfirm] = useState<Confirm | null>(null)
-  const [lang, setLang] = useState<Lang>('ja')
-  // useForm の既定値は、最後に reset に渡した値と同じに保つ。違うと、TanStack Form は描画のたびに既定値が
-  // 変わったとみなし、触っていないフォームの値を既定値で上書きする（保存を待つあいだの入力が消える）
-  const [formDefaults, setFormDefaults] = useState(baseline)
-  const form = useForm({ defaultValues: formDefaults })
-  const values = useStore(form.store, (state) => state.values)
-  const save = useSaveState()
-  const busy = useBusy()
-  const session = useEditSession({
-    getValues: () => form.state.values,
-    baseline,
-    backupKey: backupKey(kind, saved?.id ?? null),
+  const layout = useLongFormView(SETTINGS_KEYS[kind])
+  const editor = useEditor({
+    initial,
+    toForm,
+    backupType: kind,
     isValues: isPostForm,
-    restore: (restored) => form.reset(restored, { keepDefaultValues: true }),
+    idOf: (item) => item.id,
+    updatedAtOf: (item) => item.updatedAt,
+    saveKind: 'publishable',
+    statusOf: (item) => item.status,
+    fieldOrder: [...LOCALIZED_KEYS, ...SETTINGS_KEYS[kind]],
+    reveal: layout.reveal,
   })
+  const { form, values, saved, save, session } = editor
   // 公開したことがあるか: 公開日が記録されていること（design-spec 6.7.2）
   const everPublished = saved?.publishedAt != null
 
@@ -333,21 +323,15 @@ function PostEditor({
   function submit(action: Transition) {
     const sent = form.state.values
     const status: Status = action === 'publish' || action === 'update' ? 'published' : 'draft'
-    const { kind: logKind, referenceUrl, publishedAt, ...rest } = form.state.values
+    const { kind: logKind, referenceUrl, publishedAt, ...rest } = sent
     const common = { ...rest, status, publishedAt: publishedAtOf(publishedAt) }
     const onSuccess = async (output: Post) => {
-      const next = toForm(output)
-      setSaved(output)
-      setBaseline(next)
-      const merged = rebaseValues(sent, form.state.values, next)
-      setFormDefaults(merged)
-      form.reset(merged)
-      session.clearBackup()
+      const created = editor.applySaved(output, sent)
       queryClient.setQueryData([config.queryKey, 'item', output.id], output)
       void queryClient.invalidateQueries({ queryKey: [config.queryKey, 'list'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       // 新規作成で初めて保存したら、URL を作成した項目のものに置き換える（SDD 4.1）
-      if (saved === null) {
+      if (created) {
         onCreated(output.id)
         await session.leave(() => navigate({ to: `${config.listHref}/$id`, params: { id: output.id }, replace: true }))
       }
@@ -371,23 +355,13 @@ function PostEditor({
     })
   }
 
-  /** 公開したことがあるもののスラッグを変えていたら、保存の前に確かめる（design-spec 6.7.2） */
-  function requestSave(action: Transition) {
-    if (slugChanged(everPublished, saved?.slug ?? null, form.state.values.slug)) {
-      setConfirm({ type: 'slug', action })
-      return
-    }
-    setConfirm(null)
-    void submit(action)
-  }
-
   async function remove() {
     if (saved === null) return
     save.setPending('delete')
     try {
       if (kind === 'blog-post') await api.blogPosts.remove({ params: { id: saved.id } })
       else await api.codingLogs.remove({ params: { id: saved.id } })
-      session.clearBackup()
+      session.clear()
       // 消した項目を読み直すと NOT_FOUND になり、一覧へ移る前に「見つかりませんでした」が出うるので、読み直さずに捨てる
       queryClient.removeQueries({ queryKey: [config.queryKey, 'item', saved.id] })
       void queryClient.invalidateQueries({ queryKey: [config.queryKey, 'list'] })
@@ -397,72 +371,96 @@ function PostEditor({
     } catch (error) {
       if (!isAuthError(error)) toaster.create({ title: NOTICES.deleteFailed, type: 'error' })
       save.setPending(null)
-      setConfirm(null)
+      flow.closeConfirm()
     }
   }
 
   const title =
     saved === null ? `${config.itemName}の新規作成` : displayTitle({ ja: saved.ja.title, en: saved.en.title })
+  const flow = usePublishFlow({
+    title,
+    pending: save.pending,
+    slugChanged: () => slugChanged(everPublished, saved?.slug ?? null, form.state.values.slug),
+    submit,
+    remove,
+    shortcut: editor.shortcut,
+  })
   const languages = languagesOf('titleAndBody', values.ja, values.en)
 
-  const panel = (panelLang: Lang) => (
-    <form.Field name={`${panelLang}.title`}>
+  const localized = (fieldLang: Lang) => (
+    <form.Field name={`${fieldLang}.title`}>
       {(field) => (
         <TextField
           label="タイトル"
+          bare="title"
+          limit={LIMITS.shortText}
           name={field.name}
           value={field.state.value}
           onChange={field.handleChange}
-          lang={panelLang}
+          lang={fieldLang}
           {...save.fieldState(field.name)}
         />
       )}
     </form.Field>
   )
 
-  const fields = (
-    <div className={css({ display: 'flex', flexDirection: 'column', gap: 'stack-dense' })}>
-      {session.offer !== null && <RestoreBanner onRestore={session.restoreOffer} onDiscard={session.discardOffer} />}
-      <SaveProblems missing={save.missing} formErrors={save.formErrors} fieldLabels={FIELD_LABELS} />
-      <LanguageTabs
-        value={lang}
-        onValueChange={setLang}
-        languages={languages}
-        problems={{ ja: save.hasProblemIn('ja'), en: save.hasProblemIn('en') }}
-        panels={{ ja: panel('ja'), en: panel('en') }}
-      />
-      <div
-        className={css({
-          display: 'grid',
-          gridTemplateColumns: { base: '1fr', tablet: '1fr 1fr' },
-          gap: 'stack-dense',
-        })}
-      >
-        <form.Field name="slug">
+  const settings = (
+    <>
+      <form.Field name="slug">
+        {(field) => (
+          <SlugField
+            type={kind}
+            excludeId={saved?.id ?? null}
+            name={field.name}
+            value={field.state.value}
+            onChange={field.handleChange}
+            englishTitle={values.en.title}
+            everPublished={everPublished}
+            savedSlug={saved?.slug ?? null}
+            {...save.fieldState(field.name)}
+          />
+        )}
+      </form.Field>
+      {kind === 'coding-log' && (
+        <form.Field name="kind">
           {(field) => (
-            <SlugField
-              type={kind}
-              excludeId={saved?.id ?? null}
+            <SelectField
+              label="種類"
               name={field.name}
+              options={CODING_LOG_KINDS.map((value) => ({ value, label: CODING_LOG_KIND_LABELS[value] }))}
               value={field.state.value}
-              onChange={field.handleChange}
-              englishTitle={values.en.title}
-              everPublished={everPublished}
-              savedSlug={saved?.slug ?? null}
-              onPendingChange={(pending) => busy.set('slug', pending)}
+              onChange={(value) => {
+                const next = CODING_LOG_KINDS.find((candidate) => candidate === value)
+                if (next) field.handleChange(next)
+              }}
               {...save.fieldState(field.name)}
             />
           )}
         </form.Field>
-        <form.Field name="publishedAt">
+      )}
+      <form.Field name="publishedAt">
+        {(field) => (
+          <TextField
+            label="公開日"
+            type="datetime-local"
+            // 公開日を入れられるのは公開した後（SDD 5.9）。今より後にはできない（design-spec 6.7.3）
+            disabled={!everPublished}
+            max={toTokyoDateTimeInput(new Date())}
+            hint={everPublished ? '日本時間' : '公開すると今の日時が入ります'}
+            name={field.name}
+            value={field.state.value}
+            onChange={field.handleChange}
+            {...save.fieldState(field.name)}
+          />
+        )}
+      </form.Field>
+      {kind === 'coding-log' && (
+        <form.Field name="referenceUrl">
           {(field) => (
             <TextField
-              label="公開日"
-              type="datetime-local"
-              // 公開日を入れられるのは公開した後（SDD 5.9）。今より後にはできない（design-spec 6.7.3）
-              disabled={!everPublished}
-              max={toTokyoDateTimeInput(new Date())}
-              hint={everPublished ? '日本時間' : '公開すると今の日時が入ります'}
+              label="参考リンク"
+              type="url"
+              placeholder="https://"
               name={field.name}
               value={field.state.value}
               onChange={field.handleChange}
@@ -470,43 +468,12 @@ function PostEditor({
             />
           )}
         </form.Field>
-        {kind === 'coding-log' && (
-          <>
-            <form.Field name="kind">
-              {(field) => (
-                <SelectField
-                  label="種類"
-                  name={field.name}
-                  options={CODING_LOG_KINDS.map((value) => ({ value, label: CODING_LOG_KIND_LABELS[value] }))}
-                  value={field.state.value}
-                  onChange={(value) => {
-                    const next = CODING_LOG_KINDS.find((candidate) => candidate === value)
-                    if (next) field.handleChange(next)
-                  }}
-                  {...save.fieldState(field.name)}
-                />
-              )}
-            </form.Field>
-            <form.Field name="referenceUrl">
-              {(field) => (
-                <TextField
-                  label="参考リンク"
-                  type="url"
-                  placeholder="https://"
-                  name={field.name}
-                  value={field.state.value}
-                  onChange={field.handleChange}
-                  {...save.fieldState(field.name)}
-                />
-              )}
-            </form.Field>
-          </>
-        )}
-      </div>
+      )}
       <form.Field name="thumbnailUrl">
         {(field) => (
           <ImageField
             label="サムネイル"
+            fit="thumbnail"
             name={field.name}
             value={field.state.value}
             onChange={field.handleChange}
@@ -515,76 +482,42 @@ function PostEditor({
           />
         )}
       </form.Field>
-    </div>
+    </>
   )
 
-  const { editor, preview } = bodyEditors({
-    label: '本文',
-    lang,
-    values: { ja: values.ja.body, en: values.en.body },
-    onChange: (bodyLang, value) => form.setFieldValue(`${bodyLang}.body`, value),
-    fieldState: (bodyLang) => save.fieldState(`${bodyLang}.body`),
-    onUploadingChange: (bodyLang, uploading) => busy.set(`upload-${bodyLang}`, uploading),
-  })
-
   return (
-    <SplitEditLayout
-      back={<BackLink href={config.listHref}>{config.name}一覧</BackLink>}
-      title={title}
-      actions={
-        <PublishActions
-          status={saved?.status ?? null}
-          pending={save.pending}
-          disabled={busy.busy}
-          onSave={requestSave}
-          onUnpublish={() => setConfirm({ type: 'unpublish' })}
-          onDelete={() => setConfirm({ type: 'delete' })}
-        />
-      }
-      fields={fields}
-      editor={editor}
-      preview={preview}
-    >
-      <ConfirmDialog
-        open={confirm?.type === 'unpublish'}
-        title="非公開に戻す"
-        message="公開サイトから見えなくなります"
-        confirmLabel="非公開に戻す"
-        pending={save.pending === 'unpublish'}
-        onConfirm={async () => {
-          if (slugChanged(everPublished, saved?.slug ?? null, form.state.values.slug)) {
-            setConfirm({ type: 'slug', action: 'unpublish' })
-            return
-          }
-          await submit('unpublish')
-          setConfirm(null)
+    <editor.BusyProvider>
+      <LongFormEditView
+        back={<BackLink href={config.listHref}>{config.name}一覧</BackLink>}
+        title={title}
+        status={editor.status}
+        saveStatus={editor.saveStatus}
+        reason={editor.reason}
+        pending={save.pending}
+        layout={layout}
+        languages={languages}
+        problems={{ ja: save.hasProblemIn('ja'), en: save.hasProblemIn('en') }}
+        notices={
+          <>
+            {session.offer !== null && (
+              <RestoreBanner offer={session.offer} onRestore={session.restoreOffer} onDiscard={session.discardOffer} />
+            )}
+            <SaveProblems missing={save.missing} formErrors={save.formErrors} fieldLabels={FIELD_LABELS} />
+          </>
+        }
+        localized={localized}
+        body={{
+          label: '本文',
+          values: { ja: values.ja.body, en: values.en.body },
+          onChange: (bodyLang, value) => form.setFieldValue(`${bodyLang}.body`, value),
+          fieldState: (bodyLang) => save.fieldState(`${bodyLang}.body`),
         }}
-        onCancel={() => setConfirm(null)}
-      />
-      <ConfirmDialog
-        open={confirm?.type === 'slug'}
-        title="スラッグの変更"
-        message={`スラッグを変えると、${SLUG_CHANGE_WARNING}。保存しますか？`}
-        confirmLabel="保存する"
-        pending={confirm?.type === 'slug' && save.pending !== null}
-        onConfirm={async () => {
-          if (confirm?.type !== 'slug') return
-          await submit(confirm.action)
-          setConfirm(null)
-        }}
-        onCancel={() => setConfirm(null)}
-      />
-      <ConfirmDialog
-        open={confirm?.type === 'delete'}
-        title="削除の確認"
-        message={`『${title}』を削除します。元に戻せません`}
-        confirmLabel="削除する"
-        danger
-        pending={save.pending === 'delete'}
-        onConfirm={() => void remove()}
-        onCancel={() => setConfirm(null)}
-      />
-      {session.leaveDialog}
-    </SplitEditLayout>
+        settings={settings}
+        settingsInvalid={save.hasProblemInAny(SETTINGS_KEYS[kind])}
+        actions={flow}
+      >
+        {session.leaveDialog}
+      </LongFormEditView>
+    </editor.BusyProvider>
   )
 }

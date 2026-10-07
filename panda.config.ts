@@ -29,7 +29,11 @@ export default defineConfig({
     ':focus-visible': { outlineWidth: 'focus-ring', outlineStyle: 'solid', outlineColor: 'focus-ring' },
   },
   theme: {
-    breakpoints: { tablet: `${BREAKPOINTS.tablet}px`, desktop: `${BREAKPOINTS.desktop}px` },
+    breakpoints: {
+      tablet: `${BREAKPOINTS.tablet}px`,
+      desktop: `${BREAKPOINTS.desktop}px`,
+      wide: `${BREAKPOINTS.wide}px`,
+    },
     tokens,
     semanticTokens,
     textStyles,

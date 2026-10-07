@@ -2,19 +2,18 @@
  * A7 使用技術管理（design-spec 6.6・6.7、SDD 5.8）。一覧は L4（並べ替え）、編集は L6。下書き・公開は持たない
  */
 import { ORPCError } from '@orpc/client'
-import { useForm, useStore } from '@tanstack/react-form'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { css, cx } from 'styled-system/css'
 import { z } from 'zod'
+import { LIMITS } from '~/api/contract/common'
 import { type stackOutput, stackUpdateInput } from '~/api/contract/stacks'
 import { PlusIcon } from '~/ui/icons'
 import { FallbackImage, InitialBadge } from '~/ui/image'
 import { button } from '~/ui/recipes'
 import { toaster } from '~/ui/toast'
 import { api } from './api'
-import { backupKey } from './backup'
 import { ConfirmDialog } from './confirm-dialog'
 import {
   BackLink,
@@ -25,13 +24,13 @@ import {
   RestoreBanner,
   SaveActions,
   SaveProblems,
+  SaveStatus,
+  useEditor,
   useEditorKey,
-  useEditSession,
-  useSaveState,
+  useSaveShortcut,
 } from './editor'
 import { isAuthError, isNotFoundError } from './errors'
 import { ImageField, SwitchField, TextField } from './fields'
-import { rebaseValues } from './form-values'
 import { NOTICES } from './labels'
 import { FormLayout, ListLayout } from './layouts'
 import { AdminLink } from './link'
@@ -144,6 +143,9 @@ type StackForm = z.infer<typeof stackFormSchema>
 
 const isStackForm = (value: unknown): value is StackForm => stackFormSchema.safeParse(value).success
 
+/** 欄のキーの並び（画面の上から。誤りの欄へ移るときの順） */
+const FIELD_ORDER = ['displayName', 'key', 'iconUrl', 'linkUrl', 'showOnTop']
+
 function toForm(stack: Stack | null): StackForm {
   if (stack === null) return { key: '', displayName: '', iconUrl: '', linkUrl: '', showOnTop: true }
   return {
@@ -168,18 +170,18 @@ export function StackEditPage({ id }: { id: string }) {
 
   if (!isNew && query.status === 'pending') {
     return (
-      <FormLayout back={back} title="使用技術">
-        <EditLoading actions={disabledActions} />
+      <FormLayout back={back} title="使用技術" actions={disabledActions}>
+        <EditLoading />
       </FormLayout>
     )
   }
   if (!isNew && query.status === 'error') {
     return (
-      <FormLayout back={back} title="使用技術">
+      <FormLayout back={back} title="使用技術" actions={disabledActions}>
         {isNotFoundError(query.error) ? (
           <EditNotFound listHref={LIST_HREF} />
         ) : (
-          <EditLoadError onRetry={() => query.refetch()} actions={disabledActions} />
+          <EditLoadError onRetry={() => query.refetch()} />
         )}
       </FormLayout>
     )
@@ -190,22 +192,18 @@ export function StackEditPage({ id }: { id: string }) {
 function StackEditor({ initial, onCreated }: { initial: Stack | null; onCreated: (id: string) => void }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [saved, setSaved] = useState(initial)
-  const [baseline, setBaseline] = useState(() => toForm(initial))
   const [confirmDelete, setConfirmDelete] = useState(false)
-  // useForm の既定値は、最後に reset に渡した値と同じに保つ。違うと、TanStack Form は描画のたびに既定値が
-  // 変わったとみなし、触っていないフォームの値を既定値で上書きする（保存を待つあいだの入力が消える）
-  const [formDefaults, setFormDefaults] = useState(baseline)
-  const form = useForm({ defaultValues: formDefaults })
-  const values = useStore(form.store, (state) => state.values)
-  const save = useSaveState()
-  const session = useEditSession({
-    getValues: () => form.state.values,
-    baseline,
-    backupKey: backupKey('stack', saved?.id ?? null),
+  const editor = useEditor({
+    initial,
+    toForm,
+    backupType: 'stack',
     isValues: isStackForm,
-    restore: (restored) => form.reset(restored, { keepDefaultValues: true }),
+    idOf: (item) => item.id,
+    updatedAtOf: (item) => item.updatedAt,
+    saveKind: 'plain',
+    fieldOrder: FIELD_ORDER,
   })
+  const { form, values, saved, save, session } = editor
 
   function submit() {
     const sent = form.state.values
@@ -215,17 +213,11 @@ function StackEditor({ initial, onCreated }: { initial: Stack | null; onCreated:
       check: () => checkWithSchema(stackUpdateInput, body),
       request: () => (saved === null ? api.stacks.create(body) : api.stacks.update({ params: { id: saved.id }, body })),
       onSuccess: async (output) => {
-        const next = toForm(output)
-        setSaved(output)
-        setBaseline(next)
-        const merged = rebaseValues(sent, form.state.values, next)
-        setFormDefaults(merged)
-        form.reset(merged)
-        session.clearBackup()
+        const created = editor.applySaved(output, sent)
         queryClient.setQueryData(['stacks', 'item', output.id], output)
         void queryClient.invalidateQueries({ queryKey: LIST_KEY })
         void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-        if (saved === null) {
+        if (created) {
           onCreated(output.id)
           await session.leave(() => navigate({ to: '/admin/stacks/$id', params: { id: output.id }, replace: true }))
         }
@@ -238,7 +230,7 @@ function StackEditor({ initial, onCreated }: { initial: Stack | null; onCreated:
     save.setPending('delete')
     try {
       await api.stacks.remove({ params: { id: saved.id } })
-      session.clearBackup()
+      session.clear()
       // 消した項目を読み直すと NOT_FOUND になり、一覧へ移る前に「見つかりませんでした」が出うるので、読み直さずに捨てる
       queryClient.removeQueries({ queryKey: ['stacks', 'item', saved.id] })
       void queryClient.invalidateQueries({ queryKey: LIST_KEY })
@@ -252,91 +244,103 @@ function StackEditor({ initial, onCreated }: { initial: Stack | null; onCreated:
     }
   }
 
+  useSaveShortcut(
+    () => editor.shortcut(confirmDelete),
+    () => void submit(),
+  )
+
   const title = saved === null ? '使用技術の新規作成' : saved.displayName
 
   return (
-    <FormLayout
-      back={<BackLink href={LIST_HREF}>使用技術一覧</BackLink>}
-      title={title}
-      actions={
-        <SaveActions
-          pending={save.pending}
-          onSave={() => void submit()}
-          onDelete={saved === null ? undefined : () => setConfirmDelete(true)}
+    <editor.BusyProvider>
+      <FormLayout
+        back={<BackLink href={LIST_HREF}>使用技術一覧</BackLink>}
+        title={title}
+        status={<SaveStatus {...editor.saveStatus} />}
+        actions={
+          <SaveActions
+            pending={save.pending}
+            reason={editor.reason}
+            onSave={() => void submit()}
+            onDelete={saved === null ? undefined : () => setConfirmDelete(true)}
+          />
+        }
+      >
+        {session.offer !== null && (
+          <RestoreBanner offer={session.offer} onRestore={session.restoreOffer} onDiscard={session.discardOffer} />
+        )}
+        <SaveProblems missing={save.missing} formErrors={save.formErrors} fieldLabels={{}} />
+        <form.Field name="displayName">
+          {(field) => (
+            <TextField
+              label="表示名"
+              limit={LIMITS.shortText}
+              name={field.name}
+              value={field.state.value}
+              onChange={field.handleChange}
+              {...save.fieldState(field.name)}
+            />
+          )}
+        </form.Field>
+        <form.Field name="key">
+          {(field) => (
+            <TextField
+              label="識別名"
+              hint="半角の英小文字・数字・ハイフン"
+              name={field.name}
+              value={field.state.value}
+              onChange={field.handleChange}
+              {...save.fieldState(field.name)}
+            />
+          )}
+        </form.Field>
+        <form.Field name="iconUrl">
+          {(field) => (
+            <ImageField
+              label="アイコン画像"
+              name={field.name}
+              value={field.state.value}
+              onChange={field.handleChange}
+              alt={values.displayName}
+              {...save.fieldState(field.name)}
+            />
+          )}
+        </form.Field>
+        <form.Field name="linkUrl">
+          {(field) => (
+            <TextField
+              label="リンク"
+              type="url"
+              placeholder="https://"
+              name={field.name}
+              value={field.state.value}
+              onChange={field.handleChange}
+              {...save.fieldState(field.name)}
+            />
+          )}
+        </form.Field>
+        <form.Field name="showOnTop">
+          {(field) => (
+            <SwitchField
+              label="トップに表示する"
+              name={field.name}
+              checked={field.state.value}
+              onChange={field.handleChange}
+            />
+          )}
+        </form.Field>
+        <ConfirmDialog
+          open={confirmDelete}
+          title="削除の確認"
+          message={saved === null ? '' : deleteMessage(saved)}
+          confirmLabel="削除する"
+          danger
+          pending={save.pending === 'delete'}
+          onConfirm={() => void remove()}
+          onCancel={() => setConfirmDelete(false)}
         />
-      }
-    >
-      {session.offer !== null && <RestoreBanner onRestore={session.restoreOffer} onDiscard={session.discardOffer} />}
-      <SaveProblems missing={save.missing} formErrors={save.formErrors} fieldLabels={{}} />
-      <form.Field name="displayName">
-        {(field) => (
-          <TextField
-            label="表示名"
-            name={field.name}
-            value={field.state.value}
-            onChange={field.handleChange}
-            {...save.fieldState(field.name)}
-          />
-        )}
-      </form.Field>
-      <form.Field name="key">
-        {(field) => (
-          <TextField
-            label="識別名"
-            hint="半角の英小文字・数字・ハイフン"
-            name={field.name}
-            value={field.state.value}
-            onChange={field.handleChange}
-            {...save.fieldState(field.name)}
-          />
-        )}
-      </form.Field>
-      <form.Field name="iconUrl">
-        {(field) => (
-          <ImageField
-            label="アイコン画像"
-            name={field.name}
-            value={field.state.value}
-            onChange={field.handleChange}
-            alt={values.displayName}
-            {...save.fieldState(field.name)}
-          />
-        )}
-      </form.Field>
-      <form.Field name="linkUrl">
-        {(field) => (
-          <TextField
-            label="リンク"
-            type="url"
-            placeholder="https://"
-            name={field.name}
-            value={field.state.value}
-            onChange={field.handleChange}
-            {...save.fieldState(field.name)}
-          />
-        )}
-      </form.Field>
-      <form.Field name="showOnTop">
-        {(field) => (
-          <SwitchField
-            label="トップに表示する"
-            name={field.name}
-            checked={field.state.value}
-            onChange={field.handleChange}
-          />
-        )}
-      </form.Field>
-      <ConfirmDialog
-        open={confirmDelete}
-        title="削除の確認"
-        message={saved === null ? '' : deleteMessage(saved)}
-        confirmLabel="削除する"
-        danger
-        pending={save.pending === 'delete'}
-        onConfirm={() => void remove()}
-        onCancel={() => setConfirmDelete(false)}
-      />
-      {session.leaveDialog}
-    </FormLayout>
+        {session.leaveDialog}
+      </FormLayout>
+    </editor.BusyProvider>
   )
 }

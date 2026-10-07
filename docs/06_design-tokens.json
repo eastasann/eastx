@@ -651,6 +651,12 @@
           "unit": "px"
         }
       },
+      "280": {
+        "$value": {
+          "value": 280,
+          "unit": "px"
+        }
+      },
       "400": {
         "$value": {
           "value": 400,
@@ -852,12 +858,16 @@
           "on-accent": {
             "$value": "{primitive.color.neutral.0}",
             "$description": "アクセント色の上に載せる文字"
+          },
+          "on-action": {
+            "$value": "{primitive.color.neutral.0}",
+            "$description": "action の塗りの上に載せる文字"
           }
         },
         "accent": {
           "default": {
             "$value": "{primitive.color.indigo.600}",
-            "$description": "ボタン・ページングの現在位置・今の言語（本文中のリンクは link）"
+            "$description": "フォーカスの輪と同じ色相。ページングの現在位置・今の言語（言語タブ・公開側のヘッダー）にだけ使う（本文中のリンクは link、ボタンは action）"
           },
           "hover": {
             "$value": "{primitive.color.indigo.700}"
@@ -865,6 +875,15 @@
           "subtle": {
             "$value": "{primitive.color.indigo.50}",
             "$description": "選択中の行・現在の言語などの薄い地"
+          }
+        },
+        "action": {
+          "default": {
+            "$value": "{primitive.color.neutral.900}",
+            "$description": "一番の操作のボタンとオンのスイッチの塗り（無彩色。文字は text.on-action）"
+          },
+          "hover": {
+            "$value": "{primitive.color.neutral.700}"
           }
         },
         "link": {
@@ -955,12 +974,16 @@
           "on-accent": {
             "$value": "{primitive.color.neutral.950}",
             "$description": "アクセント色の上に載せる文字"
+          },
+          "on-action": {
+            "$value": "{primitive.color.neutral.950}",
+            "$description": "action の塗りの上に載せる文字"
           }
         },
         "accent": {
           "default": {
             "$value": "{primitive.color.indigo.300}",
-            "$description": "ボタン・ページングの現在位置・今の言語（本文中のリンクは link）"
+            "$description": "フォーカスの輪と同じ色相。ページングの現在位置・今の言語（言語タブ・公開側のヘッダー）にだけ使う（本文中のリンクは link、ボタンは action）"
           },
           "hover": {
             "$value": "{primitive.color.indigo.200}"
@@ -968,6 +991,15 @@
           "subtle": {
             "$value": "{primitive.color.indigo.950}",
             "$description": "選択中の行・現在の言語などの薄い地"
+          }
+        },
+        "action": {
+          "default": {
+            "$value": "{primitive.color.neutral.50}",
+            "$description": "一番の操作のボタンとオンのスイッチの塗り（無彩色。文字は text.on-action）"
+          },
+          "hover": {
+            "$value": "{primitive.color.neutral.200}"
           }
         },
         "link": {
@@ -1094,6 +1126,16 @@
         },
         "$description": "管理画面の文字・ボタン・入力欄"
       },
+      "ui-strong": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.sans}",
+          "fontSize": "{primitive.font.size.sm}",
+          "fontWeight": "{primitive.font.weight.medium}",
+          "letterSpacing": "{primitive.font.letter-spacing.normal}",
+          "lineHeight": 1.5
+        },
+        "$description": "ui と同じ大きさで太くしたもの。管理画面のサイドメニューとメニューの今いる項目"
+      },
       "label": {
         "$value": {
           "fontFamily": "{primitive.font.family.sans}",
@@ -1186,6 +1228,10 @@
         "$value": "{primitive.size.64}",
         "$description": "タブレット幅でアイコンだけにしたサイドメニューの幅"
       },
+      "settings-panel": {
+        "$value": "{primitive.size.280}",
+        "$description": "L5 の設定パネルと、幅の狭いときに右から開く設定の引き出しの幅"
+      },
       "control": {
         "$value": "{primitive.size.40}",
         "$description": "ボタン・入力欄の高さ（タップしやすい最小）"
@@ -1220,6 +1266,10 @@
     },
     "radius": {
       "$type": "dimension",
+      "none": {
+        "$value": "{primitive.radius.none}",
+        "$description": "角を丸めない（下の線だけを持つ枠の無い入力欄）"
+      },
       "control": {
         "$value": "{primitive.radius.sm}",
         "$description": "ボタン・入力欄"
@@ -1350,6 +1400,10 @@
       "$type": "number",
       "base": {
         "$value": "{primitive.z.0}"
+      },
+      "toolbar": {
+        "$value": "{primitive.z.10}",
+        "$description": "管理画面の編集ビューの、上に固定する操作バー"
       },
       "sidebar": {
         "$value": "{primitive.z.20}",

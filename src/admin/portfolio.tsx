@@ -3,54 +3,41 @@
  * 形の違いは、作品が GitHub を持ち、プロジェクトが開始年月・終了年月を持つことだけなので、1つの部品で両方を扱う
  */
 import { ORPCError } from '@orpc/client'
-import { useForm, useStore } from '@tanstack/react-form'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
 import { css, cx } from 'styled-system/css'
 import { z } from 'zod'
+import { LIMITS } from '~/api/contract/common'
 import { projectInput, type projectOutput, workInput, type workOutput } from '~/api/contract/portfolio'
 import { languagesOf } from '~/domain/languages'
 import type { Status, Transition } from '~/domain/publishing'
 import type { Lang } from '~/i18n/detect'
 import { formatAdminDate, formatAdminYearMonth } from '~/i18n/format'
 import { PlusIcon } from '~/ui/icons'
-import { button, label } from '~/ui/recipes'
+import { button } from '~/ui/recipes'
 import { Select } from '~/ui/select'
 import { toaster } from '~/ui/toast'
 import { api } from './api'
-import { backupKey } from './backup'
-import { ConfirmDialog } from './confirm-dialog'
 import {
   BackLink,
   checkWithSchema,
   EditLoadError,
-  EditLoading,
   EditNotFound,
-  LanguageTabs,
   PublishActions,
   RestoreBanner,
   SaveProblems,
+  StatusBadge,
+  useEditor,
   useEditorKey,
-  useEditSession,
-  useSaveState,
+  usePublishFlow,
 } from './editor'
 import { isAuthError, isNotFoundError } from './errors'
 import { ImageField, TextAreaField, TextField } from './fields'
-import { rebaseValues } from './form-values'
 import { displayTitle, languagesLabel, NOTICES, STATUS_LABELS } from './labels'
-import { FormLayout, ListLayout, SplitEditLayout } from './layouts'
+import { FormLayout, ListLayout, SplitEditSkeleton } from './layouts'
 import { AdminLink } from './link'
 import { AdminList } from './list-view'
-import {
-  bodyEditors,
-  SLUG_CHANGE_WARNING,
-  SlugField,
-  STACKS_LIST_KEY,
-  StackPicker,
-  slugChanged,
-  useBusy,
-} from './long-form'
+import { LongFormEditView, SlugField, STACKS_LIST_KEY, StackPicker, slugChanged, useLongFormView } from './long-form'
 import { ALL } from './search'
 
 export type PortfolioKind = 'work' | 'project'
@@ -161,11 +148,7 @@ export function PortfolioListPage({ kind, search }: { kind: PortfolioKind; searc
             key: 'status',
             header: '状態',
             mobile: true,
-            cell: (item) => (
-              <span className={label({ tone: item.status === 'published' ? 'accent' : 'neutral' })}>
-                {STATUS_LABELS[item.status]}
-              </span>
-            ),
+            cell: (item) => <StatusBadge status={item.status} />,
           },
           { key: 'languages', header: '言語', cell: (item) => languagesLabel(item.languages) },
           { key: 'updatedAt', header: '最終保存日', cell: (item) => formatAdminDate(item.updatedAt) },
@@ -278,6 +261,18 @@ function getItem(kind: PortfolioKind, id: string): Promise<PortfolioItem> {
 
 const FIELD_LABELS = { title: 'タイトル', slug: 'スラッグ', startDate: '開始年月' }
 
+/** 設定パネルの欄（design-spec 6.7 の「L5 の欄の置き場所」）。誤りがあれば「設定」ボタンに印を付け、移るときは引き出しを開く */
+const SETTINGS_KEYS: Record<PortfolioKind, readonly string[]> = {
+  work: ['slug', 'linkUrl', 'githubUrl', 'stackIds', 'thumbnailUrl'],
+  project: ['slug', 'startDate', 'endDate', 'linkUrl', 'stackIds', 'thumbnailUrl'],
+}
+
+const LOCALIZED_KEYS = ['ja.title', 'ja.summary', 'en.title', 'en.summary', 'ja.body', 'en.body']
+
+function disabledActions() {
+  return <PublishActions status={null} pending={null} disabled onSave={() => {}} onUnpublish={() => {}} />
+}
+
 export function PortfolioEditPage({ kind, id }: { kind: PortfolioKind; id: string }) {
   const config = KINDS[kind]
   const isNew = id === 'new'
@@ -288,24 +283,17 @@ export function PortfolioEditPage({ kind, id }: { kind: PortfolioKind; id: strin
   })
   const editor = useEditorKey(id)
   const back = <BackLink href={config.listHref}>{config.name}一覧</BackLink>
-  const disabledActions = (
-    <PublishActions status={null} pending={null} disabled hideStatus onSave={() => {}} onUnpublish={() => {}} />
-  )
 
   if (!isNew && query.status === 'pending') {
-    return (
-      <FormLayout back={back} title={config.name}>
-        <EditLoading actions={disabledActions} />
-      </FormLayout>
-    )
+    return <SplitEditSkeleton back={back} title={config.name} actions={disabledActions()} />
   }
   if (!isNew && query.status === 'error') {
     return (
-      <FormLayout back={back} title={config.name}>
+      <FormLayout back={back} title={config.name} actions={disabledActions()}>
         {isNotFoundError(query.error) ? (
           <EditNotFound listHref={config.listHref} />
         ) : (
-          <EditLoadError onRetry={() => query.refetch()} actions={disabledActions} />
+          <EditLoadError onRetry={() => query.refetch()} />
         )}
       </FormLayout>
     )
@@ -320,8 +308,6 @@ export function PortfolioEditPage({ kind, id }: { kind: PortfolioKind; id: strin
   )
 }
 
-type Confirm = { type: 'unpublish' } | { type: 'delete' } | { type: 'slug'; action: Transition }
-
 function PortfolioEditor({
   kind,
   initial,
@@ -334,47 +320,37 @@ function PortfolioEditor({
   const config = KINDS[kind]
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [saved, setSaved] = useState(initial)
-  const [baseline, setBaseline] = useState(() => toForm(initial))
-  const [confirm, setConfirm] = useState<Confirm | null>(null)
-  const [lang, setLang] = useState<Lang>('ja')
-  // useForm の既定値は、最後に reset に渡した値と同じに保つ。違うと、TanStack Form は描画のたびに既定値が
-  // 変わったとみなし、触っていないフォームの値を既定値で上書きする（保存を待つあいだの入力が消える）
-  const [formDefaults, setFormDefaults] = useState(baseline)
-  const form = useForm({ defaultValues: formDefaults })
-  const values = useStore(form.store, (state) => state.values)
-  const save = useSaveState()
-  const busy = useBusy()
-  const session = useEditSession({
-    getValues: () => form.state.values,
-    baseline,
-    backupKey: backupKey(kind, saved?.id ?? null),
+  const layout = useLongFormView(SETTINGS_KEYS[kind])
+  const editor = useEditor({
+    initial,
+    toForm,
+    backupType: kind,
     isValues: isPortfolioForm,
-    restore: (restored) => form.reset(restored, { keepDefaultValues: true }),
+    idOf: (item) => item.id,
+    updatedAtOf: (item) => item.updatedAt,
+    saveKind: 'publishable',
+    statusOf: (item) => item.status,
+    fieldOrder: [...LOCALIZED_KEYS, ...SETTINGS_KEYS[kind]],
+    reveal: layout.reveal,
   })
+  const { form, values, saved, save, session } = editor
   // 公開したことがあるか: 初めて公開した日時が記録されていること（design-spec 6.7.2）
   const everPublished = saved?.firstPublishedAt != null
 
   function submit(action: Transition) {
     const sent = form.state.values
     const status: Status = action === 'publish' || action === 'update' ? 'published' : 'draft'
-    const { stacks, githubUrl, startDate, endDate, ...rest } = form.state.values
+    const { stacks, githubUrl, startDate, endDate, ...rest } = sent
     const common = { ...rest, status, stackIds: stacks.map((stack) => stack.id) }
     const onSuccess = async (output: PortfolioItem) => {
-      const next = toForm(output)
-      setSaved(output)
-      setBaseline(next)
-      const merged = rebaseValues(sent, form.state.values, next)
-      setFormDefaults(merged)
-      form.reset(merged)
-      session.clearBackup()
+      const created = editor.applySaved(output, sent)
       queryClient.setQueryData([config.queryKey, 'item', output.id], output)
       void queryClient.invalidateQueries({ queryKey: [config.queryKey, 'list'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       // 使っている作品・プロジェクトの数（A7）が変わりうる
       void queryClient.invalidateQueries({ queryKey: STACKS_LIST_KEY })
       // 新規作成で初めて保存したら、URL を作成した項目のものに置き換える（SDD 4.1）
-      if (saved === null) {
+      if (created) {
         onCreated(output.id)
         await session.leave(() => navigate({ to: `${config.listHref}/$id`, params: { id: output.id }, replace: true }))
       }
@@ -396,23 +372,13 @@ function PortfolioEditor({
     })
   }
 
-  /** 公開したことがあるもののスラッグを変えていたら、保存の前に確かめる（design-spec 6.7.2） */
-  function requestSave(action: Transition) {
-    if (slugChanged(everPublished, saved?.slug ?? null, form.state.values.slug)) {
-      setConfirm({ type: 'slug', action })
-      return
-    }
-    setConfirm(null)
-    void submit(action)
-  }
-
   async function remove() {
     if (saved === null) return
     save.setPending('delete')
     try {
       if (kind === 'work') await api.works.remove({ params: { id: saved.id } })
       else await api.projects.remove({ params: { id: saved.id } })
-      session.clearBackup()
+      session.clear()
       // 消した項目を読み直すと NOT_FOUND になり、一覧へ移る前に「見つかりませんでした」が出うるので、読み直さずに捨てる
       queryClient.removeQueries({ queryKey: [config.queryKey, 'item', saved.id] })
       void queryClient.invalidateQueries({ queryKey: [config.queryKey, 'list'] })
@@ -423,36 +389,48 @@ function PortfolioEditor({
     } catch (error) {
       if (!isAuthError(error)) toaster.create({ title: NOTICES.deleteFailed, type: 'error' })
       save.setPending(null)
-      setConfirm(null)
+      flow.closeConfirm()
     }
   }
 
   const title = saved === null ? `${config.name}の新規作成` : displayTitle({ ja: saved.ja.title, en: saved.en.title })
+  const flow = usePublishFlow({
+    title,
+    pending: save.pending,
+    slugChanged: () => slugChanged(everPublished, saved?.slug ?? null, form.state.values.slug),
+    submit,
+    remove,
+    shortcut: editor.shortcut,
+  })
   const languages = languagesOf('title', values.ja, values.en)
 
-  const panel = (panelLang: Lang) => (
+  const localized = (fieldLang: Lang) => (
     <>
-      <form.Field name={`${panelLang}.title`}>
+      <form.Field name={`${fieldLang}.title`}>
         {(field) => (
           <TextField
             label="タイトル"
+            bare="title"
+            limit={LIMITS.shortText}
             name={field.name}
             value={field.state.value}
             onChange={field.handleChange}
-            lang={panelLang}
+            lang={fieldLang}
             {...save.fieldState(field.name)}
           />
         )}
       </form.Field>
-      <form.Field name={`${panelLang}.summary`}>
+      <form.Field name={`${fieldLang}.summary`}>
         {(field) => (
           <TextAreaField
             label="概要"
+            bare="summary"
+            limit={LIMITS.summary}
             rows={2}
             name={field.name}
             value={field.state.value}
             onChange={field.handleChange}
-            lang={panelLang}
+            lang={fieldLang}
             {...save.fieldState(field.name)}
           />
         )}
@@ -460,73 +438,70 @@ function PortfolioEditor({
     </>
   )
 
-  const fields = (
-    <div className={css({ display: 'flex', flexDirection: 'column', gap: 'stack-dense' })}>
-      {session.offer !== null && <RestoreBanner onRestore={session.restoreOffer} onDiscard={session.discardOffer} />}
-      <SaveProblems missing={save.missing} formErrors={save.formErrors} fieldLabels={FIELD_LABELS} />
-      <LanguageTabs
-        value={lang}
-        onValueChange={setLang}
-        languages={languages}
-        problems={{ ja: save.hasProblemIn('ja'), en: save.hasProblemIn('en') }}
-        panels={{ ja: panel('ja'), en: panel('en') }}
-      />
-      <div
-        className={css({
-          display: 'grid',
-          gridTemplateColumns: { base: '1fr', tablet: '1fr 1fr' },
-          gap: 'stack-dense',
-        })}
-      >
-        <form.Field name="slug">
-          {(field) => (
-            <SlugField
-              type={kind}
-              excludeId={saved?.id ?? null}
-              name={field.name}
-              value={field.state.value}
-              onChange={field.handleChange}
-              englishTitle={values.en.title}
-              everPublished={everPublished}
-              savedSlug={saved?.slug ?? null}
-              onPendingChange={(pending) => busy.set('slug', pending)}
-              {...save.fieldState(field.name)}
-            />
-          )}
-        </form.Field>
-        {kind === 'project' && (
-          <>
-            <form.Field name="startDate">
-              {(field) => (
-                <TextField
-                  label="開始年月"
-                  type="month"
-                  name={field.name}
-                  value={field.state.value}
-                  onChange={field.handleChange}
-                  {...save.fieldState(field.name)}
-                />
-              )}
-            </form.Field>
-            <form.Field name="endDate">
-              {(field) => (
-                <TextField
-                  label="終了年月"
-                  type="month"
-                  hint="空なら「現在」"
-                  name={field.name}
-                  value={field.state.value}
-                  onChange={field.handleChange}
-                  {...save.fieldState(field.name)}
-                />
-              )}
-            </form.Field>
-          </>
+  const settings = (
+    <>
+      <form.Field name="slug">
+        {(field) => (
+          <SlugField
+            type={kind}
+            excludeId={saved?.id ?? null}
+            name={field.name}
+            value={field.state.value}
+            onChange={field.handleChange}
+            englishTitle={values.en.title}
+            everPublished={everPublished}
+            savedSlug={saved?.slug ?? null}
+            {...save.fieldState(field.name)}
+          />
         )}
-        <form.Field name="linkUrl">
+      </form.Field>
+      {kind === 'project' && (
+        <>
+          <form.Field name="startDate">
+            {(field) => (
+              <TextField
+                label="開始年月"
+                type="month"
+                name={field.name}
+                value={field.state.value}
+                onChange={field.handleChange}
+                {...save.fieldState(field.name)}
+              />
+            )}
+          </form.Field>
+          <form.Field name="endDate">
+            {(field) => (
+              <TextField
+                label="終了年月"
+                type="month"
+                hint="空なら「現在」"
+                name={field.name}
+                value={field.state.value}
+                onChange={field.handleChange}
+                {...save.fieldState(field.name)}
+              />
+            )}
+          </form.Field>
+        </>
+      )}
+      <form.Field name="linkUrl">
+        {(field) => (
+          <TextField
+            label="外部リンク"
+            type="url"
+            placeholder="https://"
+            name={field.name}
+            value={field.state.value}
+            onChange={field.handleChange}
+            {...save.fieldState(field.name)}
+          />
+        )}
+      </form.Field>
+      {kind === 'work' && (
+        <form.Field name="githubUrl">
           {(field) => (
             <TextField
-              label="外部リンク"
+              label="GitHub"
               type="url"
               placeholder="https://"
               name={field.name}
@@ -536,22 +511,7 @@ function PortfolioEditor({
             />
           )}
         </form.Field>
-        {kind === 'work' && (
-          <form.Field name="githubUrl">
-            {(field) => (
-              <TextField
-                label="GitHub"
-                type="url"
-                placeholder="https://"
-                name={field.name}
-                value={field.state.value}
-                onChange={field.handleChange}
-                {...save.fieldState(field.name)}
-              />
-            )}
-          </form.Field>
-        )}
-      </div>
+      )}
       <form.Field name="stacks">
         {(field) => (
           <StackPicker
@@ -565,6 +525,7 @@ function PortfolioEditor({
         {(field) => (
           <ImageField
             label="サムネイル"
+            fit="thumbnail"
             name={field.name}
             value={field.state.value}
             onChange={field.handleChange}
@@ -573,76 +534,42 @@ function PortfolioEditor({
           />
         )}
       </form.Field>
-    </div>
+    </>
   )
 
-  const { editor, preview } = bodyEditors({
-    label: '詳細本文',
-    lang,
-    values: { ja: values.ja.body, en: values.en.body },
-    onChange: (bodyLang, value) => form.setFieldValue(`${bodyLang}.body`, value),
-    fieldState: (bodyLang) => save.fieldState(`${bodyLang}.body`),
-    onUploadingChange: (bodyLang, uploading) => busy.set(`upload-${bodyLang}`, uploading),
-  })
-
   return (
-    <SplitEditLayout
-      back={<BackLink href={config.listHref}>{config.name}一覧</BackLink>}
-      title={title}
-      actions={
-        <PublishActions
-          status={saved?.status ?? null}
-          pending={save.pending}
-          disabled={busy.busy}
-          onSave={requestSave}
-          onUnpublish={() => setConfirm({ type: 'unpublish' })}
-          onDelete={() => setConfirm({ type: 'delete' })}
-        />
-      }
-      fields={fields}
-      editor={editor}
-      preview={preview}
-    >
-      <ConfirmDialog
-        open={confirm?.type === 'unpublish'}
-        title="非公開に戻す"
-        message="公開サイトから見えなくなります"
-        confirmLabel="非公開に戻す"
-        pending={save.pending === 'unpublish'}
-        onConfirm={async () => {
-          if (slugChanged(everPublished, saved?.slug ?? null, form.state.values.slug)) {
-            setConfirm({ type: 'slug', action: 'unpublish' })
-            return
-          }
-          await submit('unpublish')
-          setConfirm(null)
+    <editor.BusyProvider>
+      <LongFormEditView
+        back={<BackLink href={config.listHref}>{config.name}一覧</BackLink>}
+        title={title}
+        status={editor.status}
+        saveStatus={editor.saveStatus}
+        reason={editor.reason}
+        pending={save.pending}
+        layout={layout}
+        languages={languages}
+        problems={{ ja: save.hasProblemIn('ja'), en: save.hasProblemIn('en') }}
+        notices={
+          <>
+            {session.offer !== null && (
+              <RestoreBanner offer={session.offer} onRestore={session.restoreOffer} onDiscard={session.discardOffer} />
+            )}
+            <SaveProblems missing={save.missing} formErrors={save.formErrors} fieldLabels={FIELD_LABELS} />
+          </>
+        }
+        localized={localized}
+        body={{
+          label: '詳細本文',
+          values: { ja: values.ja.body, en: values.en.body },
+          onChange: (bodyLang, value) => form.setFieldValue(`${bodyLang}.body`, value),
+          fieldState: (bodyLang) => save.fieldState(`${bodyLang}.body`),
         }}
-        onCancel={() => setConfirm(null)}
-      />
-      <ConfirmDialog
-        open={confirm?.type === 'slug'}
-        title="スラッグの変更"
-        message={`スラッグを変えると、${SLUG_CHANGE_WARNING}。保存しますか？`}
-        confirmLabel="保存する"
-        pending={confirm?.type === 'slug' && save.pending !== null}
-        onConfirm={async () => {
-          if (confirm?.type !== 'slug') return
-          await submit(confirm.action)
-          setConfirm(null)
-        }}
-        onCancel={() => setConfirm(null)}
-      />
-      <ConfirmDialog
-        open={confirm?.type === 'delete'}
-        title="削除の確認"
-        message={`『${title}』を削除します。元に戻せません`}
-        confirmLabel="削除する"
-        danger
-        pending={save.pending === 'delete'}
-        onConfirm={() => void remove()}
-        onCancel={() => setConfirm(null)}
-      />
-      {session.leaveDialog}
-    </SplitEditLayout>
+        settings={settings}
+        settingsInvalid={save.hasProblemInAny(SETTINGS_KEYS[kind])}
+        actions={flow}
+      >
+        {session.leaveDialog}
+      </LongFormEditView>
+    </editor.BusyProvider>
   )
 }

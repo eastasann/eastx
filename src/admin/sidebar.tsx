@@ -19,6 +19,7 @@ import {
 } from '~/ui/icons'
 import { ThemeToggle } from '~/ui/theme'
 import { Tooltip } from '~/ui/tooltip'
+import { browserStorage, stopAndClearBackups } from './backup'
 import { AdminLink } from './link'
 
 interface MenuEntry {
@@ -69,13 +70,22 @@ const itemBaseStyle = {
   minH: 'control',
   px: 'inset-dense',
   textStyle: 'ui',
-  color: 'text.default',
+  color: 'text.muted',
   textDecoration: 'none',
   borderRadius: 'control',
-  _hover: { bg: 'bg.muted' },
-  '&[aria-current=page]': { color: 'accent.default', bg: 'accent.subtle' },
+  _hover: { color: 'text.default' },
+  // 現在地は地の色ではなく、濃い文字と太さで示す（design-spec 4.4）
+  '&[aria-current=page]': { color: 'text.default', textStyle: 'ui-strong' },
 } as const
-const collapsedItemStyle = { justifyContent: 'center', px: 'none' } as const
+const collapsedItemStyle = {
+  justifyContent: 'center',
+  px: 'none',
+  // アイコンだけのときは太さで示せないので、左の線でも現在地を示す（色だけに頼らない）
+  borderInlineStartWidth: 'emphasis',
+  borderInlineStartStyle: 'solid',
+  borderInlineStartColor: 'transparent',
+  '&[aria-current=page]': { borderInlineStartColor: 'text.default' },
+} as const
 
 const itemBase = css(itemBaseStyle)
 const collapsedItem = css(itemBaseStyle, collapsedItemStyle)
@@ -124,9 +134,7 @@ export function SidebarContent({ githubLogin, collapsed, onNavigate }: SidebarCo
       >
         {collapsed ? (
           <Tooltip content={`@${githubLogin}`} placement="right">
-            <p
-              className={css(itemBaseStyle, collapsedItemStyle, { color: 'text.muted', _hover: { bg: 'transparent' } })}
-            >
+            <p className={css(itemBaseStyle, collapsedItemStyle, { _hover: { color: 'text.muted' } })}>
               <UserIcon />
               <span className={css({ srOnly: true })}>@{githubLogin}</span>
             </p>
@@ -156,6 +164,8 @@ function LogoutButton({ collapsed }: { collapsed: boolean }) {
       setStatus('failed')
       return
     }
+    // ログアウトしたら、このブラウザに残した書きかけ（自動退避）をすべて消し、読み込み直すまで書かない（design-spec 6.4）
+    stopAndClearBackups(browserStorage())
     // ログアウトしたセッションの画面の状態とキャッシュを持ち越さないよう、ページを読み込み直す（src/admin/api.ts と同じ）
     window.location.replace('/admin/login?loggedOut=1')
   }

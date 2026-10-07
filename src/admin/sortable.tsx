@@ -4,11 +4,13 @@
  */
 import {
   type Announcements,
+  type CollisionDetection,
   closestCenter,
   DndContext,
   type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
+  rectIntersection,
   type UniqueIdentifier,
   useSensor,
   useSensors,
@@ -45,6 +47,27 @@ export interface SortableListProps<T> {
   label: string
   /** `column` は縦に1列（SNS リンク）、`wrap` は横に並べて折り返す（チップ） */
   layout?: 'column' | 'wrap'
+}
+
+/**
+ * 横に並べて折り返す並び（幅の違う項目が複数の行にわたる）の当たり判定。矢印キーで動かすと、持ち上げた項目の左上が
+ * 行き先の項目の左上に重なる。中心の近さ（closestCenter）や重なりの大きさだけで選ぶと、幅の広い項目は、元の自分の位置や
+ * 行き先の隣の項目の方を選んで、行き先へ動かない。重なっている項目のうち左上の角が最も近いものを選び、どれにも
+ * 重ならないとき（ポインターで隙間に持っていったとき）だけ中心の近さで選ぶ
+ */
+export const wrapCollision: CollisionDetection = (args) => {
+  const intersecting = rectIntersection(args)
+  if (intersecting.length === 0) return closestCenter(args)
+  const { collisionRect, droppableRects } = args
+  const distanceOf = (id: UniqueIdentifier) => {
+    const rect = droppableRects.get(id)
+    return rect === undefined
+      ? Number.POSITIVE_INFINITY
+      : Math.hypot(rect.left - collisionRect.left, rect.top - collisionRect.top)
+  }
+  return intersecting
+    .map((collision) => ({ ...collision, data: { ...collision.data, value: distanceOf(collision.id) } }))
+    .sort((a, b) => a.data.value - b.data.value)
 }
 
 const listLayouts = {
@@ -89,7 +112,7 @@ export function SortableList<T>({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={layout === 'column' ? closestCenter : wrapCollision}
       onDragEnd={handleDragEnd}
       accessibility={{
         announcements,
@@ -99,7 +122,7 @@ export function SortableList<T>({
       <SortableContext items={ids} strategy={layout === 'column' ? verticalListSortingStrategy : rectSortingStrategy}>
         <ul aria-label={label} className={listLayouts[layout]}>
           {items.map((item, index) => (
-            <SortableItem key={getId(item)} id={getId(item)} label={getLabel(item, index)}>
+            <SortableItem key={getId(item)} id={getId(item)} label={getLabel(item, index)} compact={layout === 'wrap'}>
               {(handle) => renderItem(item, index, handle)}
             </SortableItem>
           ))}
@@ -112,19 +135,22 @@ export function SortableList<T>({
 // dnd-kit が実行時に渡す位置と遷移は CSS 変数で受ける（ADR-014 のトークンを通さない値の例外）
 const sortableItem = css({
   position: 'relative',
-  bg: 'surface.default',
   transform: 'var(--drag-transform)',
   transition: 'var(--drag-transition)',
-  '&[data-dragging=true]': { boxShadow: 'drag', zIndex: 'overlay' },
+  // 持ち上げているあいだだけ地を付け、下の項目と重なっても読めるようにする
+  '&[data-dragging=true]': { bg: 'surface.default', boxShadow: 'drag', zIndex: 'overlay' },
 })
 
 function SortableItem({
   id,
   label,
+  compact,
   children,
 }: {
   id: string
   label: string
+  /** 横に並べる小さな項目（使用技術）のつまみ */
+  compact: boolean
   children: (handle: ReactNode) => ReactNode
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
@@ -141,7 +167,10 @@ function SortableItem({
       {...attributes}
       {...listeners}
       aria-label={`「${label}」を並べ替える`}
-      className={cx(button({ variant: 'ghost', shape: 'icon' }), css({ cursor: 'grab', touchAction: 'none' }))}
+      className={cx(
+        button({ variant: 'ghost', shape: compact ? 'compact' : 'icon' }),
+        css({ cursor: 'grab', touchAction: 'none' }),
+      )}
     >
       <GripIcon size="sm" />
     </button>

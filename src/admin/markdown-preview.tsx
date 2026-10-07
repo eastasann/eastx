@@ -19,13 +19,20 @@ const RENDER_DELAY_MS = 150
 
 type PreviewState = { status: 'pending' } | { status: 'done'; html: string } | { status: 'failed' }
 
-function useRenderedMarkdown(markdown: string, lang: Lang, stacks: MarkdownStack[] | undefined): PreviewState {
+function useRenderedMarkdown(
+  markdown: string,
+  lang: Lang,
+  stacks: MarkdownStack[] | undefined,
+  sourceLines: boolean,
+): PreviewState {
   const [state, setState] = useState<PreviewState>({ status: 'pending' })
   useEffect(() => {
     let active = true
     const timer = setTimeout(() => {
       import('~/markdown/render')
-        .then(({ renderMarkdown }) => renderMarkdown(markdown, { lang, siteOrigin: window.location.origin, stacks }))
+        .then(({ renderMarkdown }) =>
+          renderMarkdown(markdown, { lang, siteOrigin: window.location.origin, stacks, sourceLines }),
+        )
         .then((html) => {
           if (active) setState({ status: 'done', html })
         })
@@ -37,7 +44,7 @@ function useRenderedMarkdown(markdown: string, lang: Lang, stacks: MarkdownStack
       active = false
       clearTimeout(timer)
     }
-  }, [markdown, lang, stacks])
+  }, [markdown, lang, stacks, sourceLines])
   return state
 }
 
@@ -48,12 +55,15 @@ export function MarkdownPreview({
   markdown,
   lang,
   stacks,
+  sourceLines = false,
 }: {
   markdown: string
   lang: Lang
   stacks?: MarkdownStack[]
+  /** ブロックに元の行番号を付ける（L5 のプレビューがエディタのスクロールに追従するため。ADR-012） */
+  sourceLines?: boolean
 }) {
-  const state = useRenderedMarkdown(markdown, lang, stacks)
+  const state = useRenderedMarkdown(markdown, lang, stacks, sourceLines)
   if (state.status === 'failed') {
     return <p className={css({ textStyle: 'body-sm', color: 'danger.default' })}>プレビューを表示できませんでした</p>
   }

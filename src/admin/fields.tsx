@@ -1,9 +1,10 @@
 /**
  * 編集ビューの入力欄（design-spec 6.7）。欄の下に入力チェックの理由（赤字）と、公開に足りない項目の印を出す（6.7.3）。
- * 値は文字列で持ち、空文字のまま API に送る（サーバーが空を null にする。SDD 5.0）
+ * 値は文字列で持ち、空文字のまま API に送る（サーバーが空を null にする。SDD 5.0）。
+ * 欄の外枠は `data-field` に欄のキー（fieldErrors のキー）を持ち、保存しようとして誤りがあったときの移り先になる
  */
 import { type ChangeEvent, type DragEvent, type ReactNode, useId, useRef, useState } from 'react'
-import { css, cx } from 'styled-system/css'
+import { css } from 'styled-system/css'
 import { UPLOAD_CONTENT_TYPES, UPLOAD_MAX_BYTES, UPLOAD_MESSAGES } from '~/api/contract/misc'
 import type { Lang } from '~/i18n/detect'
 import type { MarkdownStack } from '~/markdown/render'
@@ -13,7 +14,9 @@ import { Select, type SelectOption } from '~/ui/select'
 import { Switch } from '~/ui/switch'
 import { toaster } from '~/ui/toast'
 import { api } from './api'
-import { isAuthError, saveFailureOf } from './errors'
+import { useReportBusy } from './editor'
+import { counterState } from './editor-rules'
+import { fieldKey, isAuthError, saveFailureOf } from './errors'
 import { MarkdownPreview } from './markdown-preview'
 
 export interface FieldStateProps {
@@ -25,41 +28,91 @@ export interface FieldStateProps {
 
 interface ShellProps extends FieldStateProps {
   label: string
+  /** 見えるラベルを出さない（枠の無い欄。読み上げの名前は入力欄の aria-label で付ける） */
+  hideLabel?: boolean
   htmlFor?: string
   /** label 要素に結びつけられない入力欄（CodeMirror）が aria-labelledby で読む ID */
   labelId?: string
   hint?: ReactNode
+  /** 欄の右下の文字数（design-spec 6.7.3） */
+  counter?: { text: string; over: boolean } | null
   /** 欄の下の文（hint とエラーの読み上げ）を入力欄と結びつけるための ID */
   describedBy: string
+  /** 欄のキー（fieldErrors のキー）。誤りの欄へ移るときの目印 */
+  field?: string
+  /** 親の残りの高さを埋める（L5 の本文のエディタ） */
+  fill?: boolean
   children: ReactNode
 }
 
 const MISSING_MESSAGE = '公開に必要です'
 
+/** 入力欄のラベル。小さなグレーの文字（design-spec 4.4） */
+export const fieldLabel = css({ textStyle: 'label', color: 'text.muted' })
+
 export function FieldShell({
   label,
+  hideLabel = false,
   htmlFor,
   labelId,
   hint,
+  counter,
   errors = [],
   missing = false,
   describedBy,
+  field,
+  fill = false,
   children,
 }: ShellProps) {
   const messages = [...errors, ...(missing && errors.length === 0 ? [MISSING_MESSAGE] : [])]
   return (
-    <div className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
-      <label id={labelId} htmlFor={htmlFor} className={css({ textStyle: 'label' })}>
+    <div
+      data-field={field}
+      data-fill={fill}
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'inline',
+        '&[data-fill=true]': { flex: '1', tablet: { overflow: 'hidden' } },
+      })}
+    >
+      <label id={labelId} htmlFor={htmlFor} className={hideLabel ? css({ srOnly: true }) : fieldLabel}>
         {label}
       </label>
       {children}
-      <div id={describedBy} className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
-        {hint !== undefined && <p className={css({ textStyle: 'body-sm', color: 'text.muted' })}>{hint}</p>}
-        {messages.map((message) => (
-          <p key={message} className={css({ textStyle: 'body-sm', color: 'danger.default' })}>
-            {message}
+      <div
+        id={describedBy}
+        className={css({
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          columnGap: 'inline',
+          _empty: { display: 'none' },
+        })}
+      >
+        {(hint !== undefined || messages.length > 0) && (
+          <div className={css({ display: 'flex', flexDirection: 'column', gap: 'inline', flex: '1' })}>
+            {hint !== undefined && <div className={css({ textStyle: 'body-sm', color: 'text.muted' })}>{hint}</div>}
+            {messages.map((message) => (
+              <p key={message} className={css({ textStyle: 'body-sm', color: 'danger.default' })}>
+                {message}
+              </p>
+            ))}
+          </div>
+        )}
+        {counter && (
+          <p
+            data-over={counter.over}
+            className={css({
+              ml: 'auto',
+              textStyle: 'meta',
+              color: 'text.muted',
+              '&[data-over=true]': { color: 'danger.default' },
+            })}
+          >
+            {counter.text}
           </p>
-        ))}
+        )}
       </div>
     </div>
   )
@@ -78,10 +131,17 @@ export interface TextFieldProps extends FieldStateProps {
   type?: 'text' | 'url' | 'month' | 'datetime-local'
   /** 日付・日時の欄の上限 */
   max?: string
+  /** 文字数の上限。8割を超えたら文字数を出す（入力は止めない。保存の入力チェックで止まる） */
+  limit?: number
   placeholder?: string
   hint?: ReactNode
   disabled?: boolean
   lang?: Lang
+  /**
+   * 枠の無い入力（L5 のエディタの上のタイトル・概要。design-spec 4.4）。見えるラベルを出さず、
+   * 空のときは欄の名前を placeholder に出す
+   */
+  bare?: 'title' | 'summary'
 }
 
 export function TextField({
@@ -91,38 +151,49 @@ export function TextField({
   name,
   type = 'text',
   max,
+  limit,
   placeholder,
   hint,
   disabled,
   lang,
+  bare,
   ...state
 }: TextFieldProps) {
   const id = useId()
   return (
-    <FieldShell label={label} htmlFor={id} hint={hint} describedBy={`${id}-desc`} {...state}>
+    <FieldShell
+      label={label}
+      hideLabel={bare !== undefined}
+      htmlFor={id}
+      hint={hint}
+      counter={limit === undefined ? null : counterState(value, limit)}
+      describedBy={`${id}-desc`}
+      field={fieldKey(name)}
+      {...state}
+    >
       <input
         id={id}
         name={name}
         type={type}
         max={max}
         value={value}
-        placeholder={placeholder}
+        placeholder={bare !== undefined ? label : placeholder}
         disabled={disabled}
         lang={lang}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={invalidOf(state)}
         aria-describedby={`${id}-desc`}
-        className={input()}
+        className={input({ bare: bare ?? 'none' })}
       />
     </FieldShell>
   )
 }
 
-export interface TextAreaFieldProps extends Omit<TextFieldProps, 'type' | 'max'> {
+export interface TextAreaFieldProps extends Omit<TextFieldProps, 'type' | 'max' | 'placeholder'> {
   rows?: number
 }
 
-export interface MarkdownFieldProps extends TextAreaFieldProps {
+export interface MarkdownFieldProps extends Omit<TextAreaFieldProps, 'limit' | 'bare'> {
   /** プレビューで太字と照合する使用技術。自己紹介だけが渡す（ADR-012） */
   stacks?: MarkdownStack[]
 }
@@ -133,25 +204,37 @@ export function TextAreaField({
   onChange,
   name,
   rows = 4,
+  limit,
   hint,
   disabled,
   lang,
+  bare,
   ...state
 }: TextAreaFieldProps) {
   const id = useId()
   return (
-    <FieldShell label={label} htmlFor={id} hint={hint} describedBy={`${id}-desc`} {...state}>
+    <FieldShell
+      label={label}
+      hideLabel={bare !== undefined}
+      htmlFor={id}
+      hint={hint}
+      counter={limit === undefined ? null : counterState(value, limit)}
+      describedBy={`${id}-desc`}
+      field={fieldKey(name)}
+      {...state}
+    >
       <textarea
         id={id}
         name={name}
         rows={rows}
         value={value}
+        placeholder={bare !== undefined ? label : undefined}
         disabled={disabled}
         lang={lang}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={invalidOf(state)}
         aria-describedby={`${id}-desc`}
-        className={input({ multiline: true })}
+        className={input({ multiline: true, bare: bare ?? 'none' })}
       />
     </FieldShell>
   )
@@ -188,9 +271,10 @@ export function MarkdownField({
       {preview ? (
         <section
           aria-label={`${label}のプレビュー`}
+          data-field={fieldKey(name)}
           className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}
         >
-          <p className={css({ textStyle: 'label' })}>{label}（プレビュー）</p>
+          <p className={fieldLabel}>{label}（プレビュー）</p>
           <div
             className={css({
               p: 'inset',
@@ -231,7 +315,7 @@ export function SelectField({ label, name, options, value, onChange, ...state }:
   const errors = state.errors ?? []
   const messages = [...errors, ...(state.missing && errors.length === 0 ? [MISSING_MESSAGE] : [])]
   return (
-    <div className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
+    <div data-field={fieldKey(name)} className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
       <Select
         label={label}
         name={name}
@@ -265,7 +349,11 @@ export function SwitchField({
   checked: boolean
   onChange: (checked: boolean) => void
 }) {
-  return <Switch label={label} name={name} checked={checked} onCheckedChange={onChange} />
+  return (
+    <div data-field={name}>
+      <Switch label={label} name={name} checked={checked} onCheckedChange={onChange} />
+    </div>
+  )
 }
 
 /** アップロードの前の確かめ（design-spec 6.7.3）。サーバーも同じ上限と形式で確かめる（SDD 5.10） */
@@ -301,23 +389,34 @@ export interface ImageFieldProps extends FieldStateProps {
   onChange: (value: string) => void
   /** プレビューの代替テキスト（design-spec 4.4） */
   alt: string
+  /**
+   * プレビューの見せ方。`thumbnail` は公開側と同じ縦横比（aspectRatios.thumbnail）で切り抜いて、公開側でどこが
+   * 切れるかを見せる。`contain` は全体を縮めて見せる（写真・技術アイコン）
+   */
+  fit?: 'thumbnail' | 'contain'
 }
 
 /**
  * 画像の欄（サムネイル・写真・技術アイコン。design-spec 6.7.1・6.7.4）。選ぶかドラッグ＆ドロップでアップロードする。
- * 設定済みの画像はプレビューで見せ、「差し替える」「外す」を置く。アップロードに失敗したら元の画像を残す
+ * 設定済みの画像はプレビューで見せ、「差し替える」「外す」を置く。アップロードに失敗したら元の画像を残す。
+ * アップロード中は保存を待たせる（終わる前に保存すると古い画像のまま保存する）
  */
-export function ImageField({ label, name, value, onChange, alt, ...state }: ImageFieldProps) {
+export function ImageField({ label, name, value, onChange, alt, fit = 'contain', ...state }: ImageFieldProps) {
   const id = useId()
   const fileInput = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const reportBusy = useReportBusy('upload')
 
   async function upload(file: File | undefined) {
     if (!file) return
+    // 欄が描き直されても（設定パネルの置き場所が変わる）アップロードは続くので、待たせるのは state ではなく
+    // アップロードの前後で直接知らせる
+    reportBusy(true)
     setUploading(true)
     const url = await uploadImage(file)
     setUploading(false)
+    reportBusy(false)
     if (url !== null) onChange(url)
   }
 
@@ -334,7 +433,7 @@ export function ImageField({ label, name, value, onChange, alt, ...state }: Imag
   }
 
   return (
-    <FieldShell label={label} htmlFor={id} describedBy={`${id}-desc`} {...state}>
+    <FieldShell label={label} htmlFor={id} describedBy={`${id}-desc`} field={fieldKey(name)} {...state}>
       <fieldset
         aria-label={`${label}のドロップ先`}
         onDragOver={(event) => {
@@ -355,7 +454,7 @@ export function ImageField({ label, name, value, onChange, alt, ...state }: Imag
           borderStyle: 'dashed',
           borderColor: 'border.strong',
           borderRadius: 'control',
-          '&[data-drag-over=true]': { borderColor: 'accent.default', bg: 'accent.subtle' },
+          '&[data-drag-over=true]': { borderColor: 'text.default', bg: 'bg.muted' },
         })}
       >
         {value !== '' && (
@@ -365,7 +464,7 @@ export function ImageField({ label, name, value, onChange, alt, ...state }: Imag
             className={css({
               w: 'thumbnail-card',
               aspectRatio: 'thumbnail',
-              objectFit: 'contain',
+              objectFit: fit === 'thumbnail' ? 'cover' : 'contain',
               borderRadius: 'image',
             })}
           />
@@ -398,7 +497,7 @@ export function ImageField({ label, name, value, onChange, alt, ...state }: Imag
             外す
           </button>
         )}
-        <span role="status" className={cx(css({ textStyle: 'body-sm', color: 'text.muted' }))}>
+        <span role="status" className={css({ textStyle: 'body-sm', color: 'text.muted' })}>
           {uploading ? 'アップロード中…' : value === '' ? 'またはここにドロップ' : ''}
         </span>
       </fieldset>

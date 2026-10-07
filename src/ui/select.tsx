@@ -64,7 +64,7 @@ export function Select({
       unmountOnExit
       className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}
     >
-      <ArkSelect.Label className={hideLabel ? css({ srOnly: true }) : css({ textStyle: 'label' })}>
+      <ArkSelect.Label className={hideLabel ? css({ srOnly: true }) : css({ textStyle: 'label', color: 'text.muted' })}>
         {label}
       </ArkSelect.Label>
       <ArkSelect.Control>
@@ -81,7 +81,7 @@ export function Select({
             {collection.items.map((option) => (
               <ArkSelect.Item key={option.value} item={option} className={optionItem}>
                 <ArkSelect.ItemText>{option.label}</ArkSelect.ItemText>
-                <ArkSelect.ItemIndicator className={css({ display: 'flex', color: 'accent.default' })}>
+                <ArkSelect.ItemIndicator className={css({ display: 'flex', color: 'text.default' })}>
                   <CheckIcon size="sm" />
                 </ArkSelect.ItemIndicator>
               </ArkSelect.Item>

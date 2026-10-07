@@ -27,12 +27,12 @@ export const button = cva({
   },
   variants: {
     variant: {
-      /** 画面で一番の操作。アクセントは操作できる場所だけに使う（design-spec 4.4） */
+      /** 画面で一番の操作。無彩色の塗りにし、アクセントは使わない（design-spec 4.4） */
       solid: {
-        bg: 'accent.default',
-        color: 'text.on-accent',
-        _hover: { bg: 'accent.hover' },
-        _disabled: { _hover: { bg: 'accent.default' } },
+        bg: 'action.default',
+        color: 'text.on-action',
+        _hover: { bg: 'action.hover' },
+        _disabled: { _hover: { bg: 'action.default' } },
       },
       outline: {
         bg: 'surface.default',
@@ -56,10 +56,25 @@ export const button = cva({
       default: {},
       /** アイコンだけのボタン。読み上げ名は aria-label で付ける */
       icon: { w: 'control', px: 'none' },
+      /** 項目の中に並べる小さなアイコンだけのボタン（使用技術の並べ替えのつまみ・外す）。押せる大きさは 24px を保つ */
+      compact: { h: 'auto', px: 'inline-tight', py: 'inline-tight' },
     },
   },
   defaultVariants: { variant: 'solid', shape: 'default' },
 })
+
+const bareBase = {
+  h: 'auto',
+  px: 'none',
+  py: 'inline-tight',
+  bg: 'transparent',
+  borderColor: 'transparent',
+  borderRadius: 'none',
+  // 左右と上は透明のまま、下の線の色だけを変える（base の borderColor を上書きする）
+  _hover: { borderColor: 'transparent', borderBottomColor: 'border.default' },
+  _focus: { borderColor: 'transparent', borderBottomColor: 'border.strong' },
+  _invalid: { borderColor: 'transparent', borderBottomColor: 'danger.default' },
+} as const
 
 export const input = cva({
   base: {
@@ -83,8 +98,18 @@ export const input = cva({
       false: {},
       true: { h: 'auto', py: 'inset-dense', textStyle: 'body-sm', resize: 'vertical' },
     },
+    /**
+     * 枠の無い入力（L5 のエディタの上のタイトル・概要。design-spec 4.4）。下の線だけを持ち、ふだんは透明にして、
+     * ホバー・フォーカス・誤りで出す。フォーカスの輪は全体の決まりで付く
+     */
+    bare: {
+      none: {},
+      title: { ...bareBase, textStyle: 'heading-3' },
+      summary: { ...bareBase, textStyle: 'body-sm', color: 'text.muted' },
+    },
   },
-  defaultVariants: { multiline: false },
+  compoundVariants: [{ multiline: true, bare: 'summary', css: { resize: 'none' } }],
+  defaultVariants: { multiline: false, bare: 'none' },
 })
 
 /** 使用技術のチップ。リンクのときは押せる見た目にする。公開側は枠線のない plain（design-spec 4.4） */
@@ -111,7 +136,7 @@ export const chip = cva({
         transitionProperty: 'border-color, color',
         transitionDuration: 'motion.hover',
         transitionTimingFunction: 'motion.hover',
-        _hover: { borderColor: 'accent.default', color: 'accent.default' },
+        _hover: { borderColor: 'text.default', color: 'text.default' },
       },
     },
     plain: {
@@ -126,7 +151,7 @@ export const chip = cva({
   defaultVariants: { interactive: false, plain: false },
 })
 
-/** 言語ラベル（「英語のみ」）・種類ラベル・状態（下書き・公開中）など、押せない小さな札 */
+/** 言語ラベル（「英語のみ」）・種類ラベル・「要確認」など、押せない小さな札。下書き・公開の札は src/admin/editor.tsx の StatusBadge */
 export const label = cva({
   base: {
     display: 'inline-flex',
@@ -139,7 +164,6 @@ export const label = cva({
   variants: {
     tone: {
       neutral: { bg: 'bg.muted', color: 'text.muted' },
-      accent: { bg: 'accent.subtle', color: 'accent.default' },
       danger: { bg: 'danger.subtle', color: 'danger.default' },
     },
   },
