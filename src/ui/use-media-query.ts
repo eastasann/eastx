@@ -22,4 +22,6 @@ const rem = (px: number) => `${px / 16}rem`
 export const MEDIA = {
   mobile: `(width < ${rem(BREAKPOINTS.tablet)})`,
   tablet: `(${rem(BREAKPOINTS.tablet)} <= width < ${rem(BREAKPOINTS.desktop)})`,
+  /** 管理画面の L5 で、設定パネルを右に常に出す幅 */
+  wide: `(width >= ${rem(BREAKPOINTS.wide)})`,
 } as const

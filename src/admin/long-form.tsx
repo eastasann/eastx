@@ -1,103 +1,302 @@
 /**
  * L5 の編集ビュー（A5・A6・A8・A9）で共通の部品（design-spec 6.7.1・6.7.2）:
- * - 本文のエディタとプレビュー（言語タブで選んだ言語の本文）
+ * - 表示の切り替え（書く｜並べる｜日英｜プレビュー）と言語タブ、設定パネル、誤りの欄を見えるようにする処理
+ * - 本文のエディタとプレビュー（「並べる」ではプレビューがエディタのスクロールに追従する）
+ * - 公開状態のボタン
  * - スラッグの欄（英語のタイトルからの自動の生成と追従、形式と重複の確かめ、公開したことがあるものの変更の警告）
- * - 使用技術の選択（A5・A6。検索して選ぶ、新しい技術として追加、チップの並べ替え）
+ * - 使用技術の選択（A5・A6。検索して続けて選ぶ、新しい技術として追加、並べ替え）
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { css, cx } from 'styled-system/css'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { css } from 'styled-system/css'
 import { optionalSlug, slugConflictError } from '~/api/contract/common'
 import type { SLUG_TYPES } from '~/api/contract/misc'
 import { stackCreateInput } from '~/api/contract/stacks'
+import type { Languages } from '~/domain/languages'
+import type { Status } from '~/domain/publishing'
 import { slugify } from '~/domain/slug'
 import type { Lang } from '~/i18n/detect'
 import { Combobox } from '~/ui/combobox'
 import { CloseIcon, PlusIcon } from '~/ui/icons'
-import { button, chip } from '~/ui/recipes'
+import { FallbackImage } from '~/ui/image'
+import { button } from '~/ui/recipes'
 import { toaster } from '~/ui/toast'
+import { MEDIA, useMediaQuery } from '~/ui/use-media-query'
 import { api } from './api'
-import { checkWithSchema } from './editor'
+import {
+  checkWithSchema,
+  LanguageLabel,
+  LanguageTabs,
+  PublishActions,
+  type SaveAction,
+  SaveStatus,
+  StatusBadge,
+  type usePublishFlow,
+  useReportBusy,
+} from './editor'
+import { SLUG_CHANGE_WARNING } from './editor-rules'
 import { isAuthError, saveFailureOf } from './errors'
-import { type FieldStateProps, TextField } from './fields'
+import { type FieldStateProps, fieldLabel, TextField } from './fields'
+import { LocalizedColumn, SplitEditLayout } from './layouts'
 import { MarkdownEditor } from './markdown-editor'
 import { MarkdownPreview } from './markdown-preview'
 import { withoutUploadMarkers } from './markdown-text'
 import { SortableList } from './sortable'
 import { LoadError } from './states'
+import {
+  EDITOR_VIEW_KEY,
+  EDITOR_VIEWS,
+  type EditorView,
+  effectiveEditorView,
+  readStoredView,
+  writeStoredView,
+} from './view-preference'
 
-// ---- 保存を待たせる処理 ----------------------------------------------------------
+// ---- 表示の切り替えと、誤りの欄を見えるようにする処理 -------------------------------------
 
 /**
- * 保存ボタンを押せなくする処理（本文の画像のアップロード中、英語のタイトルからのスラッグの作成中）。
- * アップロード中に保存すると仮の記法が本文に残り（design-spec 6.7.4）、スラッグの作成中に保存すると古いスラッグで送る
+ * 表示の切り替え・言語タブ・設定の引き出しの状態（design-spec 6.7 の「表示の切り替え」「誤りの欄への移動」）。
+ * 表示の記憶を書くのは持ち主が切り替えを押したときだけ（誤りの欄へ移るための切り替えでは書かない）。
+ * 「日英」のあいだは言語タブを出さず lang を変えないので、「日英」から戻ると前に選んでいた言語タブに戻る
  */
-export function useBusy() {
-  const [flags, setFlags] = useState<Record<string, boolean>>({})
-  const set = useCallback((key: string, busy: boolean) => {
-    setFlags((current) => (current[key] === busy ? current : { ...current, [key]: busy }))
-  }, [])
-  return { busy: Object.values(flags).some(Boolean), set }
+export function useLongFormView(settingsKeys: readonly string[]) {
+  const isMobile = useMediaQuery(MEDIA.mobile)
+  const isWide = useMediaQuery(MEDIA.wide)
+  const [chosen, setChosen] = useState<EditorView>(() => readStoredView(EDITOR_VIEW_KEY, EDITOR_VIEWS, 'split'))
+  const [lang, setLang] = useState<Lang>('ja')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  /** 誤りの欄へ移るために引き出しを開いたとき、フォーカスを移す欄 */
+  const settingsFocus = useRef<string | null>(null)
+  const view = effectiveEditorView(chosen, isMobile)
+
+  return {
+    view,
+    lang,
+    setLang,
+    settingsOpen,
+    setSettingsOpen(open: boolean) {
+      if (!open) settingsFocus.current = null
+      setSettingsOpen(open)
+    },
+    /** 引き出しを開いたときにフォーカスを移す要素（誤りの欄へ移るときだけ。ほかは引き出しの既定） */
+    settingsInitialFocus(): HTMLElement | null {
+      const key = settingsFocus.current
+      if (key === null) return null
+      return document.querySelector<HTMLElement>(
+        `[data-field="${CSS.escape(key)}"] :is(input:not([type=file]), textarea, button)`,
+      )
+    },
+    /** 持ち主が表示を切り替えた */
+    chooseView(next: EditorView) {
+      setChosen(next)
+      writeStoredView(EDITOR_VIEW_KEY, next)
+    },
+    /** 誤りの欄を見えるようにする。描き直しを待つ必要があれば true */
+    reveal(key: string): boolean {
+      if (settingsKeys.some((name) => key === name || key.startsWith(`${name}.`))) {
+        if (isWide || settingsOpen) return false
+        settingsFocus.current = key
+        setSettingsOpen(true)
+        return true
+      }
+      let changed = false
+      const keyLang = key.startsWith('ja.') ? 'ja' : key.startsWith('en.') ? 'en' : null
+      if (keyLang !== null && view !== 'bilingual' && keyLang !== lang) {
+        setLang(keyLang)
+        changed = true
+      }
+      // 本文の誤りは、エディタを隠している「プレビュー」から「書く」に移って見せる
+      if (key.endsWith('.body') && view === 'preview') {
+        setChosen('write')
+        changed = true
+      }
+      return changed
+    },
+  }
 }
 
 // ---- 本文 ------------------------------------------------------------------
 
-interface BodyEditorsProps {
-  /** 欄の名前（「詳細本文」「本文」） */
-  label: string
-  /** 言語タブで選んでいる言語 */
-  lang: Lang
-  values: Record<Lang, string>
-  onChange: (lang: Lang, value: string) => void
-  fieldState: (lang: Lang) => FieldStateProps
-  onUploadingChange: (lang: Lang, uploading: boolean) => void
-}
-
 const LANG_SUFFIX: Record<Lang, string> = { ja: '（日本語）', en: '（英語）' }
 
-const previewFrame = css({
-  minH: 'editor',
-  p: 'inset',
-  borderWidth: 'default',
-  borderStyle: 'solid',
-  borderColor: 'border.default',
-  borderRadius: 'control',
-})
-
 /**
- * L5 の「Markdownエディタ ／ プレビュー」（design-spec 4.1）の中身。SplitEditLayout の editor と preview に渡す。
- * エディタは言語ごとに1つずつ作って選んでいない方を隠す（切り替えのたびに作り直すと元に戻す履歴が消える）
+ * プレビューの枠。「並べる」では、エディタの見えている先頭の行に最も近いブロックへスクロールする
+ * （エディタ → プレビューの一方向。両方向にすると互いに動かし合って揺れる）
  */
-export function bodyEditors({ label, lang, values, onChange, fieldState, onUploadingChange }: BodyEditorsProps): {
-  editor: ReactNode
-  preview: ReactNode
-} {
-  return {
-    editor: (
-      <>
-        {(['ja', 'en'] as const).map((editorLang) => (
-          <MarkdownEditor
-            key={editorLang}
-            label={`${label}${LANG_SUFFIX[editorLang]}`}
-            value={values[editorLang]}
-            onChange={(value) => onChange(editorLang, value)}
-            lang={editorLang}
-            hidden={editorLang !== lang}
-            onUploadingChange={(uploading) => onUploadingChange(editorLang, uploading)}
-            {...fieldState(editorLang)}
-          />
-        ))}
-      </>
-    ),
-    preview: (
-      <div className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
-        <p className={css({ textStyle: 'label' })}>プレビュー{LANG_SUFFIX[lang]}</p>
-        <div className={previewFrame}>
-          <MarkdownPreview markdown={withoutUploadMarkers(values[lang])} lang={lang} />
-        </div>
+function PreviewPane({ markdown, lang, topLine }: { markdown: string; lang: Lang; topLine: number | null }) {
+  const container = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const element = container.current
+    if (element === null || topLine === null) return
+    const line = topLine
+    function sync(scroller: HTMLDivElement) {
+      let target: HTMLElement | null = null
+      for (const block of scroller.querySelectorAll<HTMLElement>('[data-source-line]')) {
+        if (Number(block.dataset.sourceLine) > line) break
+        target = block
+      }
+      const top =
+        target === null
+          ? 0
+          : target.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
+      scroller.scrollTo({ top })
+    }
+    sync(element)
+    // プレビューは打ち終わりを待ってから描き直すので、描き直したあとにも合わせ直す
+    const observer = new MutationObserver(() => sync(element))
+    observer.observe(element, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [topLine])
+  return (
+    <>
+      <p className={fieldLabel}>プレビュー{LANG_SUFFIX[lang]}</p>
+      <div
+        ref={container}
+        className={css({
+          flex: '1',
+          minH: 'editor',
+          p: 'inset',
+          overflowY: 'auto',
+          borderWidth: 'default',
+          borderStyle: 'solid',
+          borderColor: 'border.default',
+          borderRadius: 'control',
+        })}
+      >
+        <MarkdownPreview markdown={withoutUploadMarkers(markdown)} lang={lang} sourceLines />
       </div>
-    ),
+    </>
+  )
+}
+
+// ---- L5 の編集ビュー ---------------------------------------------------------
+
+export interface LongFormEditViewProps {
+  back: ReactNode
+  title: string
+  status: Status | null
+  saveStatus: { text: string; tone: 'muted' | 'changed' }
+  /** ボタンを押せない理由 */
+  reason: string | null
+  pending: SaveAction | 'delete' | null
+  layout: ReturnType<typeof useLongFormView>
+  languages: Languages
+  problems: Record<Lang, boolean>
+  /** 復元の提案・公開に足りない項目 */
+  notices: ReactNode
+  /** 言語ごとの欄（タイトル・概要） */
+  localized: (lang: Lang) => ReactNode
+  body: {
+    /** 欄の名前（「詳細本文」「本文」） */
+    label: string
+    values: Record<Lang, string>
+    onChange: (lang: Lang, value: string) => void
+    fieldState: (lang: Lang) => FieldStateProps
   }
+  settings: ReactNode
+  settingsInvalid: boolean
+  actions: ReturnType<typeof usePublishFlow>
+  children?: ReactNode
+}
+
+/** L5 の編集ビューの骨組み（作品・プロジェクト・ブログ・コーディング記録で共通） */
+export function LongFormEditView({
+  back,
+  title,
+  status,
+  saveStatus,
+  reason,
+  pending,
+  layout,
+  languages,
+  problems,
+  notices,
+  localized,
+  body,
+  settings,
+  settingsInvalid,
+  actions,
+  children,
+}: LongFormEditViewProps) {
+  // どの言語のエディタの行かも覚え、言語タブを替えたら、その言語のエディタがスクロールするまで追従しない
+  const [scrolled, setScrolled] = useState<{ lang: Lang; line: number } | null>(null)
+  const { view, lang } = layout
+  const topLine = view === 'split' && scrolled?.lang === lang ? scrolled.line : null
+  return (
+    <SplitEditLayout
+      back={back}
+      title={title}
+      status={
+        <>
+          <StatusBadge status={status} />
+          <SaveStatus {...saveStatus} />
+        </>
+      }
+      actions={
+        <PublishActions
+          status={status}
+          pending={pending}
+          reason={reason}
+          onSave={actions.requestSave}
+          onUnpublish={actions.openUnpublish}
+          onDelete={actions.openDelete}
+        />
+      }
+      view={view}
+      onViewChange={layout.chooseView}
+      lang={lang}
+      tabs={
+        <LanguageTabs
+          value={lang}
+          onValueChange={layout.setLang}
+          languages={languages}
+          problems={problems}
+          panels={{ ja: localized('ja'), en: localized('en') }}
+        />
+      }
+      localized={(columnLang) => (
+        <LocalizedColumn
+          heading={<LanguageLabel lang={columnLang} languages={languages} problem={problems[columnLang]} />}
+        >
+          {localized(columnLang)}
+        </LocalizedColumn>
+      )}
+      editors={{
+        ja: (
+          <MarkdownEditor
+            label={`${body.label}${LANG_SUFFIX.ja}`}
+            name="ja.body"
+            value={body.values.ja}
+            onChange={(value) => body.onChange('ja', value)}
+            lang="ja"
+            onTopLineChange={(line) => setScrolled({ lang: 'ja', line })}
+            {...body.fieldState('ja')}
+          />
+        ),
+        en: (
+          <MarkdownEditor
+            label={`${body.label}${LANG_SUFFIX.en}`}
+            name="en.body"
+            value={body.values.en}
+            onChange={(value) => body.onChange('en', value)}
+            lang="en"
+            onTopLineChange={(line) => setScrolled({ lang: 'en', line })}
+            {...body.fieldState('en')}
+          />
+        ),
+      }}
+      preview={<PreviewPane markdown={body.values[lang]} lang={lang} topLine={topLine} />}
+      notices={notices}
+      settings={settings}
+      settingsInvalid={settingsInvalid}
+      settingsOpen={layout.settingsOpen}
+      onSettingsOpenChange={layout.setSettingsOpen}
+      settingsInitialFocus={layout.settingsInitialFocus}
+    >
+      {actions.dialogs}
+      {children}
+    </SplitEditLayout>
+  )
 }
 
 // ---- スラッグ --------------------------------------------------------------
@@ -119,8 +318,6 @@ export interface SlugFieldProps extends FieldStateProps {
   everPublished: boolean
   /** 保存してあるスラッグ（新規作成は null）。公開したことがあるもので、これから変えたら警告する */
   savedSlug: string | null
-  /** 追従中のスラッグを作っているあいだ true。そのあいだに保存すると古いスラッグで送るので、保存を待たせる */
-  onPendingChange: (pending: boolean) => void
 }
 
 /**
@@ -135,11 +332,9 @@ function useSlugFollow({
   value,
   onChange,
   everPublished,
-  onPendingChange,
-}: Pick<
-  SlugFieldProps,
-  'type' | 'excludeId' | 'englishTitle' | 'value' | 'onChange' | 'everPublished' | 'onPendingChange'
->) {
+}: Pick<SlugFieldProps, 'type' | 'excludeId' | 'englishTitle' | 'value' | 'onChange' | 'everPublished'>) {
+  // 追従中のスラッグを作っているあいだは、保存を待たせる（古いスラッグで送らないため）
+  const onPendingChange = useReportBusy('slug')
   /** 今の英語のタイトルから作った値。開いた直後で、まだ作っていなければ null */
   const [auto, setAuto] = useState<string | null>(null)
   const latest = useRef({ value, auto, everPublished, onChange, onPendingChange })
@@ -150,7 +345,6 @@ function useSlugFollow({
     const title = englishTitle.trim()
     const following = (current: typeof latest.current) =>
       current.auto !== null && !current.everPublished && current.value === current.auto
-    if (following(latest.current)) latest.current.onPendingChange(true)
     function apply(next: string) {
       if (!active) return
       const current = latest.current
@@ -159,13 +353,16 @@ function useSlugFollow({
       if (following(current) && current.value !== next) current.onChange(next)
       setAuto(next)
     }
+    // 英語のタイトルがなければ、作る値は空と決まっている（design-spec 6.7.2）。API を待たずに入れ、保存も待たせない
+    if (title === '') {
+      apply('')
+      return () => {
+        active = false
+      }
+    }
+    if (following(latest.current)) latest.current.onPendingChange(true)
     const timer = setTimeout(
       () => {
-        // 英語のタイトルがない、または変換して空になるときは、スラッグを空にする（design-spec 6.7.2）
-        if (title === '') {
-          apply('')
-          return
-        }
         api.slugs
           .suggest({ type, title, excludeId: excludeId ?? undefined })
           .then((result) => apply(result.slug ?? ''))
@@ -230,8 +427,6 @@ export function slugChanged(everPublished: boolean, savedSlug: string | null, va
   return everPublished && (savedSlug ?? '') !== value.trim()
 }
 
-export const SLUG_CHANGE_WARNING = '今のURLは見られなくなります'
-
 export function SlugField({
   type,
   excludeId,
@@ -241,11 +436,10 @@ export function SlugField({
   englishTitle,
   everPublished,
   savedSlug,
-  onPendingChange,
   errors = [],
   missing,
 }: SlugFieldProps) {
-  useSlugFollow({ type, excludeId, englishTitle, value, onChange, everPublished, onPendingChange })
+  useSlugFollow({ type, excludeId, englishTitle, value, onChange, everPublished })
   const problem = useSlugProblem(type, excludeId, value, savedSlug)
   const warn = slugChanged(everPublished, savedSlug, value)
   return (
@@ -269,7 +463,7 @@ export function SlugField({
 
 // ---- 使用技術（A5・A6） ------------------------------------------------------
 
-/** フォームが持つ使用技術。表示名はチップに出すためだけに持ち、API には ID の並びだけを送る */
+/** フォームが持つ使用技術。表示名は並びに出すためだけに持ち、API には ID の並びだけを送る */
 interface StackChoice {
   id: string
   displayName: string
@@ -277,9 +471,29 @@ interface StackChoice {
 
 export const STACKS_LIST_KEY = ['stacks', 'list']
 
-const chipRow = css({ display: 'inline-flex', alignItems: 'center', gap: 'none' })
-const chipRemove = button({ variant: 'ghost', shape: 'icon' })
+const stackItem = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 'inline-tight',
+  textStyle: 'ui',
+  color: 'text.default',
+})
+const stackRemove = button({ variant: 'ghost', shape: 'compact' })
+const stackIcon = css({ w: 'icon-sm', h: 'icon-sm', flexShrink: 0, objectFit: 'contain' })
 
+/**
+ * 使用技術の小さなアイコン。表示名が隣にあるので飾り（代替テキストは空）。検索の候補では、アイコンの無い技術も
+ * 名前の位置が揃うよう、同じ幅を空けておく
+ */
+function StackIcon({ iconUrl }: { iconUrl: string | null }) {
+  if (iconUrl === null) return <span aria-hidden="true" className={stackIcon} />
+  return <FallbackImage src={iconUrl} alt="" className={stackIcon} />
+}
+
+/**
+ * 使用技術の欄（design-spec 6.7.1）。選んだ技術は「つまみ・アイコン・表示名・×」を横に並べて折り返す。
+ * 検索の欄は選んでも閉じず、選んだ技術には ✓ を付け、もう一度選ぶと外す。Esc か欄の外を押すと閉じる
+ */
 export function StackPicker({
   value,
   onChange,
@@ -298,16 +512,18 @@ export function StackPicker({
   const addButton = useRef<HTMLButtonElement>(null)
   /** 検索の欄を閉じたあと、フォーカスを「+ 追加」へ戻すか */
   const refocus = useRef(false)
-  // 作成の応答を待つあいだにチップを外したり並べ替えたりしても、その操作を応答で巻き戻さないよう、今の値を読む
+  // 作成の応答を待つあいだに外したり並べ替えたりしても、その操作を応答で巻き戻さないよう、今の値を読む
   const valueRef = useRef(value)
   valueRef.current = value
   const stacks = query.data?.items ?? []
-  const chosen = new Set(value.map((stack) => stack.id))
-  const options = stacks
-    .filter((stack) => !chosen.has(stack.id))
-    .map((stack) => ({ value: stack.id, label: stack.displayName }))
+  const iconOf = new Map(stacks.map((stack) => [stack.id, stack.iconUrl]))
+  const options = stacks.map((stack) => ({
+    value: stack.id,
+    label: stack.displayName,
+    icon: <StackIcon iconUrl={stack.iconUrl} />,
+  }))
 
-  // 選ぶか Esc で検索の欄を閉じたら、フォーカスを「+ 追加」へ戻す（キーボードで続けて追加できるように）
+  // Esc で検索の欄を閉じたら、フォーカスを「+ 追加」へ戻す（キーボードで続けて操作できるように）
   useEffect(() => {
     if (adding || !refocus.current) return
     refocus.current = false
@@ -322,6 +538,16 @@ export function StackPicker({
   function add(stack: StackChoice) {
     const current = valueRef.current
     if (!current.some((item) => item.id === stack.id)) onChange([...current, stack])
+  }
+
+  function toggle(id: string) {
+    const current = valueRef.current
+    if (current.some((item) => item.id === id)) {
+      onChange(current.filter((item) => item.id !== id))
+      return
+    }
+    const stack = stacks.find((item) => item.id === id)
+    if (stack) add({ id: stack.id, displayName: stack.displayName })
   }
 
   async function create(displayName: string) {
@@ -353,53 +579,44 @@ export function StackPicker({
   }
 
   return (
-    <div className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
-      <p className={css({ textStyle: 'label' })}>使用技術</p>
-      <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'inline' })}>
-        {value.length > 0 && (
-          <SortableList
-            label="選んだ使用技術（並びがトップの行に出る順）"
-            layout="wrap"
-            items={value}
-            getId={(stack) => stack.id}
-            getLabel={(stack) => stack.displayName}
-            onMove={(from, to) => {
-              const next = [...value]
-              const [moved] = next.splice(from, 1)
-              if (moved !== undefined) next.splice(to, 0, moved)
-              onChange(next)
-            }}
-            renderItem={(stack, _index, handle) => (
-              <span className={cx(chip(), chipRow)}>
+    <div data-field="stackIds" className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
+      <p className={fieldLabel}>使用技術</p>
+      {value.length > 0 && (
+        <SortableList
+          label="選んだ使用技術（並びがトップの行に出る順）"
+          layout="wrap"
+          items={value}
+          getId={(stack) => stack.id}
+          getLabel={(stack) => stack.displayName}
+          onMove={(from, to) => {
+            const next = [...value]
+            const [moved] = next.splice(from, 1)
+            if (moved !== undefined) next.splice(to, 0, moved)
+            onChange(next)
+          }}
+          renderItem={(stack, _index, handle) => {
+            const icon = iconOf.get(stack.id) ?? null
+            return (
+              <span className={stackItem}>
                 {handle}
+                {/* アイコンが無い技術はアイコンを出さずに詰める（design-spec 4.4） */}
+                {icon !== null && <StackIcon iconUrl={icon} />}
                 {stack.displayName}
                 <button
                   type="button"
                   aria-label={`「${stack.displayName}」を外す`}
-                  onClick={() => onChange(value.filter((item) => item.id !== stack.id))}
-                  className={chipRemove}
+                  onClick={() => onChange(valueRef.current.filter((item) => item.id !== stack.id))}
+                  className={stackRemove}
                 >
                   <CloseIcon size="sm" />
                 </button>
               </span>
-            )}
-          />
-        )}
-        {!adding && (
-          <button
-            ref={addButton}
-            type="button"
-            onClick={() => setAdding(true)}
-            aria-busy={creating}
-            className={button({ variant: 'outline' })}
-          >
-            <PlusIcon size="sm" />
-            {creating ? '追加しています…' : '追加'}
-          </button>
-        )}
-      </div>
-      {adding &&
-        (query.status === 'error' ? (
+            )
+          }}
+        />
+      )}
+      {adding ? (
+        query.status === 'error' ? (
           <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'inline' })}>
             <LoadError onRetry={() => query.refetch()} />
             <button type="button" onClick={() => close(true)} className={button({ variant: 'ghost' })}>
@@ -411,20 +628,31 @@ export function StackPicker({
             label="使用技術を検索"
             placeholder={query.status === 'pending' ? '読み込み中…' : '技術の名前'}
             options={options}
+            selectedValues={value.map((stack) => stack.id)}
+            keepOpen
             // 登録済みの名前（選んだもの・一覧の読み直しの前に作ったもの・作っている途中のものを含む）と同じなら「新しい技術として追加」を
             // 出さない。同じ技術を二重に作らないため
             knownLabels={[...[...stacks, ...value].map((stack) => stack.displayName), ...creatingNames]}
-            onSelect={(id) => {
-              const stack = stacks.find((item) => item.id === id)
-              if (stack) add({ id: stack.id, displayName: stack.displayName })
-            }}
+            onSelect={toggle}
             onCreate={(text) => void create(text)}
             createLabel={(text) => `「${text}」を新しい技術として追加`}
-            emptyText="該当する技術がありません（選んだ技術は出しません）"
+            emptyText="該当する技術がありません"
             autoFocus
             onClose={({ moveFocus }) => close(moveFocus)}
           />
-        ))}
+        )
+      ) : (
+        <button
+          ref={addButton}
+          type="button"
+          onClick={() => setAdding(true)}
+          aria-busy={creating}
+          className={css(button.raw({ variant: 'outline' }), { alignSelf: 'flex-start' })}
+        >
+          <PlusIcon size="sm" />
+          {creating ? '追加しています…' : '追加'}
+        </button>
+      )}
       {errors.map((message) => (
         <p key={message} className={css({ textStyle: 'body-sm', color: 'danger.default' })}>
           {message}

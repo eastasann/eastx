@@ -1,42 +1,41 @@
 /**
  * A4 経歴管理（design-spec 6.6・6.7、SDD 5.6）。一覧は L4、編集は L6
  */
-import { useForm, useStore } from '@tanstack/react-form'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
 import { css, cx } from 'styled-system/css'
 import { z } from 'zod'
 import { careerInput, type careerOutput } from '~/api/contract/careers'
+import { LIMITS } from '~/api/contract/common'
 import { CAREER_KINDS } from '~/db/enums'
 import { languagesOf } from '~/domain/languages'
 import type { Status, Transition } from '~/domain/publishing'
 import type { Lang } from '~/i18n/detect'
 import { formatAdminDate, formatAdminYearMonth } from '~/i18n/format'
 import { PlusIcon } from '~/ui/icons'
-import { button, label } from '~/ui/recipes'
+import { button } from '~/ui/recipes'
 import { Select } from '~/ui/select'
 import { toaster } from '~/ui/toast'
 import { api } from './api'
-import { backupKey } from './backup'
-import { ConfirmDialog } from './confirm-dialog'
 import {
   BackLink,
   checkWithSchema,
   EditLoadError,
   EditLoading,
   EditNotFound,
-  LanguageTabs,
+  LocalizedFields,
   PublishActions,
   RestoreBanner,
   SaveProblems,
+  SaveStatus,
+  StatusBadge,
+  useEditor,
   useEditorKey,
-  useEditSession,
-  useSaveState,
+  useLocalizedView,
+  usePublishFlow,
 } from './editor'
 import { isAuthError, isNotFoundError } from './errors'
 import { MarkdownField, SelectField, TextField } from './fields'
-import { rebaseValues } from './form-values'
 import { CAREER_KIND_LABELS, displayTitle, languagesLabel, NOTICES, STATUS_LABELS } from './labels'
 import { FormLayout, ListLayout } from './layouts'
 import { AdminLink } from './link'
@@ -127,11 +126,7 @@ export function CareersListPage({ search }: { search: CareersSearch }) {
             key: 'status',
             header: '状態',
             mobile: true,
-            cell: (item) => (
-              <span className={label({ tone: item.status === 'published' ? 'accent' : 'neutral' })}>
-                {STATUS_LABELS[item.status]}
-              </span>
-            ),
+            cell: (item) => <StatusBadge status={item.status} />,
           },
           { key: 'languages', header: '言語', cell: (item) => languagesLabel(item.languages) },
           { key: 'updatedAt', header: '最終保存日', cell: (item) => formatAdminDate(item.updatedAt) },
@@ -189,6 +184,20 @@ function toForm(career: Career | null): CareerForm {
 
 const FIELD_LABELS = { title: 'タイトル', startDate: '開始年月' }
 
+/** 欄のキーの並び（画面の上から。誤りの欄へ移るときの順） */
+const FIELD_ORDER = [
+  'kind',
+  'startDate',
+  'endDate',
+  ...(['ja', 'en'] as const).flatMap((lang) =>
+    ['title', 'organization', 'location', 'body'].map((name) => `${lang}.${name}`),
+  ),
+]
+
+function disabledActions() {
+  return <PublishActions status={null} pending={null} disabled onSave={() => {}} onUnpublish={() => {}} />
+}
+
 export function CareerEditPage({ id }: { id: string }) {
   const isNew = id === 'new'
   const query = useQuery({
@@ -198,24 +207,21 @@ export function CareerEditPage({ id }: { id: string }) {
   })
   const editor = useEditorKey(id)
   const back = <BackLink href={LIST_HREF}>経歴一覧</BackLink>
-  const disabledActions = (
-    <PublishActions status={null} pending={null} disabled hideStatus onSave={() => {}} onUnpublish={() => {}} />
-  )
 
   if (!isNew && query.status === 'pending') {
     return (
-      <FormLayout back={back} title="経歴">
-        <EditLoading actions={disabledActions} />
+      <FormLayout back={back} title="経歴" actions={disabledActions()}>
+        <EditLoading />
       </FormLayout>
     )
   }
   if (!isNew && query.status === 'error') {
     return (
-      <FormLayout back={back} title="経歴">
+      <FormLayout back={back} title="経歴" actions={disabledActions()}>
         {isNotFoundError(query.error) ? (
           <EditNotFound listHref={LIST_HREF} />
         ) : (
-          <EditLoadError onRetry={() => query.refetch()} actions={disabledActions} />
+          <EditLoadError onRetry={() => query.refetch()} />
         )}
       </FormLayout>
     )
@@ -226,44 +232,36 @@ export function CareerEditPage({ id }: { id: string }) {
 function CareerEditor({ initial, onCreated }: { initial: Career | null; onCreated: (id: string) => void }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [saved, setSaved] = useState(initial)
-  const [baseline, setBaseline] = useState(() => toForm(initial))
-  const [confirm, setConfirm] = useState<'unpublish' | 'delete' | null>(null)
-  // useForm の既定値は、最後に reset に渡した値と同じに保つ。違うと、TanStack Form は描画のたびに既定値が
-  // 変わったとみなし、触っていないフォームの値を既定値で上書きする（保存を待つあいだの入力が消える）
-  const [formDefaults, setFormDefaults] = useState(baseline)
-  const form = useForm({ defaultValues: formDefaults })
-  const values = useStore(form.store, (state) => state.values)
-  const save = useSaveState()
-  const session = useEditSession({
-    getValues: () => form.state.values,
-    baseline,
-    backupKey: backupKey('career', saved?.id ?? null),
+  const localizedView = useLocalizedView()
+  const editor = useEditor({
+    initial,
+    toForm,
+    backupType: 'career',
     isValues: isCareerForm,
-    restore: (restored) => form.reset(restored, { keepDefaultValues: true }),
+    idOf: (item) => item.id,
+    updatedAtOf: (item) => item.updatedAt,
+    saveKind: 'publishable',
+    statusOf: (item) => item.status,
+    fieldOrder: FIELD_ORDER,
+    reveal: localizedView.reveal,
   })
+  const { form, values, saved, save, session } = editor
 
   function submit(action: Transition) {
     const sent = form.state.values
     const status: Status = action === 'publish' || action === 'update' ? 'published' : 'draft'
-    const body = { ...form.state.values, status }
+    const body = { ...sent, status }
     return save.run(action, {
       check: () => checkWithSchema(careerInput, body),
       request: () =>
         saved === null ? api.careers.create(body) : api.careers.update({ params: { id: saved.id }, body }),
       onSuccess: async (output) => {
-        const next = toForm(output)
-        setSaved(output)
-        setBaseline(next)
-        const merged = rebaseValues(sent, form.state.values, next)
-        setFormDefaults(merged)
-        form.reset(merged)
-        session.clearBackup()
+        const created = editor.applySaved(output, sent)
         queryClient.setQueryData(['careers', 'item', output.id], output)
         void queryClient.invalidateQueries({ queryKey: ['careers', 'list'] })
         void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
         // 新規作成で初めて保存したら、URL を作成した項目のものに置き換える（SDD 4.1）
-        if (saved === null) {
+        if (created) {
           onCreated(output.id)
           await session.leave(() => navigate({ to: '/admin/careers/$id', params: { id: output.id }, replace: true }))
         }
@@ -276,7 +274,7 @@ function CareerEditor({ initial, onCreated }: { initial: Career | null; onCreate
     save.setPending('delete')
     try {
       await api.careers.remove({ params: { id: saved.id } })
-      session.clearBackup()
+      session.clear()
       // 消した項目を読み直すと NOT_FOUND になり、一覧へ移る前に「見つかりませんでした」が出うるので、読み直さずに捨てる
       queryClient.removeQueries({ queryKey: ['careers', 'item', saved.id] })
       void queryClient.invalidateQueries({ queryKey: ['careers', 'list'] })
@@ -286,18 +284,28 @@ function CareerEditor({ initial, onCreated }: { initial: Career | null; onCreate
     } catch (error) {
       if (!isAuthError(error)) toaster.create({ title: NOTICES.deleteFailed, type: 'error' })
       save.setPending(null)
-      setConfirm(null)
+      flow.closeConfirm()
     }
   }
 
   const title = saved === null ? '経歴の新規作成' : displayTitle({ ja: saved.ja.title, en: saved.en.title })
+  const flow = usePublishFlow({
+    title,
+    pending: save.pending,
+    // 経歴はスラッグを持たない
+    slugChanged: () => false,
+    submit,
+    remove,
+    shortcut: editor.shortcut,
+  })
   const languages = languagesOf('title', values.ja, values.en)
-  const panel = (lang: Lang) => (
+  const localized = (lang: Lang) => (
     <>
       <form.Field name={`${lang}.title`}>
         {(field) => (
           <TextField
             label="タイトル"
+            limit={LIMITS.shortText}
             name={field.name}
             value={field.state.value}
             onChange={field.handleChange}
@@ -310,6 +318,7 @@ function CareerEditor({ initial, onCreated }: { initial: Career | null; onCreate
         {(field) => (
           <TextField
             label="所属"
+            limit={LIMITS.shortText}
             name={field.name}
             value={field.state.value}
             onChange={field.handleChange}
@@ -322,6 +331,7 @@ function CareerEditor({ initial, onCreated }: { initial: Career | null; onCreate
         {(field) => (
           <TextField
             label="場所"
+            limit={LIMITS.shortText}
             name={field.name}
             value={field.state.value}
             onChange={field.handleChange}
@@ -346,91 +356,83 @@ function CareerEditor({ initial, onCreated }: { initial: Career | null; onCreate
   )
 
   return (
-    <FormLayout
-      back={<BackLink href={LIST_HREF}>経歴一覧</BackLink>}
-      title={title}
-      actions={
-        <PublishActions
-          status={saved?.status ?? null}
-          pending={save.pending}
-          onSave={(action) => void submit(action)}
-          onUnpublish={() => setConfirm('unpublish')}
-          onDelete={() => setConfirm('delete')}
-        />
-      }
-    >
-      {session.offer !== null && <RestoreBanner onRestore={session.restoreOffer} onDiscard={session.discardOffer} />}
-      <SaveProblems missing={save.missing} formErrors={save.formErrors} fieldLabels={FIELD_LABELS} />
-      <form.Field name="kind">
-        {(field) => (
-          <SelectField
-            label="種類"
-            name={field.name}
-            options={CAREER_KINDS.map((kind) => ({ value: kind, label: CAREER_KIND_LABELS[kind] }))}
-            value={field.state.value}
-            onChange={(value) => {
-              const kind = CAREER_KINDS.find((candidate) => candidate === value)
-              if (kind) field.handleChange(kind)
-            }}
-            {...save.fieldState(field.name)}
+    <editor.BusyProvider>
+      <FormLayout
+        back={<BackLink href={LIST_HREF}>経歴一覧</BackLink>}
+        title={title}
+        status={
+          <>
+            <StatusBadge status={editor.status} />
+            <SaveStatus {...editor.saveStatus} />
+          </>
+        }
+        formView={{ value: localizedView.view, onChange: localizedView.setView }}
+        actions={
+          <PublishActions
+            status={editor.status}
+            pending={save.pending}
+            reason={editor.reason}
+            onSave={flow.requestSave}
+            onUnpublish={flow.openUnpublish}
+            onDelete={flow.openDelete}
           />
+        }
+      >
+        {session.offer !== null && (
+          <RestoreBanner offer={session.offer} onRestore={session.restoreOffer} onDiscard={session.discardOffer} />
         )}
-      </form.Field>
-      <div className={css({ display: 'flex', flexWrap: 'wrap', gap: 'stack-dense' })}>
-        <form.Field name="startDate">
+        <SaveProblems missing={save.missing} formErrors={save.formErrors} fieldLabels={FIELD_LABELS} />
+        <form.Field name="kind">
           {(field) => (
-            <TextField
-              label="開始年月"
-              type="month"
+            <SelectField
+              label="種類"
               name={field.name}
+              options={CAREER_KINDS.map((kind) => ({ value: kind, label: CAREER_KIND_LABELS[kind] }))}
               value={field.state.value}
-              onChange={field.handleChange}
+              onChange={(value) => {
+                const kind = CAREER_KINDS.find((candidate) => candidate === value)
+                if (kind) field.handleChange(kind)
+              }}
               {...save.fieldState(field.name)}
             />
           )}
         </form.Field>
-        <form.Field name="endDate">
-          {(field) => (
-            <TextField
-              label="終了年月"
-              type="month"
-              hint="空なら「現在」"
-              name={field.name}
-              value={field.state.value}
-              onChange={field.handleChange}
-              {...save.fieldState(field.name)}
-            />
-          )}
-        </form.Field>
-      </div>
-      <LanguageTabs
-        languages={languages}
-        problems={{ ja: save.hasProblemIn('ja'), en: save.hasProblemIn('en') }}
-        panels={{ ja: panel('ja'), en: panel('en') }}
-      />
-      <ConfirmDialog
-        open={confirm === 'unpublish'}
-        title="非公開に戻す"
-        message="公開サイトから見えなくなります"
-        confirmLabel="非公開に戻す"
-        pending={save.pending === 'unpublish'}
-        onConfirm={async () => {
-          await submit('unpublish')
-          setConfirm(null)
-        }}
-        onCancel={() => setConfirm(null)}
-      />
-      <ConfirmDialog
-        open={confirm === 'delete'}
-        title="削除の確認"
-        message={`『${title}』を削除します。元に戻せません`}
-        confirmLabel="削除する"
-        danger
-        pending={save.pending === 'delete'}
-        onConfirm={() => void remove()}
-        onCancel={() => setConfirm(null)}
-      />
-      {session.leaveDialog}
-    </FormLayout>
+        <div className={css({ display: 'flex', flexWrap: 'wrap', gap: 'stack-dense' })}>
+          <form.Field name="startDate">
+            {(field) => (
+              <TextField
+                label="開始年月"
+                type="month"
+                name={field.name}
+                value={field.state.value}
+                onChange={field.handleChange}
+                {...save.fieldState(field.name)}
+              />
+            )}
+          </form.Field>
+          <form.Field name="endDate">
+            {(field) => (
+              <TextField
+                label="終了年月"
+                type="month"
+                hint="空なら「現在」"
+                name={field.name}
+                value={field.state.value}
+                onChange={field.handleChange}
+                {...save.fieldState(field.name)}
+              />
+            )}
+          </form.Field>
+        </div>
+        <LocalizedFields
+          state={localizedView}
+          languages={languages}
+          problems={{ ja: save.hasProblemIn('ja'), en: save.hasProblemIn('en') }}
+          render={localized}
+        />
+        {flow.dialogs}
+        {session.leaveDialog}
+      </FormLayout>
+    </editor.BusyProvider>
   )
 }

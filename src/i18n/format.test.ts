@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatAdminDate,
+  formatAdminTime,
   formatAdminYearMonth,
   formatDate,
   formatPeriod,
@@ -82,5 +83,19 @@ describe('toTokyoDateTimeInput・fromTokyoDateTimeInput', () => {
   it('空は null、入力欄の形でない値はそのまま返す', () => {
     expect(fromTokyoDateTimeInput('')).toBeNull()
     expect(fromTokyoDateTimeInput('2026/09/12')).toBe('2026/09/12')
+  })
+})
+
+describe('formatAdminTime', () => {
+  const now = '2026-10-07T05:00:00Z' // 日本時間 10月7日 14:00
+
+  it('今日（日本時間）なら時刻だけ', () => {
+    expect(formatAdminTime('2026-10-07T05:32:00Z', now)).toBe('14:32')
+    expect(formatAdminTime('2026-10-06T15:05:00Z', now)).toBe('00:05')
+  })
+
+  it('今日でなければ月日を付ける。日付の境は日本時間', () => {
+    expect(formatAdminTime('2026-10-06T14:59:00Z', now)).toBe('10月6日 23:59')
+    expect(formatAdminTime('2025-10-07T05:32:00Z', now)).toBe('10月7日 14:32')
   })
 })

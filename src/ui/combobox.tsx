@@ -1,26 +1,33 @@
 /**
- * 候補から1つ選んで追加するコンボボックス（Ark UI の Combobox に見た目を付けたもの）。入力した文字で候補を絞り、
+ * 候補から選んで追加するコンボボックス（Ark UI の Combobox に見た目を付けたもの）。入力した文字で候補を絞り、
  * 矢印キーと Enter で選ぶ。選ぶと入力を空に戻す（選んだものは呼び出し側が欄の外に並べる）。
+ * `keepOpen` なら選んでも一覧を閉じず、続けて選べる。`selectedValues` の候補には ✓ を付ける（もう一度選ぶと外すのは呼び出し側）。
  * 作品・プロジェクトの使用技術を選ぶ欄（design-spec 6.7.1）に使う。絞り込みは表示名の部分一致で、大文字小文字を区別しない。
  * `onCreate` を渡すと、入力と同じ名前の候補がないとき、末尾に「新しく作る」候補を出す
  */
 import { Combobox as ArkCombobox, createListCollection } from '@ark-ui/react/combobox'
 import { Portal } from '@ark-ui/react/portal'
-import { useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import { css, cx } from 'styled-system/css'
-import { PlusIcon } from './icons'
+import { CheckIcon, PlusIcon } from './icons'
 import { fade, optionItem, optionList } from './overlay'
 import { input, overlaySurface } from './recipes'
 
 export interface ComboboxOption {
   value: string
   label: string
+  /** 名前の前に出す小さなアイコン（使用技術のアイコン）。飾りなので読み上げない */
+  icon?: ReactNode
 }
 
 export interface ComboboxProps {
   label: string
   options: ComboboxOption[]
   onSelect: (value: string) => void
+  /** 選び済みの候補（✓ を付ける）。この欄自体は何も選んでいない状態のままで、選び直しは onSelect に渡す */
+  selectedValues?: string[]
+  /** 選んでも一覧を閉じない */
+  keepOpen?: boolean
   /** 入力した名前で新しく作る。渡さなければ「新しく作る」候補を出さない */
   onCreate?: (text: string) => void
   /** 「新しく作る」を出さない名前。候補に出していないもの（選び済みなど）も含めて渡す。省くと候補の名前 */
@@ -39,6 +46,12 @@ export interface ComboboxProps {
   onClose?: (details: { moveFocus: boolean }) => void
 }
 
+const checkMark = css({
+  display: 'inline-flex',
+  visibility: 'hidden',
+  '&[data-selected=true]': { visibility: 'visible' },
+})
+
 /** 「新しく作る」候補の値。候補の値（ID）と重ならない形にする */
 const CREATE_VALUE = '\u0000create'
 
@@ -50,6 +63,8 @@ export function Combobox({
   label,
   options,
   onSelect,
+  selectedValues = [],
+  keepOpen = false,
   onCreate,
   knownLabels,
   createLabel = (text) => `「${text}」を追加`,
@@ -92,6 +107,7 @@ export function Combobox({
         setInputValue('')
       }}
       selectionBehavior="clear"
+      closeOnSelect={!keepOpen}
       inputBehavior="autohighlight"
       disabled={disabled}
       invalid={invalid}
@@ -107,7 +123,7 @@ export function Combobox({
       unmountOnExit
       className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}
     >
-      <ArkCombobox.Label className={css({ textStyle: 'label' })}>{label}</ArkCombobox.Label>
+      <ArkCombobox.Label className={css({ textStyle: 'label', color: 'text.muted' })}>{label}</ArkCombobox.Label>
       <ArkCombobox.Control>
         <ArkCombobox.Input placeholder={placeholder} className={input()} />
       </ArkCombobox.Control>
@@ -119,12 +135,25 @@ export function Combobox({
             <ArkCombobox.Empty className={css({ px: 'inset-dense', textStyle: 'body-sm', color: 'text.muted' })}>
               {emptyText}
             </ArkCombobox.Empty>
-            {collection.items.map((option) => (
-              <ArkCombobox.Item key={option.value} item={option} className={optionItem}>
-                {option.value === CREATE_VALUE && <PlusIcon size="sm" />}
-                <ArkCombobox.ItemText>{option.label}</ArkCombobox.ItemText>
-              </ArkCombobox.Item>
-            ))}
+            {collection.items.map((option) => {
+              const selected = selectedValues.includes(option.value)
+              return (
+                <ArkCombobox.Item key={option.value} item={option} className={optionItem}>
+                  {option.value === CREATE_VALUE ? (
+                    <PlusIcon size="sm" />
+                  ) : (
+                    <span data-selected={selected} className={checkMark}>
+                      <CheckIcon size="sm" />
+                    </span>
+                  )}
+                  {option.icon}
+                  {/* 候補の共通の見た目（optionItem）は space-between なので、名前を残りの幅に広げて左に寄せる */}
+                  <ArkCombobox.ItemText className={css({ flex: '1' })}>{option.label}</ArkCombobox.ItemText>
+                  {/* aria-selected は Ark UI がハイライト中の候補に使うので、選び済みは文字で読み上げる */}
+                  {selected && <span className={css({ srOnly: true })}>（選択済み）</span>}
+                </ArkCombobox.Item>
+              )
+            })}
           </ArkCombobox.Content>
         </ArkCombobox.Positioner>
       </Portal>

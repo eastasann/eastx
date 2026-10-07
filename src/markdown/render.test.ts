@@ -199,6 +199,30 @@ describe('renderMarkdown', () => {
     })
   })
 
+  describe('元の行番号（sourceLines）', () => {
+    const md = '# 見出し\n\n段落\n\n- a\n- b\n\n```ts\nconst x = 1\n```\n'
+
+    it('渡さなければ付けない（公開側の描画は変わらない）', async () => {
+      expect(await renderMarkdown(md, JA)).not.toContain('data-source-line')
+    })
+
+    it('最上位のブロックに元の行番号を付ける。コードブロックは包みの要素に付ける', async () => {
+      const html = await renderMarkdown(md, { ...JA, sourceLines: true })
+      expect(html).toContain('<h2 data-source-line="1">')
+      expect(html).toContain('<p data-source-line="3">')
+      expect(html).toContain('<ul data-source-line="5">')
+      expect(html).toContain('<div data-code-block="" data-source-line="8">')
+      // 入れ子のブロックには付けない
+      expect(html).not.toContain('<li data-source-line')
+    })
+
+    it('サニタイズの後に付ける。本文に書いた属性は通らず、値は構文木の行番号だけ', async () => {
+      const html = await renderMarkdown('<p data-source-line="99">x</p>\n\ny', { ...JA, sourceLines: true })
+      expect(html).not.toContain('99')
+      expect(html).toContain('<p data-source-line="3">y</p>')
+    })
+  })
+
   it('描画の版は 3', () => {
     expect(RENDER_VERSION).toBe(3)
   })

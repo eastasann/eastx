@@ -86,6 +86,8 @@ export function rehypeHighlight(shiki: HighlighterCore) {
         tagName: 'div',
         properties: { dataCodeBlock: '' },
         children: [pre],
+        // 元の行の位置を引き継ぐ。管理画面のプレビューの行番号の属性（render.ts の sourceLines）が読む
+        position: node.position,
       }
       parent.children[index] = wrapper
       return 'skip'

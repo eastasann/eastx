@@ -1,7 +1,8 @@
 /**
  * Markdown の描画（ADR-012、design-spec 6.3.1）。公開側（サーバー）と管理画面のプレビュー（ブラウザ）が同じ関数を使う。
  * remark-parse → remark-gfm → remark-rehype（生の HTML は通さない）→ rehype-sanitize（GitHub のスキーマ）
- * → 太字と使用技術の照合（stacks を渡したときだけ）→ 見出しのレベルと外部リンク → Shiki → HTML の文字列。
+ * → 太字と使用技術の照合（stacks を渡したときだけ）→ 見出しのレベルと外部リンク → Shiki
+ * → 元の行番号の属性（sourceLines のときだけ）→ HTML の文字列。
  * サニタイズを Shiki より前に置くのは、Shiki が付けるスタイルを消さないため。
  */
 import type { Element, Root } from 'hast'
@@ -47,6 +48,11 @@ export interface RenderOptions {
    * 渡すのは自己紹介の描画だけ（公開側の P1 と A3 のプレビュー）
    */
   stacks?: MarkdownStack[]
+  /**
+   * 最上位のブロックに、Markdown の元の行番号（1始まり）を `data-source-line` で付ける。管理画面のプレビューが
+   * エディタのスクロールに追従するためだけに使う。公開側は渡さないので、公開側の HTML とキャッシュは変わらない
+   */
+  sourceLines?: boolean
 }
 
 /** 太字との照合に使う使用技術。識別名・表示名・アイコンの3つだけが描画結果に効く（キャッシュのキーの版も同じ3つで作る） */
@@ -158,6 +164,20 @@ function rehypeExternalLinks(siteOrigin: string | undefined) {
   }
 }
 
+/**
+ * 最上位のブロックに元の行番号を付ける。サニタイズ（GitHub のスキーマは data-* を消す）の後に付けるので、
+ * スキーマは広げない。値は構文木の位置から作る数字だけで、本文の文字は入らない
+ */
+function rehypeSourceLines({ enabled }: { enabled: boolean }) {
+  return (tree: Root) => {
+    if (!enabled) return
+    for (const node of tree.children) {
+      const line = node.position?.start.line
+      if (node.type === 'element' && line !== undefined) node.properties.dataSourceLine = line
+    }
+  }
+}
+
 /** Markdown を、そのまま埋め込める（サニタイズ済みの）HTML の文字列にする */
 export async function renderMarkdown(markdown: string, options: RenderOptions): Promise<string> {
   const shiki = await getHighlighter()
@@ -173,6 +193,8 @@ export async function renderMarkdown(markdown: string, options: RenderOptions): 
     .use(rehypeShiftHeadings)
     .use(rehypeExternalLinks, options.siteOrigin)
     .use(rehypeHighlight, shiki)
+    // unified は true を「設定なし」として読むので、真偽値はオブジェクトに包んで渡す
+    .use(rehypeSourceLines, { enabled: options.sourceLines === true })
     .use(rehypeStringify)
     .process(markdown)
   return String(file)

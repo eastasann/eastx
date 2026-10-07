@@ -249,3 +249,74 @@ export function PlusIcon(props: IconProps) {
     </Svg>
   )
 }
+
+/** 設定（L5 の設定の引き出しを開くボタン）。横に3本のつまみ */
+export function SettingsIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="10" cy="17" r="2" />
+    </Svg>
+  )
+}
+
+/** 画像（本文に画像を挿入するボタン） */
+export function ImageIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="9" cy="10" r="2" />
+      <path d="m21 16-5-5-9 9" />
+    </Svg>
+  )
+}
+
+/** 左右に並べる（編集ビューの「並べる」） */
+export function ColumnsIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M12 4v16" />
+    </Svg>
+  )
+}
+
+/** 1つだけ（L6 の「片方」） */
+export function SingleIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="6" y="3" width="12" height="18" rx="2" />
+      <path d="M9 8h6M9 12h6M9 16h4" />
+    </Svg>
+  )
+}
+
+/** 日英（文と A を並べる） */
+export function LanguagesIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3 5h8M7 3v2M5 5c0 4 2 6 5 7M9 5c0 3-2 6-6 8" />
+      <path d="m13 21 4-10 4 10M14.5 17h5" />
+    </Svg>
+  )
+}
+
+/** プレビュー（目） */
+export function EyeIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </Svg>
+  )
+}
+
+/** 削除（ごみ箱） */
+export function TrashIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+    </Svg>
+  )
+}

@@ -29,7 +29,7 @@ const control = css({
   transitionProperty: 'background-color, border-color',
   transitionDuration: 'motion.hover',
   transitionTimingFunction: 'motion.hover',
-  _checked: { bg: 'accent.default', borderColor: 'accent.default', justifyContent: 'flex-end' },
+  _checked: { bg: 'action.default', borderColor: 'action.default', justifyContent: 'flex-end' },
   _disabled: { opacity: 'disabled', cursor: 'not-allowed' },
   // 隠した checkbox がフォーカスを持つので、見た目の輪はこちらに出す
   _focusVisible: { outlineWidth: 'focus-ring', outlineStyle: 'solid', outlineColor: 'focus-ring' },

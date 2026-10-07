@@ -1,5 +1,5 @@
 /**
- * アクセシビリティ（P1〜P5・A1・A2 で axe の serious 以上の違反 0件。SDD 10章）と、
+ * アクセシビリティ（P1〜P5・A1・A2 と、A4・A5・A8 の編集ビューで axe の serious 以上の違反 0件。SDD 10章）と、
  * セキュリティヘッダー・X-Robots-Tag（SDD 7章・ADR-019）。どの画面でもブラウザに CSP の違反が出ないことも確かめる。
  * make e2e のデモデータ（make db-seed）を前提にする
  */
@@ -93,6 +93,69 @@ test.describe('管理画面', () => {
       expect(await violationsOf()).toEqual([])
     })
   }
+
+  /** 編集ビュー（L5 の作品・ブログ、L6 の経歴）。一覧の先頭の項目を開く */
+  const EDIT_VIEWS = [
+    { name: 'A5 作品の編集', list: '/admin/works', table: '作品の一覧' },
+    { name: 'A8 ブログの編集', list: '/admin/blog', table: 'ブログの一覧' },
+    { name: 'A4 経歴の編集', list: '/admin/careers', table: '経歴の一覧' },
+  ] as const
+
+  for (const { name, list, table } of EDIT_VIEWS) {
+    for (const theme of ['light', 'dark'] as const) {
+      test(`${name}（${theme}）: axe の重大な違反がない`, async ({ page, login }) => {
+        await page.emulateMedia({ colorScheme: theme })
+        await login({ admin: true })
+        await page.goto(list)
+        await page.getByRole('table', { name: table }).locator('tbody tr').first().getByRole('link').first().click()
+        await expect(page.getByRole('radiogroup', { name: '表示' })).toBeVisible()
+        await expect(page.getByRole('status').filter({ hasText: /^保存済み/ })).toBeVisible()
+        expect(await seriousViolations(page)).toEqual([])
+      })
+    }
+  }
+
+  test('表示の切り替え・設定の引き出し・画像を挿入はキーボードだけで操作できる', async ({ page, login }) => {
+    await login({ admin: true })
+    // 設定の引き出しは 1280px 未満
+    await page.setViewportSize({ width: 1200, height: 800 })
+    await page.goto('/admin/blog/new')
+    const editor = page.getByRole('textbox', { name: '本文（日本語）' })
+    await editor.fill('## 見出し')
+
+    // 表示の切り替え: 選んでいる項目にフォーカスし、矢印キーで選び直す
+    const views = page.getByRole('radiogroup', { name: '表示' })
+    await views.getByRole('radio', { name: '並べる' }).focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(views.getByRole('radio', { name: '日英' })).toBeChecked()
+    await expect(page.getByRole('textbox', { name: '本文（英語）' })).toBeVisible()
+    await page.keyboard.press('ArrowRight')
+    await expect(views.getByRole('radio', { name: 'プレビュー' })).toBeChecked()
+    await expect(
+      page.getByRole('region', { name: 'プレビュー' }).getByRole('heading', { name: '見出し' }),
+    ).toBeVisible()
+
+    // 設定の引き出し: Enter で開き、Esc で閉じてボタンへ戻る
+    const settings = page.getByRole('button', { name: '設定' })
+    await settings.focus()
+    await page.keyboard.press('Enter')
+    const drawer = page.getByRole('dialog', { name: '設定' })
+    await expect(drawer.getByRole('textbox', { name: 'スラッグ' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(drawer).toBeHidden()
+    await expect(settings).toBeFocused()
+
+    // 画像を挿入: Enter でファイルの選択を開く
+    await views.getByRole('radio', { name: 'プレビュー' }).focus()
+    await page.keyboard.press('ArrowLeft')
+    await page.keyboard.press('ArrowLeft')
+    await expect(views.getByRole('radio', { name: '並べる' })).toBeChecked()
+    const insert = page.getByRole('button', { name: '画像を挿入' }).first()
+    await insert.focus()
+    const chooser = page.waitForEvent('filechooser')
+    await page.keyboard.press('Enter')
+    expect((await chooser).isMultiple()).toBe(true)
+  })
 
   test('L5 の編集ビュー（エディタとプレビュー）でも CSP の違反が出ない', async ({ page, login }) => {
     await login({ admin: true })

@@ -214,7 +214,7 @@
 
 **決定:**
 - API の入出力は Zod（v4）で定義する。oRPC の OpenAPI の仕様は `@orpc/zod` の変換器で作る。
-- 管理画面のフォームは TanStack Form で作り、同じ Zod のスキーマで入力をチェックする（Standard Schema）。フィールドの名前は API の `fieldErrors` のキー（例: `ja.title`）と同じにして、サーバーのエラーをそのまま入力欄に対応させる。日英の両方の入力を1つのフォームの状態に持ち、言語タブは表示を切り替えるだけにする。ログインの期限切れのときの一時保存（design-spec 6.4）は、このフォームの状態をそのまま保存する。
+- 管理画面のフォームは TanStack Form で作り、同じ Zod のスキーマで入力をチェックする（Standard Schema）。フィールドの名前は API の `fieldErrors` のキー（例: `ja.title`）と同じにして、サーバーのエラーをそのまま入力欄に対応させる。日英の両方の入力を1つのフォームの状態に持ち、言語タブと表示の切り替え（「日英」）は見せ方を変えるだけにする。編集ビューの一時保存（自動退避。design-spec 6.4）は、保存していない変更があるあいだ、このフォームの状態を `{ savedAt, values }`（`savedAt` はブラウザの時計の ISO 8601）の形で localStorage の `eastx:backup:{種類}:{id か new}` に置く。書く・消す時は `src/admin/backup.ts` の `AutoBackup` が design-spec 6.4 の表のとおりに決める。比べる元（最後に読んだ・保存した内容）との比較はフォームの状態を JSON にして行い、比較に関係ない値（SNS リンクの並べ替えの目印の ID）は外してから比べる。
 
 **理由:** oRPC が Standard Schema に対応していて、Zod のスキーマがそのままコントラクトと OpenAPI の仕様になり、サーバーとフォームでルールが食い違わない。TanStack Form は Standard Schema をそのまま使え、入れ子の項目（`ja`・`en`）と配列（SNS リンク・使用技術）を扱える。
 
@@ -280,7 +280,7 @@
 
 ### ADR-012: Markdown は unified ＋ rehype-sanitize ＋ Shiki で、公開側とプレビューで同じ描画をする
 
-**決定:** `src/markdown/` に描画の関数を1つ持ち、公開側（サーバー）と管理画面のプレビュー（ブラウザ）の両方から使う。処理は remark-parse → remark-gfm → remark-rehype（生の HTML は通さない）→ rehype-sanitize（GitHub のスキーマ）→ 太字と使用技術の照合（`stacks` を渡したときだけ）→ 見出しのレベルと外部リンクの処理 → Shiki（コードの色分け）→ HTML の文字列。太字と使用技術の照合は design-spec 6.3.1 の規則で、一致した太字の前に技術のアイコン（`img`。`alt` は空にして装飾として扱う。表示名は隣の太字にある）か、アイコンがなければ頭文字の丸を入れる。サニタイズの後に入れるのでスキーマは広げず、`src` は DB の `iconUrl`（CHECK 制約 `stack_icon_url` で `/media/` 始まり）だけ。`stacks` を渡すのは自己紹介の描画（公開側の `getTopPage` と A3 のプレビュー）だけ。Shiki は JavaScript の正規表現エンジンと、使う言語だけを読み込む細かいバンドルにする。テーマはライト・ダークの2つを CSS 変数で切り替える。テーマは、トークンの色がすべてコードブロックの地の色（`bg.subtle`）に対して 4.5:1 以上になるもの（ライトは `github-light-high-contrast`、ダークは `github-dark-default`）にする（SDD 10章のアクセシビリティの検査）。コードブロックの「コピー」ボタンは描画結果に含めず、本文を出す部品（`src/ui/markdown-body.tsx`）がブラウザで付ける。描画結果を UI の言語に依らない形に保ち、本文の言語をキーにした Cache API（ADR-011）でそのまま使い回すため。
+**決定:** `src/markdown/` に描画の関数を1つ持ち、公開側（サーバー）と管理画面のプレビュー（ブラウザ）の両方から使う。処理は remark-parse → remark-gfm → remark-rehype（生の HTML は通さない）→ rehype-sanitize（GitHub のスキーマ）→ 太字と使用技術の照合（`stacks` を渡したときだけ）→ 見出しのレベルと外部リンクの処理 → Shiki（コードの色分け）→ 元の行番号の属性（`sourceLines` を渡したときだけ）→ HTML の文字列。太字と使用技術の照合は design-spec 6.3.1 の規則で、一致した太字の前に技術のアイコン（`img`。`alt` は空にして装飾として扱う。表示名は隣の太字にある）か、アイコンがなければ頭文字の丸を入れる。サニタイズの後に入れるのでスキーマは広げず、`src` は DB の `iconUrl`（CHECK 制約 `stack_icon_url` で `/media/` 始まり）だけ。`stacks` を渡すのは自己紹介の描画（公開側の `getTopPage` と A3 のプレビュー）だけ。オプションの `sourceLines` を渡すと、最上位のブロック（コードブロックは包みの要素）に Markdown の元の行番号を `data-source-line` で付ける。付けるのは最後（サニタイズの後。GitHub のスキーマは `data-*` を消す）で、値は構文木の位置から作る数字だけ。渡すのは L5 のプレビュー（ブラウザでの描画で、Cache API を通らない）だけで、エディタのスクロールにプレビューを追従させるのに使う。公開側の描画は渡さないので、公開側の HTML・キャッシュのキー・`RENDER_VERSION` は変わらない。Shiki は JavaScript の正規表現エンジンと、使う言語だけを読み込む細かいバンドルにする。テーマはライト・ダークの2つを CSS 変数で切り替える。テーマは、トークンの色がすべてコードブロックの地の色（`bg.subtle`）に対して 4.5:1 以上になるもの（ライトは `github-light-high-contrast`、ダークは `github-dark-default`）にする（SDD 10章のアクセシビリティの検査）。コードブロックの「コピー」ボタンは描画結果に含めず、本文を出す部品（`src/ui/markdown-body.tsx`）がブラウザで付ける。描画結果を UI の言語に依らない形に保ち、本文の言語をキーにした Cache API（ADR-011）でそのまま使い回すため。
 
 **理由:** design-spec 6.3.1 のルールを1か所で実装し、プレビューと公開の見た目を一致させる。HTML の文字列を返すので、Cache API に入れやすい（ADR-011）。サニタイズを Shiki より前に置くのは、Shiki が付けるスタイルを消さないため。
 
@@ -311,7 +311,7 @@
 - `docs/06_design-tokens.json` を正とし、`scripts/tokens/build.ts`（Bun で実行）が Panda の `tokens`（プリミティブ層）と `semanticTokens`（セマンティック層。ライト・ダークは条件付きの値）を `src/styles/tokens.generated.ts` に書き出す。`panda.config.ts` はそれを読む。生成物は Git に入れず、生成物を読むターゲット（setup・dev・build・lint・typecheck・test・e2e）の最初に作り直す（`docs/03_dev-setup.md` 8章）。
 - ダークモードは `<html data-theme="light|dark">` で切り替え、Panda の `_dark` の条件を `[data-theme=dark] &` に設定する。OS に合わせる設定のときは、`<head>` の小さなスクリプトが `prefers-color-scheme` を見て `data-theme` を描画の前に入れる。
 - ブレークポイントは design-spec 4.3 の値を `panda.config.ts` に設定する。
-- UI 部品（ダイアログ・メニュー・トースト・タブ・セレクト・スイッチ・コンボボックス・ツールチップ）は Ark UI（ヘッドレス）で作り、見た目は Panda のレシピで付ける。
+- UI 部品（ダイアログ・メニュー・トースト・タブ・セレクト・スイッチ・コンボボックス・ツールチップ・セグメントグループ）は Ark UI（ヘッドレス）で作り、見た目は Panda のレシピで付ける。ダイアログは、画面の左端（モバイル幅のメニュー）・右端（L5 の設定パネルの引き出し）から開く引き出しとしても使う。設定の引き出しは、閉じているあいだも中身を描いたまま隠す（中のスラッグの欄が英語のタイトルに追従し続けるため）。セグメントグループは編集ビューの表示の切り替えに使う。入力欄のレシピは、枠の無い形（下の線だけを持ち、ホバー・フォーカス・誤りで線を出す）を持つ。
 - 06 の型と Panda の対応: color → `colors`、space → `spacing`、size → `sizes`、radius → `radii`、border-width → `borderWidths`、shadow → `shadows`、duration → `durations`、cubicBezier → `easings`、opacity → `opacities`、z-index → `zIndex`、aspect-ratio → `aspectRatios`、fontFamily・fontWeight・font.size・letter-spacing → `fonts`・`fontWeights`・`fontSizes`・`letterSpacings`。typography（合成値）は Panda の `textStyles` に、transition（合成値）は `durations` と `easings` のセマンティックトークンの組に展開する。
 - Panda ではプリミティブ層もトークンになり、型では「セマンティック層だけを参照する」を止められない。そこでプリミティブは `primitive` の名前空間に出し、`make lint` の中で `src/` からの `primitive.` の参照を検査して止める。
 - スタイルは静的に書けるもの（`css()` に渡すオブジェクト、レシピとそのバリアント）だけにし、実行時に組み立てない。
@@ -330,7 +330,7 @@
 ### ADR-015: 管理画面のエディタは CodeMirror 6、並べ替えは dnd-kit
 
 **決定:**
-- Markdown のエディタは CodeMirror 6（`@codemirror/lang-markdown`）。React とのつなぎは自前の薄い部品（`EditorView` を `useEffect` で作る）にする。画像の貼り付け・ドロップでアップロードし、カーソルの位置に画像の記法を入れる処理を拡張で足す。CodeMirror は自分の基本のスタイルを CSS のレイヤーの外に入れ、それが Panda のレイヤーの中のスタイルに勝つので、CodeMirror が値を持つプロパティ（余白・高さ・キャレットの色・フォント・フォーカスの枠）は Panda から `!important` を付けたトークンで上書きする（ADR-014 のトークンだけで見た目を付ける方針はそのまま）。
+- Markdown のエディタは CodeMirror 6（`@codemirror/lang-markdown`）。React とのつなぎは自前の薄い部品（`EditorView` を `useEffect` で作る）にする。画像の貼り付け・ドロップでアップロードし、カーソルの位置に画像の記法を入れる処理を拡張で足す。部品の外の「画像を挿入」ボタンは、選んだファイルを同じアップロードの処理に渡す（拡張ではない）。ほかの拡張は、検索（`@codemirror/search` の検索のパネルと keymap。文言は日本語にする）、`Mod-s` の既定の動き（ブラウザの「ページを保存」）を止める keymap（保存は編集ビューの最上位の `keydown` が行うので、打鍵は止めずに上へ届ける）、見えている先頭の行を知らせるスクロールの処理（L5 の「並べる」でプレビューを追従させる。ADR-012 の `sourceLines`）。エディタは言語ごとに `EditorView` を1つずつ作り、表示の切り替え（「日英」を含む）や画面の幅が変わっても作り直さずに、見せる・隠すだけを変える（作り直すと元に戻す履歴とアップロード中の画像の行き先が消える）。CodeMirror は自分の基本のスタイルを CSS のレイヤーの外に入れ、それが Panda のレイヤーの中のスタイルに勝つので、CodeMirror が値を持つプロパティ（余白・高さ・キャレットの色・フォント・フォーカスの枠）は Panda から `!important` を付けたトークンで上書きする（ADR-014 のトークンだけで見た目を付ける方針はそのまま）。
 - 一覧の並べ替えと、作品・プロジェクトの使用技術のチップの並べ替えは、dnd-kit の安定版（`@dnd-kit/core`・`@dnd-kit/sortable`）で行い、キーボードでも並べ替えられるようにする。
 
 **理由:** CodeMirror 6 は拡張で貼り付けやドロップを扱いやすく、軽い。つなぎを自前にするのは、貼り付けの拡張とエディタの作り直しのタイミングを自分で決めるため。dnd-kit はキーボード操作と読み上げに対応している。
@@ -634,6 +634,7 @@ export const createAuth = (env: Env) =>
 | published → `draft` | 非公開に戻す | 下書きのルール | — |
 
 - 下書きのルール・公開のルールの中身は design-spec 6.7.3。判定は `src/domain/publishing.ts` の関数で行う。下書きのルール（`status: "draft"` でタイトルが日英とも空）と形式の誤りは `INPUT_VALIDATION_FAILED`（`fieldErrors`）、公開のルールで足りない項目（タイトルの不足を含む）は `PUBLISH_REQUIREMENTS_NOT_MET` で返す。
+- 管理画面の Cmd/Ctrl+S は、design-spec 6.7.1 の割り当てで、ボタンと同じ `status` を送る。
 - スラッグの自動生成と追従（design-spec 6.7.2）は管理画面が `GET /slugs/suggest` を使って行う。サーバーは保存のときに形式と重複だけを確かめる（重複は `SLUG_CONFLICT`）。
 - ブログ・コーディング記録の `publishedAt` は本文で受け取る。受け付ける値の制約は design-spec 6.7.3。
 
@@ -1720,9 +1721,9 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 
 | エラー種別 | 表示方法 |
 |-----------|----------|
-| バリデーションエラー | `INPUT_VALIDATION_FAILED` → `fieldErrors` のキーに対応する入力欄の下に赤字で出す。`PUBLISH_REQUIREMENTS_NOT_MET` → 足りない項目を一覧で出し、該当する言語タブと入力欄に印を付ける。`SLUG_CONFLICT` → スラッグ欄の下に出し、`suggestion` を候補として示す |
+| バリデーションエラー | `INPUT_VALIDATION_FAILED` → `fieldErrors` のキーに対応する入力欄の下に赤字で出す。`PUBLISH_REQUIREMENTS_NOT_MET` → 足りない項目を一覧で出し、該当する言語と入力欄に印を付ける。`SLUG_CONFLICT` → スラッグ欄の下に出し、`suggestion` を候補として示す。送る前の入力チェックの誤りも含め、件数の通知・最初の誤りの欄への移動・印の付け方は design-spec 6.7・6.7.3 |
 | 通信・サーバーエラー | 管理画面: design-spec 6.5〜6.7.4 の「取得に失敗」「保存に失敗」「削除に失敗」「並べ替えの保存に失敗」の表示。入力は消さない。公開側: C2 |
-| 認可エラー | `UNAUTHORIZED` → design-spec 6.4 の「ログインの有効期限切れ」の流れ。編集中ならフォームの状態を localStorage の `eastx:backup:{種類}:{id か new}` に一時保存してから、`/admin/login?redirect={今のパス}` へ移す。`FORBIDDEN` → ログアウトして（失敗しても）、`/admin/login?error=forbidden` に移して design-spec 6.4 の「管理者でないアカウント」の表示 |
+| 認可エラー | `UNAUTHORIZED` → design-spec 6.4 の「ログインの有効期限切れ」の流れ。編集中なら、フォームの状態を退避して（ADR-008。扱いは design-spec 6.4 の表）から、`/admin/login?redirect={今のパス}` へ移す。`FORBIDDEN` → ログアウトして（失敗しても）、`/admin/login?error=forbidden` に移して design-spec 6.4 の「管理者でないアカウント」の表示 |
 | 想定外のエラー | Sentry に送る。管理画面は通信・サーバーエラーと同じ表示で、開発中（`ENVIRONMENT=local`）だけ詳細を出す。公開側は C2 で、詳細は画面に出さずログで見る（上の公開側のサーバー関数の扱い） |
 
 ### ログとの対応
@@ -1754,11 +1755,11 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 
 | レイヤー | ツール | カバレッジ目標 | 対象 |
 |----------|--------|---------------|------|
-| ユニット | Vitest（Node.js 環境） | `src/domain/`・`src/i18n/`・`src/markdown/` の行カバレッジ 90% | スラッグの生成と重複の連番、言語ありの判定と代替、抜粋の作り方、公開状態の遷移（5.3）と公開のルール、日付・期間の書式、Markdown の描画（生の HTML・`javascript:`・見出しのレベル・外部リンク・太字と使用技術の照合）、キャッシュのキーの使用技術の版 |
+| ユニット | Vitest（Node.js 環境） | `src/domain/`・`src/i18n/`・`src/markdown/` の行カバレッジ 90% | スラッグの生成と重複の連番、言語ありの判定と代替、抜粋の作り方、公開状態の遷移（5.3）と公開のルール、日付・期間の書式、Markdown の描画（生の HTML・`javascript:`・見出しのレベル・外部リンク・太字と使用技術の照合・元の行番号）、キャッシュのキーの使用技術の版。管理画面の規則（`src/admin/`）: 自動退避の規則（design-spec 6.4 の表の各行）、Cmd/Ctrl+S の割り当て、保存の状態の文言、ボタンを押せない理由、最初の誤りの欄の順、文字数の表示、表示の切り替えの記憶 |
 | API 結合 | Vitest ＋ `@cloudflare/vitest-pool-workers`（workerd 上で、ローカルの D1・R2 を使う。テストファイルごとにマイグレーションを当てた空の D1） | `/api/admin/*` の全手続きについて、未認証で 401・管理者でないセッションで 403 になるテストを必ず持つ（認可マトリクスの照合）。主要な手続きの正常系とエラー系 | CMS API の全手続き、Better Auth の hooks（管理者でない ID を拒否）、アップロードの形式・上限、`/media/*` |
 | 公開側の読み取り | 同上 | 各サーバー関数の正常系と、下書き・詳細本文なしが返らないこと | 公開中だけを返す、並び順、前後のナビ、言語の代替 |
-| E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、経歴・作品の行の展開、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元 |
-| アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P5・A1・A2 で重大（serious 以上）な違反 0件 | 自動で検出できる範囲 |
+| E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、経歴・作品の行の展開、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元、長い本文をスクロールしても操作バーが見えている、Cmd/Ctrl+S、「日英」で日英の本文を書いて保存、誤りの欄への移動、設定の引き出し、自動退避の復元の提案、使用技術を検索の欄を閉じずに続けて選ぶ、画像を挿入、L6（経歴）の「日英」で保存、ログアウトで退避を消す |
+| アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P5・A1・A2 と、A4・A5・A8 の編集ビュー（ライト・ダーク）で重大（serious 以上）な違反 0件 | 自動で検出できる範囲。表示の切り替え・設定の引き出し・画像を挿入をキーボードだけで操作できること |
 | Lighthouse | Lighthouse CI（`@lhci/cli`。モバイルの設定） | PRD 5章の Lighthouse の目標を、3回の中央値で assert する | デモデータを入れたプレビューの P1 と、P2〜P5 の各1ページ。本番では Cloudflare の拠点が HTML・JS・CSS を圧縮するが、ローカルのプレビューは圧縮しないので、gzip で圧縮して中継する（`scripts/lhci/server.ts`。本番の brotli より縮まない側で測る）。ローカルの robots.txt はすべてを拒否する（ADR-019）ので、SEO の `is-crawlable` の項目は外して測る |
 
 - API 結合テストの 401・403 の確認は、CSRF のヘッダーを付けたリクエストで行う（5.1）。ヘッダーがないときに 403 になることも別に確かめる。

@@ -48,15 +48,16 @@ const CARDS: ({ type: DraftType; countKey: Exclude<keyof Counts, 'stacks'> } | {
   { type: 'coding-log', countKey: 'codingLogs' },
 ]
 
-const cardLink = css({ color: 'text.default', textDecoration: 'none', _hover: { color: 'accent.hover' } })
+const cardLink = css({ color: 'text.default', textDecoration: 'none', _hover: { textDecoration: 'underline' } })
 /** カード全体を押せるようにする。見出しのリンクの ::after をカードいっぱいに広げる（design-spec 6.5） */
 const stretchedLink = css({ _after: { content: '""', position: 'absolute', inset: 'none' } })
 /** 下書きの件数のリンクは、広げた見出しのリンクの上に重ねて、こちらを押せるようにする */
 const countLink = css({
   position: 'relative',
-  color: 'accent.default',
-  textDecoration: 'none',
-  _hover: { textDecoration: 'underline' },
+  color: 'link.default',
+  textDecoration: 'underline',
+  textDecorationColor: 'link.underline',
+  _hover: { textDecorationColor: 'link.default' },
 })
 const countText = css({ textStyle: 'body-sm', fontVariantNumeric: 'tabular-nums' })
 

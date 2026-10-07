@@ -30,6 +30,18 @@ function englishPanel(page: Page) {
   return page.getByRole('tabpanel', { name: /English/ })
 }
 
+/** 操作バーの表示の切り替え（書く｜並べる｜日英｜プレビュー） */
+function viewSwitch(page: Page) {
+  return page.getByRole('radiogroup', { name: '表示' })
+}
+
+/** 表示の切り替えの項目（見た目はアイコンだけ。名前は読み上げの文字とツールチップにある） */
+function viewItem(page: Page, name: string) {
+  return viewSwitch(page)
+    .locator('label')
+    .filter({ has: page.getByText(name, { exact: true }) })
+}
+
 /** 公開サイトの詳細ページを開いて中身を確かめ、管理画面へ戻る */
 async function expectPublicPage(page: Page, path: string, texts: string[]) {
   await page.goto(path)
@@ -68,7 +80,7 @@ test('A5: 書く → 下書き保存 → プレビュー → 公開 → 公開�
     await page.getByRole('tab', { name: /日本語/ }).click()
 
     // 使用技術: 登録済みの技術を検索して選び、候補にない技術はその場で作る
-    // 「+ 追加」で検索の欄を出し、選ぶと閉じて「+ 追加」に戻る
+    // 「+ 追加」で検索の欄を出す。選んでも閉じず、Esc で閉じて「+ 追加」に戻る
     const addStack = page.getByRole('button', { name: '追加', exact: true })
     const stackInput = page.getByRole('combobox', { name: '使用技術を検索' })
     await addStack.click()
@@ -76,25 +88,32 @@ test('A5: 書く → 下書き保存 → プレビュー → 公開 → 公開�
     const firstOption = page.getByRole('option').first()
     const firstName = (await firstOption.innerText()).trim()
     await firstOption.click()
+    await expect(stackInput).toBeVisible()
+    await expect(firstOption).toContainText('（選択済み）')
+    await stackInput.press('Escape')
     await expect(stackInput).toHaveCount(0)
     await expect(addStack).toBeFocused()
     // 選び済みの技術の名前では「新しい技術として追加」を出さない（同じ技術を二重に作らない）
     await addStack.click()
     await stackInput.fill(firstName)
-    await expect(page.getByText('該当する技術がありません（選んだ技術は出しません）')).toBeVisible()
+    await expect(page.getByRole('option', { name: new RegExp(firstName) })).toContainText('（選択済み）')
     await expect(page.getByRole('option', { name: /新しい技術として追加/ })).toHaveCount(0)
     await stackInput.fill(newStack)
     await page.getByRole('option', { name: `「${newStack}」を新しい技術として追加` }).click()
+    await stackInput.press('Escape')
     const chips = page.getByRole('list', { name: '選んだ使用技術（並びがトップの行に出る順）' })
     await expect(chips.getByRole('listitem')).toHaveText([firstName, newStack])
-    // チップの並べ替え（キーボード）: 作った技術を先頭へ
+    // 並べ替え（キーボード）: 作った技術を先頭へ。横に並べて折り返すので、同じ行なら左、次の行に折り返していれば上の矢印で動かす
+    const firstBox = await chips.getByRole('listitem').nth(0).boundingBox()
+    const newBox = await chips.getByRole('listitem').nth(1).boundingBox()
+    const sameRow = firstBox !== null && newBox !== null && Math.abs(firstBox.y - newBox.y) < firstBox.height / 2
     await moveUpByKeyboard(
       page,
       chips.getByRole('button', { name: `「${newStack}」を並べ替える` }),
       newStack,
       2,
       1,
-      'ArrowLeft',
+      sameRow ? 'ArrowLeft' : 'ArrowUp',
     )
     await expect(chips.getByRole('listitem')).toHaveText([newStack, firstName])
 
@@ -416,7 +435,7 @@ test('L5: アップロードのあいだに画面の幅がモバイルに変わ�
   await pasteFile(editor, { name: 'resize.png', type: 'image/png', base64: PNG_BASE64 })
   await expect(editor).toContainText('アップロード中…')
   await page.setViewportSize({ width: 375, height: 800 })
-  await expect(page.getByRole('tab', { name: 'エディタ' })).toBeVisible()
+  await expect(viewItem(page, '書く')).toBeVisible()
   await expect(page.getByRole('button', { name: '下書き保存' })).toBeDisabled()
   release()
   await expect(editor).toContainText(/!\[resize\]\(\/media\/uploads\/[^)]+\.png\)/)
@@ -426,15 +445,16 @@ test('L5: アップロードのあいだに画面の幅がモバイルに変わ�
 test.describe('モバイル幅（<768px）', () => {
   test.use({ viewport: { width: 375, height: 800 } })
 
-  test('L5 はエディタとプレビューをタブで切り替える', async ({ page, login }) => {
+  test('L5 は「書く｜プレビュー｜日英」で切り替え、「並べる」は出さない', async ({ page, login }) => {
     await login({ admin: true })
     await page.goto('/admin/works/new')
     const editor = page.getByRole('textbox', { name: '詳細本文（日本語）' })
     await editor.fill('## モバイルの見出し')
-    await page.getByRole('tab', { name: 'プレビュー' }).click()
+    await expect(viewItem(page, '並べる')).toHaveCount(0)
+    await viewItem(page, 'プレビュー').click()
     await expect(page.getByRole('heading', { name: 'モバイルの見出し' })).toBeVisible()
     await expect(editor).toBeHidden()
-    await page.getByRole('tab', { name: 'エディタ' }).click()
+    await viewItem(page, '書く').click()
     await expect(editor).toHaveText('## モバイルの見出し')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })

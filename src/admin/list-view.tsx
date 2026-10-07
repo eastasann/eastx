@@ -107,7 +107,7 @@ const primaryLink = css({
   color: 'text.default',
   textStyle: 'ui',
   textDecoration: 'none',
-  _hover: { color: 'accent.hover' },
+  _hover: { textDecoration: 'underline' },
 })
 const iconButton = button({ variant: 'ghost', shape: 'icon' })
 

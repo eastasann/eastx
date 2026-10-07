@@ -64,6 +64,32 @@ export function formatAdminDate(value: DateInput): string {
   return `${parts.year}/${parts.month}/${parts.day}`
 }
 
+const adminTimeParts = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'Asia/Tokyo',
+})
+
+function tokyoParts(value: DateInput): Record<string, string> {
+  return Object.fromEntries(adminTimeParts.formatToParts(toDate(value)).map((p) => [p.type, p.value]))
+}
+
+/**
+ * 管理画面の保存の時刻（design-spec 6.7.4・6.4）→ 今日（日本時間）なら「14:32」、それ以外は「10月6日 14:32」。
+ * 年は出さない（一時保存と最終保存は最近のものを見せるため）
+ */
+export function formatAdminTime(value: DateInput, now: DateInput = new Date()): string {
+  const parts = tokyoParts(value)
+  const today = tokyoParts(now)
+  const time = `${parts.hour}:${parts.minute}`
+  const sameDay = parts.year === today.year && parts.month === today.month && parts.day === today.day
+  return sameDay ? time : `${parts.month}月${parts.day}日 ${time}`
+}
+
 /** 管理画面の年月 → 「2026/09」 */
 export function formatAdminYearMonth(value: string): string {
   yearMonthToDate(value)

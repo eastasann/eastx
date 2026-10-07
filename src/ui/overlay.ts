@@ -32,7 +32,8 @@ export const optionItem = css({
   textDecoration: 'none',
   _highlighted: { bg: 'bg.muted' },
   _disabled: { opacity: 'disabled', cursor: 'not-allowed' },
-  '&[aria-current=page]': { color: 'accent.default' },
+  // 今いる項目は、アクセントではなく太さで示す（design-spec 4.4）
+  '&[aria-current=page]': { textStyle: 'ui-strong' },
 })
 
 /** 浮いた一覧の内側 */
