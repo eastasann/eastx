@@ -1,6 +1,6 @@
 /**
  * トップのセクション内ページング（design-spec 6.1.3）。経歴・プロジェクト・作品・ブログ・コーディング記録で共通。
- * - 縦に5件ずつ。全件を最初から描いておき、切り替えは待ち時間なしで、横にスライドする
+ * - 縦に10件ずつ。全件を最初から描いておき、切り替えは待ち時間なしで、横にスライドする
  * - 全ページを grid の同じ升目に重ねるので、セクションの高さは一番高いページに揃う
  * - ページ番号は URL に載せず、履歴ごとに覚える（ブラウザの「戻る」で戻すため。src/site/page-memory.ts）
  */
@@ -13,7 +13,7 @@ import { button } from '~/ui/recipes'
 import type { PagedSectionId } from './history-state'
 import { readSavedPages, savePage } from './page-memory'
 
-export const PAGE_SIZE = 5
+export const PAGE_SIZE = 10
 
 /** 横スワイプとみなす移動量（px）。縦のスクロールと区別するため、横の移動が縦より大きいことも条件にする */
 const SWIPE_THRESHOLD = 40
@@ -48,7 +48,7 @@ export function PagedSection<T extends { id: string }>({
   const pages = chunk(items)
   const pageCount = pages.length
   const [page, setPage] = useState(1)
-  // 項目の key に入れる。ページを切り替えたら項目を作り直し、広げた「続きを読む」を閉じる（design-spec 6.1.3）
+  // 項目の key に入れる。ページを切り替えたら項目を作り直し、広げた行を閉じる（design-spec 6.1.3）
   const [generation, setGeneration] = useState(0)
   const [animated, setAnimated] = useState(false)
   const [announcement, setAnnouncement] = useState('')
@@ -64,8 +64,11 @@ export function PagedSection<T extends { id: string }>({
   const shownPath = useRef<string | null>(null)
   // biome-ignore lint/correctness/useExhaustiveDependencies: 履歴（entryKey）が変わったときだけ合わせ直す。items・page は同じ履歴の中の値を読む
   useLayoutEffect(() => {
-    const samePath = shownPath.current === pathname
+    const previousPath = shownPath.current
+    const samePath = previousPath === pathname
     shownPath.current = pathname
+    // 言語の切り替えは同じルートのまま部品を作り直さないので、項目を作り直して広げた行を閉じる（design-spec 6.1.3）
+    if (previousPath !== null && !samePath) setGeneration((g) => g + 1)
     const saved = entryKey === undefined ? undefined : readSavedPages(entryKey)[id]
     const index = section === id && itemId !== undefined ? items.findIndex((item) => item.id === itemId) : -1
     setAnimated(false)
@@ -115,12 +118,9 @@ export function PagedSection<T extends { id: string }>({
     <section
       id={id}
       aria-labelledby={headingId}
-      className={css({ display: 'flex', flexDirection: 'column', gap: 'stack' })}
+      className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}
     >
-      <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'inline' })}>
-        <h2 id={headingId} className={css({ textStyle: 'heading-2' })}>
-          {title}
-        </h2>
+      <SectionHeading id={headingId} title={title}>
         {paged && (
           // 端のボタンは disabled ではなく aria-disabled で無効にする。disabled にすると、押してフォーカスがあるボタンが
           // 端で無効になったときにフォーカスが外れ、キーボードの ← → が効かなくなる（go は範囲の外を無視する）
@@ -154,7 +154,7 @@ export function PagedSection<T extends { id: string }>({
             </button>
           </div>
         )}
-      </div>
+      </SectionHeading>
       {paged && (
         <p aria-live="polite" className={css({ srOnly: true })}>
           {announcement}
@@ -166,7 +166,8 @@ export function PagedSection<T extends { id: string }>({
         onPointerCancel={() => {
           swipeStart.current = null
         }}
-        className={css({ display: 'grid', overflowX: 'clip', touchAction: 'pan-y' })}
+        // 行のホバーの地は行の文字より左右に広げる。横のスライドを切り取る範囲（overflowX）も同じだけ広げる
+        className={css({ display: 'grid', mx: '-inset-dense', overflowX: 'clip', touchAction: 'pan-y' })}
       >
         {pages.map((pageItems, index) => {
           const number = index + 1
@@ -181,9 +182,10 @@ export function PagedSection<T extends { id: string }>({
                 css({
                   gridRow: '1',
                   gridColumn: '1',
+                  // grid の列の幅を、折り返さない行（はみ出しを「…」で切る）の文字の長さに引っ張らせない
+                  minW: '[0]',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 'stack-dense',
                   translate: 'auto',
                   '&[data-position=before]': { translateX: '-full', visibility: 'hidden' },
                   '&[data-position=after]': { translateX: 'full', visibility: 'hidden' },
@@ -207,5 +209,34 @@ export function PagedSection<T extends { id: string }>({
         })}
       </div>
     </section>
+  )
+}
+
+/**
+ * P1 のセクション見出し。小さなグレーのラベルと、その下の細い区切り線（design-spec 4.4）。
+ * children は見出しの右に置く操作（ページング）
+ */
+export function SectionHeading({ id, title, children }: { id: string; title: string; children?: ReactNode }) {
+  return (
+    <div
+      className={css({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        columnGap: 'inline',
+        minH: 'control',
+        borderBottomWidth: 'default',
+        borderBottomStyle: 'solid',
+        borderBottomColor: 'border.default',
+      })}
+    >
+      <h2 id={id} className={css({ textStyle: 'section-label', color: 'text.muted' })}>
+        {title}
+      </h2>
+      {children && (
+        <div className={css({ display: 'flex', alignItems: 'center', gap: 'inline', ml: 'auto' })}>{children}</div>
+      )}
+    </div>
   )
 }

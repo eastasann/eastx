@@ -26,8 +26,6 @@ export const ja = {
   },
   period: { present: '現在' },
   action: {
-    readMore: '続きを読む',
-    close: '閉じる',
     visitSite: 'サイトを見る',
     github: 'GitHub',
     reload: '再読み込み',
@@ -78,8 +76,6 @@ export const ja = {
     announce: (current: number, total: number): string => `${total}ページ中${current}ページ目`,
   },
   header: {
-    sectionNav: 'セクション',
-    menu: 'メニュー',
     language: '言語',
   },
   footer: {

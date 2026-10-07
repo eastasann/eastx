@@ -10,6 +10,7 @@ import { profileInput, type profileOutput } from '~/api/contract/profile'
 import { SOCIAL_SERVICES } from '~/db/enums'
 import { languagesOf } from '~/domain/languages'
 import type { Lang } from '~/i18n/detect'
+import type { MarkdownStack } from '~/markdown/render'
 import { CloseIcon, PlusIcon } from '~/ui/icons'
 import { button } from '~/ui/recipes'
 import { api } from './api'
@@ -85,9 +86,11 @@ const TITLE = 'プロフィール'
 
 export function ProfilePage() {
   const query = useQuery({ queryKey: ['profile'], queryFn: () => api.profile.get() })
+  // 自己紹介のプレビューで、太字と照合する使用技術（ADR-012）。A7 の一覧と同じキーで読み、キャッシュを共有する
+  const stacksQuery = useQuery({ queryKey: ['stacks', 'list'], queryFn: () => api.stacks.list() })
   const disabledActions = <SaveActions pending={null} disabled onSave={() => {}} />
 
-  if (query.status === 'pending') {
+  if (query.status === 'pending' || stacksQuery.status === 'pending') {
     return (
       <FormLayout title={TITLE}>
         <EditLoading actions={disabledActions} />
@@ -95,17 +98,24 @@ export function ProfilePage() {
     )
   }
   // プロフィールがまだないときは NOT_FOUND。空のフォームを出し、初めて保存したときに作る（design-spec 6.7.4）
-  if (query.status === 'error' && !isNotFoundError(query.error)) {
+  if ((query.status === 'error' && !isNotFoundError(query.error)) || stacksQuery.status === 'error') {
     return (
       <FormLayout title={TITLE}>
-        <EditLoadError onRetry={() => query.refetch()} actions={disabledActions} />
+        <EditLoadError
+          onRetry={() => {
+            if (query.status === 'error') void query.refetch()
+            if (stacksQuery.status === 'error') void stacksQuery.refetch()
+          }}
+          actions={disabledActions}
+        />
       </FormLayout>
     )
   }
-  return <ProfileEditor initial={query.data ?? null} />
+  // items をそのまま渡す。描画のたびに作り直すと、プレビューが描画のたびに描き直す（TanStack Query は同じ中身なら同じ配列を返す）
+  return <ProfileEditor initial={query.data ?? null} stacks={stacksQuery.data.items} />
 }
 
-function ProfileEditor({ initial }: { initial: Profile | null }) {
+function ProfileEditor({ initial, stacks }: { initial: Profile | null; stacks: MarkdownStack[] }) {
   const queryClient = useQueryClient()
   const [saved, setSaved] = useState(initial)
   const [baseline, setBaseline] = useState(() => toForm(initial))
@@ -177,6 +187,7 @@ function ProfileEditor({ initial }: { initial: Profile | null }) {
             value={field.state.value}
             onChange={field.handleChange}
             lang={lang}
+            stacks={stacks}
             {...save.fieldState(field.name)}
           />
         )}

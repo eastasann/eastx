@@ -2,7 +2,7 @@
  * 詳細ページ（P2〜P5。design-spec 6.2・6.3）で共通の部品: 戻るリンク・前後のナビ・本文の言語の注記
  */
 import { Link } from '@tanstack/react-router'
-import { css } from 'styled-system/css'
+import { css, cx } from 'styled-system/css'
 import type { Neighbor } from '~/content/types'
 import type { Lang } from '~/i18n/detect'
 import type { Messages } from '~/i18n/messages'
@@ -25,9 +25,9 @@ const textLink = css({
   alignItems: 'center',
   gap: 'inline',
   textStyle: 'ui',
-  color: 'accent.default',
+  color: 'link.default',
   textDecoration: 'none',
-  _hover: { color: 'accent.hover', textDecoration: 'underline' },
+  _hover: { textDecoration: 'underline' },
 })
 
 /**
@@ -91,15 +91,19 @@ export function NeighborNav({
       to={DETAIL_ROUTES[kind]}
       params={{ lang, slug: neighbor.slug }}
       rel={direction === 'before' ? 'prev' : 'next'}
-      className={css({
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'inline',
-        textDecoration: 'none',
-        alignItems: direction === 'before' ? 'flex-start' : 'flex-end',
-        textAlign: direction === 'before' ? 'start' : 'end',
-        ml: direction === 'after' ? 'auto' : undefined,
-      })}
+      // group: ホバーでタイトルにだけ下線を引く（_groupHover）
+      className={cx(
+        'group',
+        css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'inline',
+          textDecoration: 'none',
+          alignItems: direction === 'before' ? 'flex-start' : 'flex-end',
+          textAlign: direction === 'before' ? 'start' : 'end',
+          ml: direction === 'after' ? 'auto' : undefined,
+        }),
+      )}
     >
       <span
         className={css({
@@ -114,7 +118,11 @@ export function NeighborNav({
         {labels[direction]}
         {direction === 'after' && <ArrowRightIcon size="sm" />}
       </span>
-      <Text text={neighbor.title} pageLang={lang} className={css({ textStyle: 'ui', color: 'accent.default' })} />
+      <Text
+        text={neighbor.title}
+        pageLang={lang}
+        className={css({ textStyle: 'ui', color: 'link.default', _groupHover: { textDecoration: 'underline' } })}
+      />
     </Link>
   )
   return (

@@ -1,40 +1,28 @@
 /**
- * 公開側のヘッダー（design-spec 6.1.2）。スクロール中も上部に固定し、モバイル幅ではセクションメニューをメニューボタンにまとめる
+ * 公開側のヘッダー（design-spec 6.1.2）。サイト名と、言語・テーマの切り替えだけを置き、固定しない
  */
 import { Link, useLocation, useRouter } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
-import { css, cva, cx } from 'styled-system/css'
-import type { SectionId } from '~/content/site-chrome'
+import { css, cva } from 'styled-system/css'
 import { LANGS, type Lang } from '~/i18n/detect'
 import type { Messages } from '~/i18n/messages'
-import { MenuIcon } from '~/ui/icons'
-import { Menu } from '~/ui/menu'
 import { isPlainClick } from '~/ui/navigation'
 import { LANG_COOKIE, writePreferenceCookie } from '~/ui/preferences'
-import { button } from '~/ui/recipes'
 import { ThemeToggle } from '~/ui/theme'
-import { visibleSection } from './section-scroll'
 
 export interface SiteHeaderProps {
   lang: Lang
-  /** 出すセクション（中身が1件以上のもの） */
-  sections: SectionId[]
   messages: Messages
 }
 
 const header = css({
-  position: 'sticky',
-  top: 'none',
-  zIndex: 'header',
   display: 'flex',
   alignItems: 'center',
   gap: 'inline',
   h: 'header',
+  w: '[100%]',
+  maxW: 'site-column',
+  mx: 'auto',
   px: 'gutter',
-  bg: 'bg.canvas',
-  borderBottomWidth: 'default',
-  borderBottomStyle: 'solid',
-  borderBottomColor: 'border.default',
 })
 
 const navLink = cva({
@@ -50,18 +38,16 @@ const navLink = cva({
   variants: {
     /** 今の言語は強調し、押せる見た目にしない */
     current: {
-      false: { color: 'text.default', _hover: { color: 'accent.hover' } },
+      false: { color: 'text.muted', _hover: { color: 'text.default' } },
       true: { color: 'accent.default', textDecoration: 'underline' },
     },
   },
   defaultVariants: { current: false },
 })
 
-export function SiteHeader({ lang, sections, messages }: SiteHeaderProps) {
-  const router = useRouter()
+export function SiteHeader({ lang, messages }: SiteHeaderProps) {
   const location = useLocation()
   const isTop = location.pathname === `/${lang}` || location.pathname === `/${lang}/`
-  const { navRef, listRef, overflowing } = useOverflow()
 
   return (
     <header className={header}>
@@ -77,93 +63,21 @@ export function SiteHeader({ lang, sections, messages }: SiteHeaderProps) {
       >
         {messages.siteName}
       </Link>
-
-      {sections.length > 0 && (
-        // タブレット幅で入りきらないときはメニューボタンにまとめる（design-spec 4.3）。
-        // 入りきるかを測り続けるため、隠すときも場所は残す（visibility）
-        <nav
-          ref={navRef}
-          aria-label={messages.header.sectionNav}
-          aria-hidden={overflowing || undefined}
-          className={cx(
-            css({ hideBelow: 'tablet', flex: '1', overflow: 'hidden' }),
-            overflowing && css({ visibility: 'hidden' }),
-          )}
-        >
-          <ul ref={listRef} className={css({ display: 'flex', w: 'max-content' })}>
-            {sections.map((id) => (
-              <li key={id}>
-                <Link
-                  to="/$lang"
-                  params={{ lang }}
-                  hash={id}
-                  activeOptions={{ exact: true, includeHash: true }}
-                  className={navLink()}
-                >
-                  {messages.section[id]}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      )}
-
       <div className={css({ display: 'flex', alignItems: 'center', gap: 'inline', ml: 'auto' })}>
         <LanguageSwitch lang={lang} messages={messages} />
         <ThemeToggle labels={messages.theme} />
-        {sections.length > 0 && (
-          <div className={overflowing ? undefined : css({ hideFrom: 'tablet' })}>
-            <Menu
-              trigger={<MenuIcon />}
-              triggerLabel={messages.header.menu}
-              triggerClassName={button({ variant: 'ghost', shape: 'icon' })}
-              items={sections.map((id) => ({
-                value: id,
-                label: messages.section[id],
-                href: `/${lang}#${id}`,
-                onClick: (event) => {
-                  if (!isPlainClick(event)) return
-                  event.preventDefault()
-                  void router.navigate({ to: '/$lang', params: { lang }, hash: id })
-                },
-              }))}
-            />
-          </div>
-        )}
       </div>
     </header>
   )
 }
 
-/** セクションメニューの並び（ul）が、置き場所（nav）の幅に入りきらないか。幅が変わるたびに測り直す */
-function useOverflow() {
-  const navRef = useRef<HTMLElement>(null)
-  const listRef = useRef<HTMLUListElement>(null)
-  const [overflowing, setOverflowing] = useState(false)
-  useEffect(() => {
-    const nav = navRef.current
-    const list = listRef.current
-    if (!nav || !list) return
-    const measure = () => setOverflowing(list.offsetWidth > nav.clientWidth)
-    const observer = new ResizeObserver(measure)
-    observer.observe(nav)
-    observer.observe(list)
-    measure()
-    return () => observer.disconnect()
-  }, [])
-  return { navRef, listRef, overflowing }
-}
-
 /**
- * 「JA ｜ EN」。同じ画面を URL の言語の部分だけ変えて開き直し、選んだ言語を Cookie に覚える（design-spec 1.4）。
- * トップでは、表示中のセクションを history state で渡す（SDD 4.1）
+ * 「JA ｜ EN」。同じ画面を URL の言語の部分だけ変えて開き直し、選んだ言語を Cookie に覚える（design-spec 1.4）
  */
 function LanguageSwitch({ lang, messages }: { lang: Lang; messages: Messages }) {
   const router = useRouter()
   const location = useLocation()
   const rest = location.pathname.replace(/^\/[^/]*/, '')
-  const hash = location.hash === '' ? '' : `#${location.hash}`
-  const isTop = rest === '' || rest === '/'
 
   return (
     // biome-ignore lint/a11y/useSemanticElements: 言語の選択肢をまとめて読み上げる。fieldset はフォームの部品ではないので使わない
@@ -185,7 +99,8 @@ function LanguageSwitch({ lang, messages }: { lang: Lang; messages: Messages }) 
             </span>
           )
         }
-        const href = `/${target}${rest}${location.searchStr}${hash}`
+        // ハッシュは引き継がない。切り替えた先はページの一番上から始める（design-spec 1.4）
+        const href = `/${target}${rest}${location.searchStr}`
         return (
           <span key={target} className={css({ display: 'contents' })}>
             {separator}
@@ -198,8 +113,7 @@ function LanguageSwitch({ lang, messages }: { lang: Lang; messages: Messages }) 
                 writePreferenceCookie(LANG_COOKIE, target)
                 if (!isPlainClick(event)) return
                 event.preventDefault()
-                const section = isTop ? visibleSection() : undefined
-                void router.navigate({ href, state: section === undefined ? undefined : { section } })
+                void router.navigate({ href })
               }}
             >
               {text}

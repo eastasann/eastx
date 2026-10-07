@@ -26,7 +26,7 @@ describe('insertSeed', () => {
       social_link: 4,
       career: 8,
       stack: 15,
-      work: 8,
+      work: 12,
       work_stack: data.workStacks.length,
       project: 7,
       project_stack: data.projectStacks.length,
@@ -47,7 +47,7 @@ describe('insertSeed', () => {
     const c = await counts()
     expect(c.blog_post).toBe(0)
     expect(c.coding_log).toBe(0)
-    expect(c.work).toBe(8)
+    expect(c.work).toBe(12)
     expect(c.admin_user).toBe(1)
   })
 })

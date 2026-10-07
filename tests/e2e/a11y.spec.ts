@@ -59,6 +59,18 @@ test.describe('公開側', () => {
       })
     }
   }
+
+  test('P1 トップ（経歴・作品・プロジェクトの行を広げた状態）: axe の重大な違反がない', async ({ page }) => {
+    await gotoHydrated(page, '/ja')
+    for (const id of ['career', 'projects', 'works']) {
+      const toggle = page.locator(`#${id} ul:not([inert])`).getByRole('button', { expanded: false }).first()
+      // キーボードで広げる
+      await toggle.focus()
+      await page.keyboard.press('Enter')
+      await expect(page.locator(`#${id} [aria-expanded="true"]`)).toHaveCount(1)
+    }
+    expect(await seriousViolations(page)).toEqual([])
+  })
 })
 
 test.describe('管理画面', () => {

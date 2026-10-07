@@ -126,7 +126,7 @@ describe('loadTopPage', () => {
     ])
   })
 
-  it('使用技術は「トップに表示する」だけを表示順で、カードの技術はその中身の中での並び順で', async () => {
+  it('使用技術は「トップに表示する」だけを表示順で、行の技術はその中身の中での並び順で', async () => {
     const react = crypto.randomUUID()
     const go = crypto.randomUUID()
     const perl = crypto.randomUUID()
@@ -145,7 +145,7 @@ describe('loadTopPage', () => {
     expect(view.works[0]?.stacks.map((s) => s.key)).toEqual(['perl', 'react'])
   })
 
-  it('詳細本文の有無をカードに返す', async () => {
+  it('詳細本文の有無を行に返す', async () => {
     await db.batch([
       db.insert(work).values({ titleJa: 'あり', slug: 'a', bodyEn: 'Body', sortOrder: 0, status: 'published' }),
       db.insert(work).values({ titleJa: 'なし', slug: 'b', sortOrder: 1, status: 'published' }),
@@ -185,11 +185,12 @@ describe('loadTopPage', () => {
     expect(app?.summary).toEqual({ value: 'Summary', lang: 'en' })
   })
 
-  it('ブログはタイトルと本文の両方で言語を決め、本文から抜粋を作る', async () => {
+  it('ブログはタイトルと本文の両方で言語を決め、抜粋とサムネイルは返さない', async () => {
     await db.insert(blogPost).values({
       titleJa: '日本語のタイトルだけ',
       titleEn: 'English title',
-      bodyEn: '## Heading\n\nFirst paragraph.\n\n```ts\nconst hidden = 1\n```',
+      bodyEn: '## Heading\n\nFirst paragraph.',
+      thumbnailUrl: '/media/uploads/2026/09/post.png',
       slug: 'post',
       status: 'published',
       publishedAt: at('2026-09-01T00:00:00Z'),
@@ -197,7 +198,45 @@ describe('loadTopPage', () => {
     const [post] = (await loadTopPage(context, 'ja')).blogPosts
     expect(post?.availability).toEqual({ lang: 'en', fallback: true })
     expect(post?.title).toEqual({ value: 'English title', lang: 'en' })
-    expect(post?.excerpt).toEqual({ value: 'Heading First paragraph.', lang: 'en' })
+    expect(post).not.toHaveProperty('excerpt')
+    expect(post).not.toHaveProperty('thumbnailUrl')
+  })
+
+  it('コーディング記録も本文の有無だけで言語を決め、抜粋とサムネイルは返さない', async () => {
+    await db.insert(codingLog).values({
+      kind: 'memo',
+      titleJa: 'メモ',
+      titleEn: 'Memo',
+      bodyJa: '本文',
+      thumbnailUrl: '/media/uploads/2026/09/log.png',
+      slug: 'memo',
+      status: 'published',
+      publishedAt: at('2026-09-01T00:00:00Z'),
+    })
+    const [log] = (await loadTopPage(context, 'en')).codingLogs
+    expect(log?.availability).toEqual({ lang: 'ja', fallback: true })
+    expect(log).not.toHaveProperty('excerpt')
+    expect(log).not.toHaveProperty('thumbnailUrl')
+  })
+
+  it('自己紹介の太字が使用技術と一致したら、トップに表示しない技術でもアイコンを入れる', async () => {
+    await db.batch([
+      db.insert(profile).values({ nameJa: '東', bioJa: '**React** と **TypeScript** と **使いやすさ**' }),
+      db.insert(stack).values({
+        key: 'react',
+        displayName: 'React',
+        iconUrl: '/media/uploads/2026/09/react.svg',
+        sortOrder: 0,
+        showOnTop: false,
+      }),
+      db.insert(stack).values({ key: 'typescript', displayName: 'TypeScript', sortOrder: 1, showOnTop: true }),
+    ])
+    const html = (await loadTopPage(context, 'ja')).profile?.bio?.html ?? ''
+    expect(html).toContain(
+      '<img src="/media/uploads/2026/09/react.svg" alt="" width="1" height="1" data-stack-icon="" data-initial="R"><strong>React</strong>',
+    )
+    expect(html).toContain('<span data-stack-initial="" aria-hidden="true">T</span><strong>TypeScript</strong>')
+    expect(html).toContain('と <strong>使いやすさ</strong>')
   })
 
   it('プロフィールは項目単位の代替だけで出し、タイトルと説明に使う', async () => {

@@ -42,6 +42,7 @@ export interface SocialLinkView {
 export interface ProfileView {
   name: LocalizedText | null
   headline: LocalizedText | null
+  /** 太字と一致した使用技術のアイコン入り（ADR-012） */
   bio: LocalizedHtml | null
   avatarUrl: string | null
   socialLinks: SocialLinkView[]
@@ -90,8 +91,6 @@ export interface BlogPostItem {
   /** ISO 8601 */
   publishedAt: string
   title: LocalizedText
-  excerpt: LocalizedText | null
-  thumbnailUrl: string | null
   availability: Availability
 }
 

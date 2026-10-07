@@ -24,19 +24,16 @@ test.describe('訪問者', () => {
     await expect(page.getByRole('heading', { level: 2, name: '経歴' })).toBeVisible()
     await expect(page.locator('#career').getByText('シニアエンジニア')).toBeVisible()
 
-    // プロジェクト欄をセクション内でページングし、プロジェクト詳細へ → 戻ると元のページ
+    // プロジェクト欄（10件以下なのでページングなし）の行を ▸ で広げて中身を見て、プロジェクト詳細へ → 戻る
     const projects = page.locator('#projects')
-    const projectPaging = projects.getByRole('group', { name: 'プロジェクトのページ' })
-    await projectPaging.getByRole('button', { name: '次のページ' }).click()
-    await expect(projectPaging).toContainText('2 / 2')
-    await projectPaging.getByRole('button', { name: '前のページ' }).click()
-    await expect(projectPaging).toContainText('1 / 2')
+    await projects.getByRole('button', { name: /決済基盤の刷新/ }).click()
+    await expect(projects.getByRole('img', { name: '決済基盤の刷新' })).toBeVisible()
     await projects.getByRole('link', { name: '決済基盤の刷新' }).click()
     await expect(page).toHaveURL('/ja/projects/payment-renewal')
     await expect(page.getByRole('heading', { level: 1, name: '決済基盤の刷新' })).toBeVisible()
     await page.getByRole('link', { name: 'プロジェクトへ戻る' }).click()
     await expect(page).toHaveURL('/ja#projects')
-    await expect(projectPaging).toContainText('1 / 2')
+    await expect(projects.getByRole('link', { name: '決済基盤の刷新' })).toBeVisible()
 
     // 作品欄をページングして作品詳細へ → 戻るで元のページ（2ページ目）
     const works = page.locator('#works')
@@ -53,16 +50,16 @@ test.describe('訪問者', () => {
     // 前後のナビで別の作品へ → 外部リンクで実物を確かめる（別タブ）
     await works.getByRole('link', { name: 'レシピノート' }).click()
     await page.getByRole('navigation', { name: '前後のページ' }).getByRole('link').click()
-    await expect(page).toHaveURL('/ja/works/weather-cli')
-    await expect(page.getByRole('heading', { level: 1, name: '天気の CLI' })).toBeVisible()
+    await expect(page).toHaveURL('/ja/works/budget-app')
+    await expect(page.getByRole('heading', { level: 1, name: '家計簿アプリ' })).toBeVisible()
     const visit = page.getByRole('main').getByRole('link', { name: /サイトを見る/ })
-    await expect(visit).toHaveAttribute('href', 'https://example.com/weather')
+    await expect(visit).toHaveAttribute('href', 'https://example.com/budget')
     await expect(visit).toHaveAttribute('target', '_blank')
     await expect(visit).toHaveAttribute('rel', /noopener/)
     // 戻るリンクは、いま見ている作品を含むページを開く
     await page.getByRole('link', { name: '作品へ戻る' }).click()
     await expect(workPaging).toContainText('1 / 2')
-    await expect(works.getByRole('link', { name: '天気の CLI' })).toBeVisible()
+    await expect(works.getByRole('link', { name: '家計簿アプリ' })).toBeVisible()
 
     // 言語を切り替えると、同じ画面の英語版になる
     await page.getByRole('group', { name: '言語' }).getByRole('link', { name: 'EN' }).click()
@@ -71,7 +68,7 @@ test.describe('訪問者', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Career' })).toBeVisible()
   })
 
-  test('詳細のない作品は、トップのカードから外部リンク・GitHub へ直接進む', async ({ page }) => {
+  test('詳細のない作品は、トップの行から外部リンク・GitHub へ直接進む', async ({ page }) => {
     await page.goto('/ja')
     const works = page.locator('#works')
     const landing = works.getByRole('link', { name: /ランディングページ/ })
@@ -89,7 +86,7 @@ test.describe('訪問者', () => {
     await paging.getByRole('button', { name: '次のページ' }).click()
     await expect(paging).toContainText('2 /')
 
-    // ほかのページのカードは操作できない（inert）まま DOM に残るので、今のページから選ぶ
+    // ほかのページの行は操作できない（inert）まま DOM に残るので、今のページから選ぶ
     const post = blog.locator('ul:not([inert])').getByRole('article').first().getByRole('link').first()
     const title = (await post.innerText()).trim()
     await post.click()

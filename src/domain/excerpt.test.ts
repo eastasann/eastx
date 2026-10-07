@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dropUnclosedFence, EXCERPT_LENGTH, excerptOf, plainTextOf } from './excerpt'
+import { EXCERPT_LENGTH, excerptOf, plainTextOf } from './excerpt'
 
 describe('plainTextOf', () => {
   it('見出しの記号・強調・リンクの記法を取り除き、文字は残す', () => {
@@ -34,30 +34,6 @@ describe('plainTextOf', () => {
   })
 })
 
-describe('dropUnclosedFence', () => {
-  it('閉じていないコードブロックを開始の行から後ろごと捨てる', () => {
-    expect(dropUnclosedFence('本文\n\n```ts\nconst a')).toBe('本文\n')
-  })
-
-  it('閉じたコードブロックはそのまま', () => {
-    const markdown = '本文\n```ts\nconst a\n```\n続き'
-    expect(dropUnclosedFence(markdown)).toBe(markdown)
-  })
-
-  it('開いたフェンスより短いフェンスでは閉じない', () => {
-    expect(dropUnclosedFence('前\n````\n```\nまだコード')).toBe('前')
-  })
-
-  it('チルダのフェンスも同じ', () => {
-    expect(dropUnclosedFence('前\n~~~\n```\n')).toBe('前')
-  })
-
-  it('info にバッククォートを含む行はフェンスではない', () => {
-    const markdown = '前\n``` a`b\n後'
-    expect(dropUnclosedFence(markdown)).toBe(markdown)
-  })
-})
-
 describe('excerptOf', () => {
   it('目安より短ければそのまま', () => {
     expect(excerptOf('短い本文です。', 'ja')).toBe('短い本文です。')
@@ -87,11 +63,11 @@ describe('excerptOf', () => {
     expect(excerptOf('```\ncode\n```', 'ja')).toBeNull()
   })
 
-  it('先頭だけを読んで切れたコードブロックは抜粋に入れない', () => {
+  it('閉じていないコードブロックは文書の終わりまでコードとして抜粋に入れない', () => {
     expect(excerptOf('説明\n\n```ts\nconst secret = 1', 'ja')).toBe('説明')
   })
 
-  it('リスト・引用の中で切れたコードブロックも、閉じていないコードブロックとして抜粋に入れない', () => {
+  it('リスト・引用の中の閉じていないコードブロックも抜粋に入れない', () => {
     expect(excerptOf('- 手順\n\n  ```sh\n  secret', 'ja')).toBe('手順')
     expect(excerptOf('> 引用\n>\n> ```sh\n> secret', 'ja')).toBe('引用')
   })

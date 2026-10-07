@@ -8,7 +8,12 @@ import { css } from 'styled-system/css'
 import type { SocialService } from '~/content/site-chrome'
 import { LinkIcon } from './icons'
 
-const iconClass = css({ w: 'icon', h: 'icon', flexShrink: 0 })
+const iconClass = {
+  md: css({ w: 'icon', h: 'icon', flexShrink: 0 }),
+  sm: css({ w: 'icon-sm', h: 'icon-sm', flexShrink: 0 }),
+}
+
+type IconSize = keyof typeof iconClass
 
 const BRAND_PATHS: Record<Exclude<SocialService, 'other' | 'linkedin'>, string> = {
   github:
@@ -22,7 +27,7 @@ const BRAND_PATHS: Record<Exclude<SocialService, 'other' | 'linkedin'>, string> 
 }
 
 /** 塗った四角から「in」を抜く（evenodd で内側の形を穴にする） */
-function LinkedInGlyph() {
+function LinkedInGlyph({ size }: { size: IconSize }) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -30,7 +35,7 @@ function LinkedInGlyph() {
       fillRule="evenodd"
       aria-hidden="true"
       focusable="false"
-      className={iconClass}
+      className={iconClass[size]}
     >
       <path d="M3 2h18a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm2.5 7.5V19h3V9.5zM7 4.5a1.75 1.75 0 1 0 0 3.5 1.75 1.75 0 0 0 0-3.5zM10.5 9.5V19h3v-5c0-1.4.8-2.1 1.8-2.1s1.7.7 1.7 2.1v5h3v-5.6c0-2.8-1.6-4.1-3.6-4.1-1.4 0-2.4.7-2.9 1.4V9.5z" />
     </svg>
@@ -38,11 +43,11 @@ function LinkedInGlyph() {
 }
 
 /** 飾りなので読み上げから外す。リンクの読み上げ名はサービス名で付ける */
-export function SocialIcon({ service }: { service: SocialService }) {
-  if (service === 'other') return <LinkIcon />
-  if (service === 'linkedin') return <LinkedInGlyph />
+export function SocialIcon({ service, size = 'md' }: { service: SocialService; size?: IconSize }) {
+  if (service === 'other') return <LinkIcon size={size} />
+  if (service === 'linkedin') return <LinkedInGlyph size={size} />
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" className={iconClass}>
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" className={iconClass[size]}>
       <path d={BRAND_PATHS[service]} />
     </svg>
   )

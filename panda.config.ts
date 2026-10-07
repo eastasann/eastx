@@ -22,8 +22,6 @@ export default defineConfig({
       textStyle: 'body',
       bg: 'bg.canvas',
       color: 'text.default',
-      // 固定ヘッダーの下にセクションの見出しが隠れないよう、ハッシュへのスクロールで止める位置を下げる
-      scrollPaddingTop: 'token(sizes.header)',
       '&[data-theme=light]': { colorScheme: 'light' },
       '&[data-theme=dark]': { colorScheme: 'dark' },
     },

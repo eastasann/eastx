@@ -8,8 +8,8 @@ import { StackChipList } from '~/site/content-parts'
 import { pageHead, statusHead } from '~/site/head'
 import { SingleColumnLayout } from '~/site/layouts'
 import { ProfileSection } from '~/site/profile-section'
-import { PagedSection } from '~/site/section-pager'
-import { BlogPostRow, CareerRow, CodingLogRow, ProjectCard, WorkCard } from '~/site/top-items'
+import { PagedSection, SectionHeading } from '~/site/section-pager'
+import { BlogPostRow, CareerRow, CodingLogRow, ProjectRow, WorkRow } from '~/site/top-items'
 
 // P1 トップ（design-spec 6.1）。中身はページを返す前にすべて用意する（読み込み中の表示を出さない。6.1.5）
 export const Route = createFileRoute('/$lang/')({
@@ -50,24 +50,22 @@ function TopPage() {
         title={section.projects}
         items={view.projects}
         messages={messages}
-        renderItem={(item) => <ProjectCard item={item} lang={lang} messages={messages} />}
+        renderItem={(item) => <ProjectRow item={item} lang={lang} messages={messages} />}
       />
       <PagedSection<WorkItem>
         id="works"
         title={section.works}
         items={view.works}
         messages={messages}
-        renderItem={(item) => <WorkCard item={item} lang={lang} messages={messages} />}
+        renderItem={(item) => <WorkRow item={item} lang={lang} messages={messages} />}
       />
       {view.stacks.length > 0 && (
         <section
           id="stack"
           aria-labelledby="stack-heading"
-          className={css({ display: 'flex', flexDirection: 'column', gap: 'stack' })}
+          className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}
         >
-          <h2 id="stack-heading" className={css({ textStyle: 'heading-2' })}>
-            {section.stack}
-          </h2>
+          <SectionHeading id="stack-heading" title={section.stack} />
           <StackChipList stacks={view.stacks} messages={messages} />
         </section>
       )}
