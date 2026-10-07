@@ -4,6 +4,7 @@
 import type { CAREER_KINDS, CODING_LOG_KINDS } from '~/db/schema'
 import type { Languages } from '~/domain/languages'
 import type { Status } from '~/domain/publishing'
+import { SECTION_NAMES } from '~/i18n/section-names'
 
 export const STATUS_LABELS: Record<Status, string> = { draft: '下書き', published: '公開' }
 
@@ -43,4 +44,20 @@ export const CODING_LOG_KIND_LABELS: Record<(typeof CODING_LOG_KINDS)[number], s
   snippet: 'コード断片',
   problem: '問題を解いた記録',
   memo: '技術メモ',
+}
+
+/**
+ * 管理画面の種類の名前。公開サイトのセクションの名前と同じ（design-spec 1.4）にし、編集しているものが公開サイトの
+ * どのセクションに出るかをそのまま分かるようにする
+ */
+export const SECTION_LABELS = SECTION_NAMES
+
+/** 編集ビューの新規作成の題（「Lab の新規作成」） */
+export function newItemTitle(name: string): string {
+  return `${name} の新規作成`
+}
+
+/** 一覧のテーブルの読み上げ名（「Lab の一覧」） */
+export function listLabel(name: string): string {
+  return `${name} の一覧`
 }

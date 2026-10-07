@@ -49,15 +49,18 @@ describe('差し込みのある文言', () => {
     expect(en.notice.postOnlyIn('en')).toBe('This post is available in English only.')
     expect(ja.notice.codingLogOnlyIn('en')).toBe('この記録は英語のみです')
     expect(en.notice.codingLogOnlyIn('ja')).toBe('This log is available in Japanese only.')
-    expect(ja.notice.workBodyOnlyIn('ja')).toBe('この作品の説明は日本語のみです')
-    expect(en.notice.workBodyOnlyIn('ja')).toBe('The description of this work is available in Japanese only.')
-    expect(ja.notice.projectBodyOnlyIn('en')).toBe('このプロジェクトの説明は英語のみです')
-    expect(en.notice.projectBodyOnlyIn('en')).toContain('English only')
+    expect(ja.notice.bodyOnlyIn('ja')).toBe('この説明は日本語のみです')
+    expect(en.notice.bodyOnlyIn('ja')).toBe('This description is available in Japanese only.')
+    expect(ja.notice.bodyOnlyIn('en')).toBe('この説明は英語のみです')
+    expect(en.notice.bodyOnlyIn('en')).toContain('English only')
   })
 
   it('ページングと件数の文言', () => {
-    expect(ja.paging.controls('作品')).toBe('作品のページ')
-    expect(en.paging.controls('Works')).toBe('Works pages')
+    expect(ja.paging.controlsSuffix).toBe('のページ')
+    expect(en.paging.controlsSuffix).toBe('pages')
+    // 戻るリンクはセクションの名前の前後に読み上げの語を足す（「Lab へ戻る」「Back to Lab」）
+    expect(ja.backLink()).toEqual({ before: '', after: 'へ戻る' })
+    expect(en.backLink()).toEqual({ before: 'Back to', after: '' })
     expect(ja.paging.position(2, 5)).toBe('2 / 5')
     expect(en.paging.position(2, 5)).toBe('2 / 5')
     expect(ja.paging.announce(2, 5)).toBe('5ページ中2ページ目')
@@ -69,5 +72,12 @@ describe('差し込みのある文言', () => {
   it('テーマの切り替えの読み上げ名は、今の設定と押したあとの設定を入れる', () => {
     expect(ja.theme.toggle(ja.theme.light, ja.theme.dark)).toBe('テーマ: ライト（押すとダーク）')
     expect(en.theme.toggle(en.theme.light, en.theme.dark)).toBe(`Theme: ${en.theme.light} (switch to ${en.theme.dark})`)
+  })
+
+  it('セクションの名前は日英で同じ英語（design-spec 1.4）。プロフィールだけは読み上げの名前なので言語ごと', () => {
+    const { profile: _jaProfile, ...jaSections } = ja.section
+    const { profile: _enProfile, ...enSections } = en.section
+    expect(jaSections).toEqual(enSections)
+    expect(ja.section.works).toBe('Lab')
   })
 })

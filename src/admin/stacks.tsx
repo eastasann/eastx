@@ -31,10 +31,13 @@ import {
 } from './editor'
 import { isAuthError, isNotFoundError } from './errors'
 import { ImageField, SwitchField, TextField } from './fields'
-import { NOTICES } from './labels'
+import { listLabel, NOTICES, newItemTitle, SECTION_LABELS } from './labels'
 import { FormLayout, ListLayout } from './layouts'
 import { AdminLink } from './link'
 import { AdminList } from './list-view'
+
+/** 使用技術を使う種類（プロジェクト・作品）。画面に出す名前は公開サイトのセクションの名前（design-spec 1.4） */
+const USED_IN = `${SECTION_LABELS.projects}・${SECTION_LABELS.works}`
 
 type Stack = z.infer<typeof stackOutput>
 type StackListOutput = Awaited<ReturnType<typeof api.stacks.list>>
@@ -44,7 +47,7 @@ const LIST_KEY = ['stacks', 'list']
 
 /** 削除の確認（design-spec 6.7.2: 使っている作品・プロジェクトの数を出す） */
 function deleteMessage(stack: { displayName: string; usageCount: number }): string {
-  const usage = stack.usageCount > 0 ? `使っている作品・プロジェクト ${stack.usageCount}件の紐づけも外れます。` : ''
+  const usage = stack.usageCount > 0 ? `使っている ${USED_IN} ${stack.usageCount}件の紐づけも外れます。` : ''
   return `『${stack.displayName}』を削除します。${usage}元に戻せません`
 }
 
@@ -69,7 +72,7 @@ export function StacksListPage() {
 
   return (
     <ListLayout
-      title="使用技術"
+      title={SECTION_LABELS.stack}
       actions={
         <AdminLink href={`${LIST_HREF}/new`} className={cx(button(), css({ textDecoration: 'none' }))}>
           <PlusIcon size="sm" />
@@ -78,7 +81,7 @@ export function StacksListPage() {
       }
     >
       <AdminList
-        label="使用技術の一覧"
+        label={listLabel(SECTION_LABELS.stack)}
         query={{ status: query.status, data: query.data?.items, refetch: query.refetch }}
         columns={[
           {
@@ -88,7 +91,7 @@ export function StacksListPage() {
           },
           { key: 'displayName', header: '表示名', primary: true, mobile: true, cell: (item) => item.displayName },
           { key: 'showOnTop', header: 'トップに表示', cell: (item) => (item.showOnTop ? '表示する' : '表示しない') },
-          { key: 'usageCount', header: '使っている作品・プロジェクト', cell: (item) => `${item.usageCount}件` },
+          { key: 'usageCount', header: `使っている ${USED_IN}`, cell: (item) => `${item.usageCount}件` },
         ]}
         getId={(item) => item.id}
         getTitle={(item) => item.displayName}
@@ -165,19 +168,19 @@ export function StackEditPage({ id }: { id: string }) {
     enabled: !isNew,
   })
   const editor = useEditorKey(id)
-  const back = <BackLink href={LIST_HREF}>使用技術一覧</BackLink>
+  const back = <BackLink href={LIST_HREF}>{SECTION_LABELS.stack}</BackLink>
   const disabledActions = <SaveActions pending={null} disabled onSave={() => {}} />
 
   if (!isNew && query.status === 'pending') {
     return (
-      <FormLayout back={back} title="使用技術" actions={disabledActions}>
+      <FormLayout back={back} title={SECTION_LABELS.stack} actions={disabledActions}>
         <EditLoading />
       </FormLayout>
     )
   }
   if (!isNew && query.status === 'error') {
     return (
-      <FormLayout back={back} title="使用技術" actions={disabledActions}>
+      <FormLayout back={back} title={SECTION_LABELS.stack} actions={disabledActions}>
         {isNotFoundError(query.error) ? (
           <EditNotFound listHref={LIST_HREF} />
         ) : (
@@ -249,12 +252,12 @@ function StackEditor({ initial, onCreated }: { initial: Stack | null; onCreated:
     () => void submit(),
   )
 
-  const title = saved === null ? '使用技術の新規作成' : saved.displayName
+  const title = saved === null ? newItemTitle(SECTION_LABELS.stack) : saved.displayName
 
   return (
     <editor.BusyProvider>
       <FormLayout
-        back={<BackLink href={LIST_HREF}>使用技術一覧</BackLink>}
+        back={<BackLink href={LIST_HREF}>{SECTION_LABELS.stack}</BackLink>}
         title={title}
         status={<SaveStatus {...editor.saveStatus} />}
         actions={

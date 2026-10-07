@@ -16,18 +16,18 @@ const COPY = {
   ja: {
     next: '次のページ',
     previous: '前のページ',
-    paging: '作品のページ',
+    paging: 'Lab のページ',
     recipe: 'レシピノート',
     budget: '家計簿アプリ',
-    back: '作品へ戻る',
+    back: 'Lab へ戻る',
   },
   en: {
     next: 'Next page',
     previous: 'Previous page',
-    paging: 'Works pages',
+    paging: 'Lab pages',
     recipe: 'Recipe Notes',
     budget: 'Budget App',
-    back: 'Back to Works',
+    back: 'Back to Lab',
   },
 } as const
 
@@ -125,7 +125,7 @@ test.describe('ブラウザの「戻る」', () => {
 test.describe('戻るリンクで来たあとのページング', () => {
   test('ページングしてから離れて「戻る」と、戻るリンクの項目ではなく離れたときのページを出す', async ({ page }) => {
     await gotoHydrated(page, '/ja/works/budget-app')
-    await page.getByRole('link', { name: '作品へ戻る' }).click()
+    await page.getByRole('link', { name: 'Lab へ戻る' }).click()
     const paging = worksPaging(page, 'ja')
     await expect(paging).toContainText('1 / 2')
     await paging.getByRole('button', { name: '次のページ' }).click()
@@ -252,7 +252,7 @@ test.describe('経歴の行', () => {
     await page.keyboard.press('Enter')
     await expect(row).toHaveAttribute('aria-expanded', 'true')
 
-    const paging = career.getByRole('group', { name: '経歴のページ' })
+    const paging = career.getByRole('group', { name: 'Career のページ' })
     await paging.getByRole('button', { name: '次のページ' }).click()
     await paging.getByRole('button', { name: '前のページ' }).click()
     await expect(career.getByRole('button', { name: /株式会社サンプル/ })).toHaveAttribute('aria-expanded', 'false')
@@ -332,7 +332,7 @@ test.describe('作品・プロジェクトの行を広げる', () => {
     await expect(recipe).toHaveAttribute('aria-expanded', 'true')
 
     await page.locator('#works').getByRole('link', { name: 'レシピノート' }).click()
-    await page.getByRole('link', { name: '作品へ戻る' }).click()
+    await page.getByRole('link', { name: 'Lab へ戻る' }).click()
     await expect(paging).toContainText('2 / 2')
     await expect(recipe).toHaveAttribute('aria-expanded', 'false')
     await recipe.click()
@@ -361,9 +361,9 @@ test.describe('作品・プロジェクトの行を広げる', () => {
 test.describe('件数とページング', () => {
   test('10件以下のセクションはページ表示を出さず、1ページは10件', async ({ page }) => {
     await gotoHydrated(page, '/ja')
-    await expect(page.locator('#career').getByRole('group', { name: '経歴のページ' })).toHaveCount(0)
+    await expect(page.locator('#career').getByRole('group', { name: 'Career のページ' })).toHaveCount(0)
     const projects = page.locator('#projects')
-    await expect(projects.getByRole('group', { name: 'プロジェクトのページ' })).toHaveCount(0)
+    await expect(projects.getByRole('group', { name: 'Projects のページ' })).toHaveCount(0)
     await expect(page.locator('#works ul[data-position="current"] > li')).toHaveCount(10)
   })
 })
@@ -407,7 +407,7 @@ test.describe('トップの行', () => {
 
   test('詳細本文が片方の言語だけなら、もう片方の言語の本文と注記を出す', async ({ page }) => {
     await page.goto('/en/works/recipe-notes')
-    await expect(page.getByRole('note')).toHaveText('The description of this work is available in Japanese only.')
+    await expect(page.getByRole('note')).toHaveText('This description is available in Japanese only.')
     await expect(page.locator('main [lang="ja"]').first()).toContainText('家族のレシピ')
   })
 })
@@ -424,5 +424,30 @@ test.describe('ブログ・コーディング記録が0件', () => {
     await expect(page.locator('#works')).toBeVisible()
     await expect(page.locator('#blog')).toHaveCount(0)
     await expect(page.locator('#coding')).toHaveCount(0)
+  })
+})
+
+test.describe('セクションの名前（design-spec 1.4）', () => {
+  test('/ja でもセクションの見出しは英語で、英語の発音で読ませる', async ({ page }) => {
+    await gotoHydrated(page, '/ja')
+    for (const name of ['Career', 'Projects', 'Lab', 'Tech Stack', 'Blog', 'Coding Log']) {
+      const heading = page.getByRole('heading', { level: 2, name, exact: true })
+      await expect(heading).toBeVisible()
+      await expect(heading).toHaveAttribute('lang', 'en')
+    }
+  })
+
+  test('/ja の作品の詳細ページは、戻るリンクがセクションの名前で、前後のリンクは「前へ」「次へ」', async ({ page }) => {
+    await gotoHydrated(page, '/ja/works/portfolio-cms')
+    const back = page.getByRole('link', { name: 'Lab へ戻る' })
+    // 見える文字はセクションの名前だけで、英語の発音で読ませる（「へ戻る」は読み上げだけ）
+    await expect(back.locator('[lang=en]')).toHaveText('Lab')
+    await expect(back).toHaveAccessibleName('Lab へ戻る')
+    const neighbors = page.getByRole('navigation', { name: '前後のページ' })
+    await expect(neighbors.getByText(/^(前へ|次へ)$/).first()).toBeVisible()
+    await expect(neighbors).not.toContainText('作品')
+    // ページングのまとまりの名前も、見出し（英語）と続く語で作る
+    await gotoHydrated(page, '/ja')
+    await expect(page.locator('#works').getByRole('group', { name: 'Lab のページ' })).toBeVisible()
   })
 })

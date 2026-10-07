@@ -33,7 +33,7 @@ import {
 } from './editor'
 import { isAuthError, isNotFoundError } from './errors'
 import { ImageField, TextAreaField, TextField } from './fields'
-import { displayTitle, languagesLabel, NOTICES, STATUS_LABELS } from './labels'
+import { displayTitle, languagesLabel, listLabel, NOTICES, newItemTitle, SECTION_LABELS, STATUS_LABELS } from './labels'
 import { FormLayout, ListLayout, SplitEditSkeleton } from './layouts'
 import { AdminLink } from './link'
 import { AdminList } from './list-view'
@@ -48,7 +48,7 @@ type PortfolioItem = Work | Project
 
 const KINDS = {
   work: {
-    name: '作品',
+    name: SECTION_LABELS.works,
     listHref: '/admin/works',
     queryKey: 'works',
     /** 公開サイトの詳細ページ（SDD 4.1）と、詳細ページを持たないときのトップのセクション（日本語版。design-spec 6.6） */
@@ -56,7 +56,7 @@ const KINDS = {
     section: '/ja#works',
   },
   project: {
-    name: 'プロジェクト',
+    name: SECTION_LABELS.projects,
     listHref: '/admin/projects',
     queryKey: 'projects',
     publicPath: (slug: string) => `/ja/projects/${slug}`,
@@ -130,7 +130,7 @@ export function PortfolioListPage({ kind, search }: { kind: PortfolioKind; searc
       }
     >
       <AdminList
-        label={`${config.name}の一覧`}
+        label={listLabel(config.name)}
         query={{ status: query.status, data: query.data?.items, refetch: query.refetch }}
         columns={[
           { key: 'title', header: 'タイトル', primary: true, mobile: true, cell: titleOf },
@@ -282,7 +282,7 @@ export function PortfolioEditPage({ kind, id }: { kind: PortfolioKind; id: strin
     enabled: !isNew,
   })
   const editor = useEditorKey(id)
-  const back = <BackLink href={config.listHref}>{config.name}一覧</BackLink>
+  const back = <BackLink href={config.listHref}>{config.name}</BackLink>
 
   if (!isNew && query.status === 'pending') {
     return <SplitEditSkeleton back={back} title={config.name} actions={disabledActions()} />
@@ -393,7 +393,7 @@ function PortfolioEditor({
     }
   }
 
-  const title = saved === null ? `${config.name}の新規作成` : displayTitle({ ja: saved.ja.title, en: saved.en.title })
+  const title = saved === null ? newItemTitle(config.name) : displayTitle({ ja: saved.ja.title, en: saved.en.title })
   const flow = usePublishFlow({
     title,
     pending: save.pending,
@@ -540,7 +540,7 @@ function PortfolioEditor({
   return (
     <editor.BusyProvider>
       <LongFormEditView
-        back={<BackLink href={config.listHref}>{config.name}一覧</BackLink>}
+        back={<BackLink href={config.listHref}>{config.name}</BackLink>}
         title={title}
         status={editor.status}
         saveStatus={editor.saveStatus}

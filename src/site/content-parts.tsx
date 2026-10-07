@@ -1,11 +1,13 @@
 /**
  * 公開側の中身の部品（design-spec 6.1.4・6.2.2）。トップの行と詳細ページで共通
  */
+import { useId } from 'react'
 import { css, cx } from 'styled-system/css'
 import type { Availability, LocalizedText } from '~/content/localize'
 import type { StackChip } from '~/content/types'
 import type { Lang } from '~/i18n/detect'
 import type { Messages } from '~/i18n/messages'
+import { SECTION_NAME_LANG } from '~/i18n/section-names'
 import { ExternalLinkIcon } from '~/ui/icons'
 import { FallbackImage, InitialBadge } from '~/ui/image'
 import { chip, label } from '~/ui/recipes'
@@ -76,26 +78,42 @@ export function StackIcon({ stack, labelled = false }: { stack: StackChip; label
   )
 }
 
+/**
+ * 使用技術の並びの読み上げの名前（Tech Stack）。セクションの名前なので英語の発音で読ませる。aria-label では lang が
+ * 効かないので、隠した要素を aria-labelledby で指す
+ */
+function StackListName({ id, messages }: { id: string; messages: Messages }) {
+  return (
+    <span id={id} lang={SECTION_NAME_LANG} hidden>
+      {messages.section.stack}
+    </span>
+  )
+}
+
 /** 行の使用技術のアイコンの列。その中身の中での並び順で最大 max 個、超えた分は「+N」 */
 export function StackIconRow({ stacks, max, messages }: { stacks: StackChip[]; max: number; messages: Messages }) {
+  const labelId = useId()
   if (stacks.length === 0) return null
   const shown = stacks.slice(0, max)
   const rest = stacks.length - shown.length
   return (
-    <ul aria-label={messages.section.stack} className={css({ display: 'flex', alignItems: 'center', gap: 'inline' })}>
-      {shown.map((stack) => (
-        // 表示名はポインターを重ねたときにも出す
-        <li key={stack.key} title={stack.displayName} className={css({ display: 'inline-flex' })}>
-          <StackIcon stack={stack} labelled />
-        </li>
-      ))}
-      {rest > 0 && (
-        <li className={css({ textStyle: 'label', color: 'text.muted' })}>
-          <span aria-hidden="true">+{rest}</span>
-          <span className={css({ srOnly: true })}>{messages.label.moreStacks(rest)}</span>
-        </li>
-      )}
-    </ul>
+    <>
+      <StackListName id={labelId} messages={messages} />
+      <ul aria-labelledby={labelId} className={css({ display: 'flex', alignItems: 'center', gap: 'inline' })}>
+        {shown.map((stack) => (
+          // 表示名はポインターを重ねたときにも出す
+          <li key={stack.key} title={stack.displayName} className={css({ display: 'inline-flex' })}>
+            <StackIcon stack={stack} labelled />
+          </li>
+        ))}
+        {rest > 0 && (
+          <li className={css({ textStyle: 'label', color: 'text.muted' })}>
+            <span aria-hidden="true">+{rest}</span>
+            <span className={css({ srOnly: true })}>{messages.label.moreStacks(rest)}</span>
+          </li>
+        )}
+      </ul>
+    </>
   )
 }
 
@@ -109,37 +127,41 @@ export function StackChipList({
   messages: Messages
   className?: string
 }) {
+  const labelId = useId()
   if (stacks.length === 0) return null
   return (
-    <ul
-      aria-label={messages.section.stack}
-      className={cx(css({ display: 'flex', flexWrap: 'wrap', columnGap: 'inset', rowGap: 'inline' }), className)}
-    >
-      {stacks.map((stack) => {
-        const content = (
-          <>
-            <StackIcon stack={stack} />
-            <span>{stack.displayName}</span>
-          </>
-        )
-        return (
-          <li key={stack.key}>
-            {stack.linkUrl === null ? (
-              <span className={chip({ plain: true })}>{content}</span>
-            ) : (
-              <a
-                href={stack.linkUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cx(chip({ interactive: true, plain: true }), css({ textDecoration: 'none' }))}
-              >
-                {content}
-                <ExternalMark messages={messages} />
-              </a>
-            )}
-          </li>
-        )
-      })}
-    </ul>
+    <>
+      <StackListName id={labelId} messages={messages} />
+      <ul
+        aria-labelledby={labelId}
+        className={cx(css({ display: 'flex', flexWrap: 'wrap', columnGap: 'inset', rowGap: 'inline' }), className)}
+      >
+        {stacks.map((stack) => {
+          const content = (
+            <>
+              <StackIcon stack={stack} />
+              <span>{stack.displayName}</span>
+            </>
+          )
+          return (
+            <li key={stack.key}>
+              {stack.linkUrl === null ? (
+                <span className={chip({ plain: true })}>{content}</span>
+              ) : (
+                <a
+                  href={stack.linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cx(chip({ interactive: true, plain: true }), css({ textDecoration: 'none' }))}
+                >
+                  {content}
+                  <ExternalMark messages={messages} />
+                </a>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </>
   )
 }

@@ -8,7 +8,7 @@ test.use({ viewport: { width: 1280, height: 900 } })
 test('一覧を出し、状態と種類で絞り込み、絞り込みを解除できる', async ({ page, login }) => {
   await login({ admin: true })
   await page.goto('/admin/careers')
-  const table = page.getByRole('table', { name: '経歴の一覧' })
+  const table = page.getByRole('table', { name: 'Career の一覧' })
   // 読み込み中のスケルトンの行を数えないよう、状態の列が出るまで待つ
   await expect(table.locator('tbody td:nth-child(5)').first()).toHaveText(/^(公開|下書き)$/)
   const total = await table.getByRole('row').count()
@@ -85,7 +85,7 @@ test('作成 → 下書き保存 → 公開 → 更新 → 非公開に戻す �
   await page.getByRole('dialog').getByRole('button', { name: '削除する' }).click()
   await expect(page).toHaveURL(/\/admin\/careers$/)
   await expect(page.getByText('削除しました')).toBeVisible()
-  await expect(page.getByRole('table', { name: '経歴の一覧' }).getByText(title)).toHaveCount(0)
+  await expect(page.getByRole('table', { name: 'Career の一覧' }).getByText(title)).toHaveCount(0)
 })
 
 test.describe('モバイル幅（<768px）', () => {
@@ -94,7 +94,7 @@ test.describe('モバイル幅（<768px）', () => {
   test('一覧はタイトル・状態・操作の列だけを残す', async ({ page, login }) => {
     await login({ admin: true })
     await page.goto('/admin/careers')
-    const table = page.getByRole('table', { name: '経歴の一覧' })
+    const table = page.getByRole('table', { name: 'Career の一覧' })
     await expect(table.getByRole('columnheader')).toHaveText(['タイトル', '状態', '操作'])
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })

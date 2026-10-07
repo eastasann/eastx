@@ -175,7 +175,7 @@ test('A5: 書く → 下書き保存 → プレビュー → 公開 → 公開�
     await page.getByRole('dialog').getByRole('button', { name: '削除する' }).click()
     await expect(page).toHaveURL(/\/admin\/works$/)
     await expect(page.getByText('削除しました')).toBeVisible()
-    await expect(page.getByRole('table', { name: '作品の一覧' }).getByText(`E2E 作品 ${stamp}`)).toHaveCount(0)
+    await expect(page.getByRole('table', { name: 'Lab の一覧' }).getByText(`E2E 作品 ${stamp}`)).toHaveCount(0)
   } finally {
     await local.db.delete(schema.stack).where(eq(schema.stack.displayName, newStack))
   }
@@ -216,7 +216,7 @@ test('A5: 本文の画像のアップロードに失敗したら、仮の記法�
 test('A5: 状態で絞り込んでいるあいだは並べ替えを無効にし、公開中の行から公開サイトへ', async ({ page, login }) => {
   await login({ admin: true })
   await page.goto('/admin/works')
-  const table = page.getByRole('table', { name: '作品の一覧' })
+  const table = page.getByRole('table', { name: 'Lab の一覧' })
   await expect(
     table
       .locator('tbody tr')
@@ -263,7 +263,7 @@ test('A6: 開始年月がないと公開できず、入れると公開でき、�
   await expectPublicPage(page, `/ja/projects/e2e-project-${stamp}`, [`E2E プロジェクト ${stamp}`, 'プロジェクトの本文'])
 
   await page.goto('/admin/projects')
-  const table = page.getByRole('table', { name: 'プロジェクトの一覧' })
+  const table = page.getByRole('table', { name: 'Projects の一覧' })
   const row = table.getByRole('row').filter({ hasText: `E2E プロジェクト ${stamp}` })
   await expect(row).toContainText('2024/04 – 現在')
   await row.getByRole('button', { name: /の操作$/ }).click()
@@ -318,7 +318,7 @@ test('A8: 公開に足りない項目を出し、公開すると公開日が入�
   await expect(page.getByLabel('公開日')).toHaveValue('2026-01-02T09:30')
 
   await page.goto('/admin/blog?status=draft')
-  const row = page.getByRole('table', { name: 'ブログの一覧' }).getByRole('row').filter({ hasText: title })
+  const row = page.getByRole('table', { name: 'Blog の一覧' }).getByRole('row').filter({ hasText: title })
   await expect(row).toContainText('2026/01/02')
   await row.getByRole('button', { name: /の操作$/ }).click()
   await page.getByRole('menuitem', { name: '削除' }).click()
@@ -346,7 +346,7 @@ test('A9: 種類・参考リンクを入れて公開し、種類で絞り込め�
   await expectPublicPage(page, `/en/coding/e2e-coding-${stamp}`, [title, 'Problem Solving', 'const answer = 42'])
 
   await page.goto('/admin/coding?kind=problem')
-  const table = page.getByRole('table', { name: 'コーディング記録の一覧' })
+  const table = page.getByRole('table', { name: 'Coding Log の一覧' })
   const row = table.getByRole('row').filter({ hasText: title })
   await expect(row).toContainText('問題を解いた記録')
   await row.getByRole('button', { name: /の操作$/ }).click()
@@ -371,7 +371,7 @@ test('L5: 期限切れの一時保存から本文も復元し、保存してい�
   await page.getByRole('textbox', { name: '本文（日本語）' }).fill('期限切れの前に書いた本文')
 
   const nav = page.getByRole('navigation', { name: '管理メニュー' })
-  await nav.getByRole('link', { name: '作品' }).click()
+  await nav.getByRole('link', { name: 'Lab' }).click()
   await expect(page.getByRole('dialog')).toContainText('保存していない変更があります。移動しますか？')
   await page.getByRole('dialog').getByRole('button', { name: 'キャンセル' }).click()
 

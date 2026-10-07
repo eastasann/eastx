@@ -14,19 +14,19 @@ test('A2: 件数カード・下書きの一覧を出し、下書きの件数か�
   await page.goto('/admin')
   const cards = page.getByRole('list', { name: '種類ごとの件数' })
   await expect(cards.getByRole('listitem')).toHaveCount(6)
-  await expect(cards.getByRole('listitem').filter({ hasText: '使用技術' })).toContainText('件')
+  await expect(cards.getByRole('listitem').filter({ hasText: 'Tech Stack' })).toContainText('件')
   const drafts = page.getByRole('region', { name: '下書き' })
   await expect(drafts.getByRole('row').nth(1)).toBeVisible()
   await expect(page.getByRole('link', { name: /公開サイトを見る/ })).toHaveAttribute('target', '_blank')
 
   // カードのどこを押しても一覧へ移る
-  await cards.getByRole('listitem').filter({ hasText: '使用技術' }).click()
+  await cards.getByRole('listitem').filter({ hasText: 'Tech Stack' }).click()
   await expect(page).toHaveURL(/\/admin\/stacks$/)
   await page.goBack()
 
   await cards
     .getByRole('listitem')
-    .filter({ hasText: '経歴' })
+    .filter({ hasText: 'Career' })
     .getByRole('link', { name: /下書き/ })
     .click()
   await expect(page).toHaveURL(/\/admin\/careers\?status=draft$/)
@@ -53,14 +53,14 @@ test('保存していない変更があれば、移る前に確認する', async
   await page.goto('/admin/careers/new')
   await page.getByLabel('タイトル').first().fill('書きかけ')
   const nav = page.getByRole('navigation', { name: '管理メニュー' })
-  await nav.getByRole('link', { name: '使用技術' }).click()
+  await nav.getByRole('link', { name: 'Tech Stack' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toContainText('保存していない変更があります。移動しますか？')
   await dialog.getByRole('button', { name: 'キャンセル' }).click()
   await expect(page).toHaveURL(/\/admin\/careers\/new$/)
   await expect(page.getByLabel('タイトル').first()).toHaveValue('書きかけ')
 
-  await nav.getByRole('link', { name: '使用技術' }).click()
+  await nav.getByRole('link', { name: 'Tech Stack' }).click()
   await page.getByRole('dialog').getByRole('button', { name: '移動する' }).click()
   await expect(page).toHaveURL(/\/admin\/stacks$/)
 })
@@ -133,7 +133,7 @@ test('A7: 作成・保存・キーボードでの並べ替え・使っている�
 
   // 新規作成は末尾に入る。キーボードで先頭の1つ下まで上げ、保存されたことを読み直して確かめる
   await page.goto('/admin/stacks')
-  const table = page.getByRole('table', { name: '使用技術の一覧' })
+  const table = page.getByRole('table', { name: 'Tech Stack の一覧' })
   const names = table.locator('tbody td:nth-child(3)')
   await expect(names.last()).toHaveText(name)
   const count = await names.count()
@@ -157,7 +157,7 @@ test('A7: 作成・保存・キーボードでの並べ替え・使っている�
   const usedName = (await used.locator('td:nth-child(3)').innerText()).trim()
   await used.getByRole('button', { name: `「${usedName}」の操作` }).click()
   await page.getByRole('menuitem', { name: '削除' }).click()
-  await expect(page.getByRole('dialog')).toContainText(/使っている作品・プロジェクト \d+件の紐づけも外れます/)
+  await expect(page.getByRole('dialog')).toContainText(/使っている Projects・Lab \d+件の紐づけも外れます/)
   await page.getByRole('dialog').getByRole('button', { name: 'キャンセル' }).click()
 })
 
@@ -225,7 +225,7 @@ test('失敗の表示: 一覧の取得・並べ替えの保存・保存（design
   await expect(page.getByText('読み込めませんでした')).toBeVisible()
   failList = false
   await page.getByRole('button', { name: '再試行' }).click()
-  const table = page.getByRole('table', { name: '使用技術の一覧' })
+  const table = page.getByRole('table', { name: 'Tech Stack の一覧' })
   const names = table.locator('tbody td:nth-child(3)')
   await expect(names.first()).toBeVisible()
 

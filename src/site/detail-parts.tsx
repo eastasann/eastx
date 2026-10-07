@@ -6,6 +6,7 @@ import { css, cx } from 'styled-system/css'
 import type { Neighbor } from '~/content/types'
 import type { Lang } from '~/i18n/detect'
 import type { Messages } from '~/i18n/messages'
+import { SECTION_NAME_LANG } from '~/i18n/section-names'
 import { ArrowLeftIcon, ArrowRightIcon } from '~/ui/icons'
 import { Text } from './content-parts'
 import type { PagedSectionId } from './history-state'
@@ -45,10 +46,15 @@ export function BackLink({
   itemId: string
   messages: Messages
 }) {
+  const back = messages.backLink()
   return (
     <Link to="/$lang" params={{ lang }} hash={kind} state={{ section: kind, itemId }} className={textLink}>
       <ArrowLeftIcon size="sm" />
-      {messages.back[kind]}
+      {/* 見える文字はセクションの名前だけにし、戻ることは読み上げだけで足す。aria-label にすると名前の lang が
+          読み上げに効かないので、中身の要素で名前を作る */}
+      {back.before !== '' && <span className={css({ srOnly: true })}>{back.before} </span>}
+      <span lang={SECTION_NAME_LANG}>{messages.section[kind]}</span>
+      {back.after !== '' && <span className={css({ srOnly: true })}> {back.after}</span>}
     </Link>
   )
 }
@@ -58,9 +64,8 @@ function neighborLabels(kind: DetailKind, messages: Messages): { before: string;
   const { neighbor } = messages
   switch (kind) {
     case 'works':
-      return { before: neighbor.prevWork, after: neighbor.nextWork }
     case 'projects':
-      return { before: neighbor.prevProject, after: neighbor.nextProject }
+      return { before: neighbor.previous, after: neighbor.next }
     case 'blog':
       return { before: neighbor.newerPost, after: neighbor.olderPost }
     case 'coding':

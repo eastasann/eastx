@@ -1,22 +1,16 @@
 /**
  * 公開側の固定文言（日本語）。en.ts はこの型を満たす（ADR-013、SDD 9章）。
  * 対訳の正は design-spec 1.4 と各画面の仕様。管理画面の文言はここに置かず、日本語を直接書く
+ * （セクションの名前だけは公開側と共通の英語で、`../section-names.ts` が持つ）
  */
 import type { Lang } from '../detect'
+import { SECTION_NAMES } from '../section-names'
 
 const LANG_NAMES: Record<Lang, string> = { ja: '日本語', en: '英語' }
 
 export const ja = {
   siteName: 'eastasian',
-  section: {
-    profile: 'プロフィール',
-    career: '経歴',
-    projects: 'プロジェクト',
-    works: '作品',
-    stack: '使用技術',
-    blog: 'ブログ',
-    coding: 'コーディング記録',
-  },
+  section: { profile: 'プロフィール', ...SECTION_NAMES },
   careerKind: { work: '職歴', education: '学歴' },
   codingLogKind: {
     learning_log: '学習ログ',
@@ -44,22 +38,20 @@ export const ja = {
   notice: {
     postOnlyIn: (lang: Lang): string => `この記事は${LANG_NAMES[lang]}のみです`,
     codingLogOnlyIn: (lang: Lang): string => `この記録は${LANG_NAMES[lang]}のみです`,
-    workBodyOnlyIn: (lang: Lang): string => `この作品の説明は${LANG_NAMES[lang]}のみです`,
-    projectBodyOnlyIn: (lang: Lang): string => `このプロジェクトの説明は${LANG_NAMES[lang]}のみです`,
+    /** 作品・プロジェクトの詳細本文 */
+    bodyOnlyIn: (lang: Lang): string => `この説明は${LANG_NAMES[lang]}のみです`,
   },
-  back: {
-    works: '作品へ戻る',
-    projects: 'プロジェクトへ戻る',
-    blog: 'ブログへ戻る',
-    coding: 'コーディング記録へ戻る',
-  },
+  /**
+   * 詳細ページの戻るリンクの、セクションの名前の前後に読み上げだけで足す語（「Lab へ戻る」）。見える文字はセクションの
+   * 名前だけ（← Lab）。名前は英語の発音で読ませるので、名前と前後の語を別の要素にして、文を作らずに部品で並べる
+   */
+  backLink: (): { before: string; after: string } => ({ before: '', after: 'へ戻る' }),
   neighbor: {
     /** 詳細ページの前後のナビのまとまりの読み上げ名 */
     nav: '前後のページ',
-    prevWork: '前の作品',
-    nextWork: '次の作品',
-    prevProject: '前のプロジェクト',
-    nextProject: '次のプロジェクト',
+    /** 作品・プロジェクトの前後（表示順） */
+    previous: '前へ',
+    next: '次へ',
     newerPost: '新しい記事',
     olderPost: '古い記事',
     newerLog: '新しい記録',
@@ -67,7 +59,8 @@ export const ja = {
   },
   paging: {
     /** ページングの操作（◀ 現在 / 全体 ▶）のまとまりの読み上げ名 */
-    controls: (section: string): string => `${section}のページ`,
+    /** セクションの名前（見出し）に続けて読み上げる語（「Lab のページ」）。名前は見出しの要素から英語の発音で読ませる */
+    controlsSuffix: 'のページ',
     previous: '前のページ',
     next: '次のページ',
     /** セクション見出しの右の「現在 / 全体」 */
