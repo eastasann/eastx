@@ -116,9 +116,16 @@ jobs:
         run: |
           # 公開の origin は、ビルドが環境ごとに書き出した設定の SITE_URL（wrangler.jsonc が正）
           origin=$(jq -r '.vars.SITE_URL' dist/server/wrangler.json)
-          # 初回は Custom Domain の DNS と証明書の準備を待つので、繰り返し試す
+          # 初回は Custom Domain の DNS と証明書の準備を待つので、繰り返し試す。curl の --retry は、応答を受け始めてから
+          # 切れた（Connection reset など）転送をやり直さないので、繰り返しは curl の外で行う
           for path in /ja /en /api/auth/get-session; do
-            code=$(curl -sSf -o /dev/null -w '%{http_code}' --retry 12 --retry-delay 10 --retry-all-errors "${origin}${path}" || true)
+            code=
+            for attempt in $(seq 1 12); do
+              code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "${origin}${path}" || true)
+              [ "$code" = 200 ] && break
+              echo "${path}: ${code:-接続できない}（${attempt}回目。10秒後にやり直す）"
+              sleep 10
+            done
             echo "${path}: ${code}"
             [ "$code" = 200 ] || exit 1
           done
