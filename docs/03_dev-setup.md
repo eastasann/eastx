@@ -42,12 +42,12 @@ eastx/
 │   └── production/version         # 本番で動くべきコミット SHA（昇格 PR で更新）
 ├── docs/                          # 設計ドキュメント（docs/README.md が入口）
 ├── drizzle/migrations/            # drizzle-kit が生成する SQL（D1 に適用する）
-├── public/                        # 静的アセット（og/default-{ja,en}.png、favicon.svg）
+├── public/                        # 静的アセット（og/default-{ja,en}.png、favicon.png、apple-touch-icon.png）
 ├── scripts/
 │   ├── tokens/build.ts            # docs/06_design-tokens.json → Panda のトークン
 │   ├── seed/                      # デモデータの SQL とダミー画像を作る
 │   ├── migrate-legacy/            # 今のサイトのデータを移す変換スクリプト
-│   ├── og/                        # 既定の OGP 画像を作る
+│   ├── og/                        # 既定の OGP 画像と favicon・ホーム画面のアイコンを作る（その元の絵 favicon-source.png も置く）
 │   ├── lhci/server.ts             # Lighthouse CI が測るプレビュー（gzip で圧縮して中継する。SDD 10章）
 │   ├── promote.sh                 # 昇格 PR 用のブランチとバージョンファイルを作る
 │   ├── promotion-check.sh         # 昇格 PR の SHA の確認（ci.yml が呼ぶ）

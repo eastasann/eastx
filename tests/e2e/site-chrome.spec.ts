@@ -147,3 +147,19 @@ test.describe('ヘッダーの形', () => {
     })
   })
 })
+
+test('公開側と管理画面のページは、favicon と iOS のホーム画面のアイコンを示し、どちらも画像を返す', async ({
+  page,
+  request,
+}) => {
+  for (const path of ['/ja', '/en/works/portfolio-cms', '/admin/login']) {
+    await page.goto(path)
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.png')
+    await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon.png')
+  }
+  for (const icon of ['/favicon.png', '/apple-touch-icon.png']) {
+    const response = await request.get(icon)
+    expect(response.status(), icon).toBe(200)
+    expect(response.headers()['content-type'], icon).toBe('image/png')
+  }
+})
