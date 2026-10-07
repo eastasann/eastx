@@ -87,8 +87,11 @@ export function buildSeed(options: SeedOptions): SeedData {
       nameEn: 'Asia Higashi',
       headlineJa: 'ソフトウェアエンジニア',
       headlineEn: 'Software Engineer',
-      bioJa: 'Web のフロントエンドとバックエンドを作っています。\n\n小さく作って早く出すのが好きです。',
-      bioEn: 'I build web frontends and backends.\n\nI like to ship small and ship often.',
+      // 太字の React・TypeScript は使用技術と一致してアイコンが付き、使いやすさ・usability は一致しない（design-spec 8章）
+      bioJa:
+        'Web のフロントエンドとバックエンドを作っています。主に **React** と **TypeScript** を使います。\n\n小さく作って早く出し、**使いやすさ**を確かめながら直すのが好きです。',
+      bioEn:
+        'I build web frontends and backends, mostly with **React** and **TypeScript**.\n\nI like to ship small, check the **usability**, and keep improving.',
       avatarUrl: image.url('avatar', 'Photo'),
     },
   ]
@@ -124,7 +127,7 @@ export function buildSeed(options: SeedOptions): SeedData {
       organizationEn: 'Test Co., Ltd.',
       locationJa: '大阪',
       locationEn: 'Osaka',
-      bodyJa: LONG_BODY_JA, // 「続きを読む」が出る長さ
+      bodyJa: LONG_BODY_JA, // 行を広げたときに全文が出ることを確かめる長さ
       bodyEn: LONG_BODY_EN,
       startDate: '2021-04',
       endDate: '2024-03',
@@ -229,7 +232,7 @@ export function buildSeed(options: SeedOptions): SeedData {
     return found.id
   }
 
-  // ---- work（公開7・下書き1） ----------------------------------------------
+  // ---- work（公開11・下書き1） ---------------------------------------------
   type WorkDef = Omit<typeof work.$inferInsert, 'id' | 'sortOrder' | 'firstPublishedAt'> & { stackKeys: string[] }
   const workDefs: WorkDef[] = [
     {
@@ -291,19 +294,6 @@ export function buildSeed(options: SeedOptions): SeedData {
       stackKeys: ['docker'],
     },
     {
-      slug: 'recipe-notes',
-      titleJa: 'レシピノート',
-      titleEn: 'Recipe Notes',
-      summaryJa: '家族で共有するレシピ帳。',
-      summaryEn: 'A recipe book shared with family.',
-      // 詳細本文が日本語だけ（/en の詳細で日本語の本文と注記が出る）。
-      // 2ページ目に置き、ページングした先から詳細へ移って「戻る」で元のページに戻る流れを確かめられるようにする
-      bodyJa: '## 背景\n\n家族のレシピを1か所にまとめたくて作りました。',
-      bodyEn: null,
-      thumbnailUrl: image.url('thumbnail', 'Recipe Notes'),
-      stackKeys: ['python', 'sqlite'],
-    },
-    {
       // 外部リンクも GitHub もなく押せない
       slug: 'internal-tool',
       titleJa: '社内ツール',
@@ -311,6 +301,60 @@ export function buildSeed(options: SeedOptions): SeedData {
       summaryJa: '社内で使っている集計ツール（非公開）。',
       summaryEn: 'An internal reporting tool (private).',
       stackKeys: ['perl', 'jquery'],
+    },
+    {
+      slug: 'markdown-viewer',
+      titleJa: 'Markdown ビューア',
+      titleEn: 'Markdown Viewer',
+      summaryJa: 'ブラウザで Markdown を読むための小さなビューア。',
+      summaryEn: 'A small viewer for reading Markdown in the browser.',
+      bodyJa: '## 概要\n\nファイルを落とすとその場で描画します。',
+      bodyEn: '## Overview\n\nDrop a file and it renders right away.',
+      stackKeys: ['typescript', 'react'],
+    },
+    {
+      // 詳細本文なしで外部リンクだけ
+      slug: 'event-site',
+      titleJa: '勉強会の告知サイト',
+      titleEn: 'Meetup Site',
+      summaryJa: '地域の勉強会の日程と会場の案内。',
+      summaryEn: 'Dates and venues for a local meetup.',
+      linkUrl: 'https://example.com/meetup',
+      stackKeys: ['nextjs'],
+    },
+    {
+      // 詳細本文なしで GitHub だけ
+      slug: 'tab-cleaner',
+      titleJa: 'タブ整理の拡張機能',
+      titleEn: 'Tab Cleaner',
+      summaryJa: '開きっぱなしのタブをまとめて閉じるブラウザ拡張。',
+      summaryEn: 'A browser extension that closes stale tabs.',
+      githubUrl: 'https://github.com/example/tab-cleaner',
+      stackKeys: ['typescript'],
+    },
+    {
+      slug: 'budget-app',
+      titleJa: '家計簿アプリ',
+      titleEn: 'Budget App',
+      summaryJa: 'レシートの写真から支出を記録する。',
+      summaryEn: 'Records spending from photos of receipts.',
+      bodyJa: '## 概要\n\n読み取った金額を月ごとにまとめます。',
+      bodyEn: '## Overview\n\nIt totals the amounts it reads by month.',
+      linkUrl: 'https://example.com/budget',
+      stackKeys: ['python', 'postgresql'],
+    },
+    {
+      slug: 'recipe-notes',
+      titleJa: 'レシピノート',
+      titleEn: 'Recipe Notes',
+      summaryJa: '家族で共有するレシピ帳。',
+      summaryEn: 'A recipe book shared with family.',
+      // 詳細本文が日本語だけ（/en の詳細で日本語の本文と注記が出る）。
+      // 表示順の11番目（2ページ目）に置き、ページングした先から詳細へ移って「戻る」で元のページに戻る流れを確かめられるようにする
+      bodyJa: '## 背景\n\n家族のレシピを1か所にまとめたくて作りました。',
+      bodyEn: null,
+      thumbnailUrl: image.url('thumbnail', 'Recipe Notes'),
+      stackKeys: ['python', 'sqlite'],
     },
     {
       slug: null, // 下書きなのでスラッグは未定でよい

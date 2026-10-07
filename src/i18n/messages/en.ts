@@ -23,8 +23,6 @@ export const en = {
   },
   period: { present: 'Present' },
   action: {
-    readMore: 'Read more',
-    close: 'Close',
     visitSite: 'Visit site',
     github: 'GitHub',
     reload: 'Reload',
@@ -69,8 +67,6 @@ export const en = {
     announce: (current: number, total: number): string => `Page ${current} of ${total}`,
   },
   header: {
-    sectionNav: 'Sections',
-    menu: 'Menu',
     language: 'Language',
   },
   footer: {

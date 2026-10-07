@@ -169,9 +169,11 @@ test('A3: 自己紹介のプレビュー、SNSリンクの追加・並べ替え�
   const original = await headline.inputValue()
 
   await page.getByRole('button', { name: 'プレビュー' }).first().click()
-  await expect(page.getByRole('region', { name: '自己紹介のプレビュー' }).first()).not.toContainText('準備しています', {
-    timeout: 15_000,
-  })
+  const preview = page.getByRole('region', { name: '自己紹介のプレビュー' }).first()
+  await expect(preview).not.toContainText('準備しています', { timeout: 15_000 })
+  // 太字が使用技術と一致すれば技術アイコンが付き（公開側の P1 と同じ描画。ADR-012）、一致しない太字には付かない
+  await expect(preview.locator('img[data-stack-icon] + strong')).toHaveText(['React', 'TypeScript'])
+  await expect(preview.getByText('使いやすさ')).toBeVisible()
   await page.getByRole('button', { name: '入力に戻る' }).first().click()
 
   const links = page.getByRole('list', { name: 'SNSリンクの並び' })

@@ -6,6 +6,7 @@ import { type ChangeEvent, type DragEvent, type ReactNode, useId, useRef, useSta
 import { css, cx } from 'styled-system/css'
 import { UPLOAD_CONTENT_TYPES, UPLOAD_MAX_BYTES, UPLOAD_MESSAGES } from '~/api/contract/misc'
 import type { Lang } from '~/i18n/detect'
+import type { MarkdownStack } from '~/markdown/render'
 import { FallbackImage } from '~/ui/image'
 import { button, input } from '~/ui/recipes'
 import { Select, type SelectOption } from '~/ui/select'
@@ -121,6 +122,11 @@ export interface TextAreaFieldProps extends Omit<TextFieldProps, 'type' | 'max'>
   rows?: number
 }
 
+export interface MarkdownFieldProps extends TextAreaFieldProps {
+  /** プレビューで太字と照合する使用技術。自己紹介だけが渡す（ADR-012） */
+  stacks?: MarkdownStack[]
+}
+
 export function TextAreaField({
   label,
   value,
@@ -162,8 +168,9 @@ export function MarkdownField({
   rows = 8,
   disabled,
   lang = 'ja',
+  stacks,
   ...state
-}: TextAreaFieldProps) {
+}: MarkdownFieldProps) {
   const [preview, setPreview] = useState(false)
 
   return (
@@ -193,7 +200,7 @@ export function MarkdownField({
               borderRadius: 'control',
             })}
           >
-            <MarkdownPreview markdown={value} lang={lang} />
+            <MarkdownPreview markdown={value} lang={lang} stacks={stacks} />
           </div>
         </section>
       ) : (

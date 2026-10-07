@@ -57,8 +57,10 @@ export function PostDetailPage(props: PostDetailProps) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 'inline',
-                  color: 'accent.default',
-                  _hover: { color: 'accent.hover' },
+                  color: 'link.default',
+                  textDecoration: 'underline',
+                  textDecorationColor: 'link.underline',
+                  _hover: { textDecorationColor: 'link.default' },
                   wordBreak: 'break-all',
                 })}
               >

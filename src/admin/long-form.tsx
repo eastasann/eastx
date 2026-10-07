@@ -358,7 +358,7 @@ export function StackPicker({
       <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'inline' })}>
         {value.length > 0 && (
           <SortableList
-            label="選んだ使用技術（並びがカードに出る順）"
+            label="選んだ使用技術（並びがトップの行に出る順）"
             layout="wrap"
             items={value}
             getId={(stack) => stack.id}

@@ -1,5 +1,5 @@
 /**
- * トップのプロフィール（design-spec 6.1.4）。写真（なければ名前の頭文字の丸）・名前・肩書き・自己紹介・SNS リンクのアイコン。
+ * トップのプロフィール（design-spec 6.1.4）。写真（なければ名前の頭文字の丸）を名前の横に置き、肩書き・自己紹介・SNS リンクのアイコン。
  * プロフィールは言語ラベル・注記を出さず、項目単位の代替表示だけで出す（design-spec 1.4）
  */
 import { css } from 'styled-system/css'
@@ -13,7 +13,10 @@ import { button } from '~/ui/recipes'
 import { Text } from './content-parts'
 import { socialLinkName } from './site-footer'
 
-const avatar = css({ w: 'avatar', aspectRatio: 'avatar', borderRadius: 'avatar' })
+const avatar = css({ w: 'avatar-sm', aspectRatio: 'avatar', borderRadius: 'avatar', flexShrink: 0 })
+
+/** 自己紹介はグレーの本文にし、太字（固有名詞）とリンクだけを濃い色にする（design-spec 4.4） */
+const bio = css({ color: 'text.muted', '& strong': { color: 'text.default' } })
 
 export function ProfileSection({ profile, lang, messages }: { profile: ProfileView; lang: Lang; messages: Messages }) {
   const name = profile.name?.value ?? ''
@@ -22,30 +25,30 @@ export function ProfileSection({ profile, lang, messages }: { profile: ProfileVi
     <section
       id="profile"
       aria-label={messages.section.profile}
-      className={css({ display: 'flex', flexDirection: 'column', gap: 'stack' })}
+      className={css({ display: 'flex', flexDirection: 'column', gap: 'stack-dense' })}
     >
-      {profile.avatarUrl === null ? (
-        initial
-      ) : (
-        <FallbackImage src={profile.avatarUrl} alt={name} className={avatar} loading="eager" fallback={initial} />
-      )}
-      <div className={css({ display: 'flex', flexDirection: 'column', gap: 'stack-dense' })}>
-        {/* トップの見出しは名前。名前がないプロフィールは公開のルールで起きない（profile_name_required） */}
-        {profile.name && <Text as="h1" text={profile.name} pageLang={lang} className={css({ textStyle: 'display' })} />}
-        {profile.headline && (
-          <Text
-            as="p"
-            text={profile.headline}
-            pageLang={lang}
-            className={css({ textStyle: 'heading-3', color: 'text.muted' })}
-          />
+      <div className={css({ display: 'flex', alignItems: 'center', gap: 'inset' })}>
+        {profile.avatarUrl === null ? (
+          initial
+        ) : (
+          <FallbackImage src={profile.avatarUrl} alt={name} className={avatar} loading="eager" fallback={initial} />
         )}
+        <div className={css({ display: 'flex', flexDirection: 'column', minW: '[0]' })}>
+          {/* トップの見出しは名前。名前がないプロフィールは公開のルールで起きない（profile_name_required） */}
+          {profile.name && (
+            <Text as="h1" text={profile.name} pageLang={lang} className={css({ textStyle: 'heading-2' })} />
+          )}
+          {profile.headline && (
+            <Text as="p" text={profile.headline} pageLang={lang} className={css({ color: 'text.muted' })} />
+          )}
+        </div>
       </div>
       {profile.bio && (
         <MarkdownBody
           html={profile.bio.html}
           copyLabels={messages.code}
           lang={profile.bio.lang === lang ? undefined : profile.bio.lang}
+          className={bio}
         />
       )}
       {profile.socialLinks.length > 0 && (

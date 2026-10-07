@@ -18,6 +18,16 @@ describe('デモデータ（design-spec 8章）', () => {
     }
   })
 
+  it('profile: 自己紹介（日英）に、使用技術と一致する太字（React・TypeScript）と一致しない太字が1つ', () => {
+    const p = seed.profile[0]
+    const names = new Set(seed.stacks.flatMap((s) => [s.key.toLowerCase(), s.displayName.toLowerCase()]))
+    for (const bio of [p?.bioJa, p?.bioEn]) {
+      const bold = [...(bio ?? '').matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1] ?? '')
+      expect(bold.filter((b) => names.has(b.toLowerCase()))).toEqual(['React', 'TypeScript'])
+      expect(bold.filter((b) => !names.has(b.toLowerCase()))).toHaveLength(1)
+    }
+  })
+
   it('social_link: github・linkedin・x・other（表示名あり）を1件ずつ', () => {
     expect(seed.socialLinks.map((s) => s.service)).toEqual(['github', 'linkedin', 'x', 'other'])
     expect(seed.socialLinks.find((s) => s.service === 'other')?.label).toBeTruthy()
@@ -34,15 +44,19 @@ describe('デモデータ（design-spec 8章）', () => {
     expect(pub.filter((c) => !c.titleJa && c.titleEn)).toHaveLength(1)
   })
 
-  it('work: 8件（公開7・下書き1）と、公開7件の内訳', () => {
-    expect(seed.works).toHaveLength(8)
+  it('work: 12件（公開11・下書き1）と、公開11件の内訳', () => {
+    expect(seed.works).toHaveLength(12)
     const pub = published(seed.works)
-    expect(pub).toHaveLength(7)
-    expect(pub.filter(hasBody)).toHaveLength(4)
-    expect(pub.filter((w) => w.bodyJa && !w.bodyEn)).toHaveLength(1)
+    expect(pub).toHaveLength(11)
+    expect(pub.filter(hasBody)).toHaveLength(6)
+    const jaOnly = pub.filter((w) => w.bodyJa && !w.bodyEn)
+    expect(jaOnly).toHaveLength(1)
+    // 日本語の本文だけの1件は表示順の11番目（1ページ10件の2ページ目）
+    const ordered = [...pub].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    expect(ordered.indexOf(jaOnly[0] as (typeof pub)[number])).toBe(10)
     const noBody = pub.filter((w) => !hasBody(w))
-    expect(noBody.filter((w) => w.linkUrl && !w.githubUrl)).toHaveLength(1)
-    expect(noBody.filter((w) => !w.linkUrl && w.githubUrl)).toHaveLength(1)
+    expect(noBody.filter((w) => w.linkUrl && !w.githubUrl)).toHaveLength(2)
+    expect(noBody.filter((w) => !w.linkUrl && w.githubUrl)).toHaveLength(2)
     expect(noBody.filter((w) => !w.linkUrl && !w.githubUrl)).toHaveLength(1)
     expect(seed.works.filter((w) => w.thumbnailUrl)).toHaveLength(4)
     const stacksPerWork = pub.map((w) => seed.workStacks.filter((ws) => ws.workId === w.id).length)
@@ -122,6 +136,6 @@ describe('デモデータ（design-spec 8章）', () => {
     const empty = buildSeed({ empty: true })
     expect(empty.blogPosts).toHaveLength(0)
     expect(empty.codingLogs).toHaveLength(0)
-    expect(empty.works).toHaveLength(8)
+    expect(empty.works).toHaveLength(12)
   })
 })

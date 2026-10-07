@@ -401,7 +401,7 @@
         "$type": "fontFamily",
         "sans": {
           "$value": [
-            "Inter Variable",
+            "Geist Variable",
             "Hiragino Sans",
             "Hiragino Kaku Gothic ProN",
             "Noto Sans JP",
@@ -409,7 +409,7 @@
             "Meiryo",
             "sans-serif"
           ],
-          "$description": "英文は Inter（自前配信の可変フォント）、和文は OS のゴシック体"
+          "$description": "英文は Geist（自前配信の可変フォント）、和文は OS のゴシック体"
         },
         "mono": {
           "$value": [
@@ -438,6 +438,12 @@
         "sm": {
           "$value": {
             "value": 0.875,
+            "unit": "rem"
+          }
+        },
+        "base": {
+          "$value": {
+            "value": 0.9375,
             "unit": "rem"
           }
         },
@@ -651,6 +657,12 @@
           "unit": "px"
         }
       },
+      "520": {
+        "$value": {
+          "value": 520,
+          "unit": "px"
+        }
+      },
       "720": {
         "$value": {
           "value": 720,
@@ -845,7 +857,7 @@
         "accent": {
           "default": {
             "$value": "{primitive.color.indigo.600}",
-            "$description": "リンク・ボタン・ページングの現在位置"
+            "$description": "ボタン・ページングの現在位置・今の言語（本文中のリンクは link）"
           },
           "hover": {
             "$value": "{primitive.color.indigo.700}"
@@ -853,6 +865,16 @@
           "subtle": {
             "$value": "{primitive.color.indigo.50}",
             "$description": "選択中の行・現在の言語などの薄い地"
+          }
+        },
+        "link": {
+          "default": {
+            "$value": "{primitive.color.neutral.900}",
+            "$description": "本文中のリンクの文字（text.default と同じ値）"
+          },
+          "underline": {
+            "$value": "{primitive.color.neutral.200}",
+            "$description": "本文中のリンクの下線（border.default と同じ値）。ホバーで link.default にする"
           }
         },
         "focus-ring": {
@@ -938,7 +960,7 @@
         "accent": {
           "default": {
             "$value": "{primitive.color.indigo.300}",
-            "$description": "リンク・ボタン・ページングの現在位置"
+            "$description": "ボタン・ページングの現在位置・今の言語（本文中のリンクは link）"
           },
           "hover": {
             "$value": "{primitive.color.indigo.200}"
@@ -946,6 +968,16 @@
           "subtle": {
             "$value": "{primitive.color.indigo.950}",
             "$description": "選択中の行・現在の言語などの薄い地"
+          }
+        },
+        "link": {
+          "default": {
+            "$value": "{primitive.color.neutral.50}",
+            "$description": "本文中のリンクの文字（text.default と同じ値）"
+          },
+          "underline": {
+            "$value": "{primitive.color.neutral.800}",
+            "$description": "本文中のリンクの下線（border.default と同じ値）。ホバーで link.default にする"
           }
         },
         "focus-ring": {
@@ -990,7 +1022,7 @@
           "letterSpacing": "{primitive.font.letter-spacing.normal}",
           "lineHeight": 1.25
         },
-        "$description": "プロフィールの名前"
+        "$description": "最も大きい見出し。既定の OGP 画像（scripts/og）が書体をここから読む"
       },
       "heading-1": {
         "$value": {
@@ -1000,7 +1032,7 @@
           "letterSpacing": "{primitive.font.letter-spacing.normal}",
           "lineHeight": 1.35
         },
-        "$description": "詳細ページのタイトル"
+        "$description": "詳細ページのタイトル・管理画面の各画面の題"
       },
       "heading-2": {
         "$value": {
@@ -1010,7 +1042,7 @@
           "letterSpacing": "{primitive.font.letter-spacing.normal}",
           "lineHeight": 1.4
         },
-        "$description": "トップのセクション見出し・本文の h2（Markdown の #。見出しは1段下げる）"
+        "$description": "P1 のプロフィールの名前・本文の h2（Markdown の #。見出しは1段下げる）・管理画面のダッシュボードと A1 の見出し"
       },
       "heading-3": {
         "$value": {
@@ -1020,17 +1052,17 @@
           "letterSpacing": "{primitive.font.letter-spacing.normal}",
           "lineHeight": 1.5
         },
-        "$description": "カードのタイトル・本文の h3 以下（Markdown の ## 以下）"
+        "$description": "本文の h3 以下（Markdown の ## 以下）・公開側のサイト名・ダイアログの題・管理画面の小見出し"
       },
       "body": {
         "$value": {
           "fontFamily": "{primitive.font.family.sans}",
-          "fontSize": "{primitive.font.size.md}",
+          "fontSize": "{primitive.font.size.base}",
           "fontWeight": "{primitive.font.weight.regular}",
           "letterSpacing": "{primitive.font.letter-spacing.normal}",
           "lineHeight": 1.8
         },
-        "$description": "公開側の本文（和文が読みやすいよう行間を広めに）"
+        "$description": "本文（和文が読みやすいよう行間を広めに）。公開側と管理画面で共通"
       },
       "body-sm": {
         "$value": {
@@ -1040,7 +1072,17 @@
           "letterSpacing": "{primitive.font.letter-spacing.normal}",
           "lineHeight": 1.7
         },
-        "$description": "カードの概要・抜粋"
+        "$description": "P1 の作品・プロジェクトの行を広げたときの概要・管理画面の補足の文字"
+      },
+      "section-label": {
+        "$value": {
+          "fontFamily": "{primitive.font.family.sans}",
+          "fontSize": "{primitive.font.size.sm}",
+          "fontWeight": "{primitive.font.weight.regular}",
+          "letterSpacing": "{primitive.font.letter-spacing.normal}",
+          "lineHeight": 1.5
+        },
+        "$description": "P1 のセクション見出し。色は使う側で text.muted"
       },
       "ui": {
         "$value": {
@@ -1087,7 +1129,7 @@
       "$type": "dimension",
       "none": {
         "$value": "{primitive.space.0}",
-        "$description": "端に寄せる位置（固定ヘッダーの top、全面に広げる部品の inset）と、余白を消すとき"
+        "$description": "端に寄せる位置（管理画面のサイドメニューの top、全面に広げる部品の inset）と、余白を消すとき"
       },
       "gutter": {
         "$value": "{primitive.space.4}",
@@ -1116,17 +1158,25 @@
       "inline": {
         "$value": "{primitive.space.2}",
         "$description": "横に並ぶ部品（ボタン・チップ・アイコン）の間"
+      },
+      "inline-tight": {
+        "$value": "{primitive.space.1}",
+        "$description": "本文中の技術アイコンと語の間"
       }
     },
     "size": {
       "$type": "dimension",
+      "site-column": {
+        "$value": "{primitive.size.520}",
+        "$description": "公開側の1列の最大幅（L1・L2）"
+      },
       "content": {
         "$value": "{primitive.size.720}",
-        "$description": "公開側の1列の最大幅（L1・L2）"
+        "$description": "管理画面のフォーム・ダイアログ・トーストの最大幅"
       },
       "header": {
         "$value": "{primitive.size.56}",
-        "$description": "公開側の固定ヘッダーの高さ"
+        "$description": "公開側のヘッダーと、管理画面のモバイルの上部の帯の高さ"
       },
       "sidebar": {
         "$value": "{primitive.size.240}",
@@ -1151,13 +1201,17 @@
         "$value": "{primitive.size.240}",
         "$description": "浮いている部品（メニュー・セレクトの一覧・トースト）の最小幅と、ツールチップの最大幅"
       },
-      "avatar": {
-        "$value": "{primitive.size.96}",
-        "$description": "プロフィールの写真"
+      "avatar-sm": {
+        "$value": "{primitive.size.56}",
+        "$description": "P1 の名前の横の写真"
       },
       "thumbnail-card": {
         "$value": "{primitive.size.128}",
-        "$description": "トップのカードのサムネイルの幅"
+        "$description": "管理画面の画像の欄のプレビューの幅・ダッシュボードの件数カードの最小幅"
+      },
+      "thumbnail-row": {
+        "$value": "{primitive.size.96}",
+        "$description": "P1 の作品・プロジェクトの行を広げたときのサムネイルの幅"
       },
       "editor": {
         "$value": "{primitive.size.400}",
@@ -1279,7 +1333,7 @@
       "$type": "number",
       "thumbnail": {
         "$value": "{primitive.ratio.16x9}",
-        "$description": "サムネイルの縦横比。カード・詳細ページ・管理画面のプレビューで共通"
+        "$description": "サムネイルの縦横比。P1 の広げた行・詳細ページ・管理画面のプレビューで共通"
       },
       "avatar": {
         "$value": "{primitive.ratio.1x1}"
@@ -1296,10 +1350,6 @@
       "$type": "number",
       "base": {
         "$value": "{primitive.z.0}"
-      },
-      "header": {
-        "$value": "{primitive.z.10}",
-        "$description": "公開側の固定ヘッダー"
       },
       "sidebar": {
         "$value": "{primitive.z.20}",

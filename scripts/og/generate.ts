@@ -39,8 +39,8 @@ if (!display?.fontFamily) throw new Error('semantic.typography.display の fontF
 const fontFamily = token(display.fontFamily.slice(1, -1))
 
 // about:blank のページからは file:// のフォントを読めないので、欧文の可変フォントを data URL で埋め込む
-const inter = readFileSync(
-  resolve(root, 'node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2'),
+const sans = readFileSync(
+  resolve(root, 'node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2'),
 ).toString('base64')
 
 function ogHtml(lang: (typeof LANGS)[number]): string {
@@ -51,7 +51,7 @@ function ogHtml(lang: (typeof LANGS)[number]): string {
 <head>
 <meta charset="utf-8">
 <style>
-  @font-face { font-family: 'Inter Variable'; src: url(data:font/woff2;base64,${inter}) format('woff2'); font-weight: 100 900; }
+  @font-face { font-family: 'Geist Variable'; src: url(data:font/woff2;base64,${sans}) format('woff2'); font-weight: 100 900; }
   html, body { margin: 0; }
   body {
     width: ${WIDTH}px; height: ${HEIGHT}px; box-sizing: border-box; padding: 96px;

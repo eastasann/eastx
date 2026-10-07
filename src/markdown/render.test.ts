@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { renderMarkdown } from './render'
+import { type MarkdownStack, RENDER_VERSION, renderMarkdown } from './render'
 
 const SITE = 'https://x.eastasian.dev'
 const JA = { lang: 'ja' } as const
@@ -142,5 +142,64 @@ describe('renderMarkdown', () => {
       expect(html).toContain('type="checkbox"')
       expect(html).toContain('<del>old</del>')
     })
+  })
+
+  describe('太字と使用技術の照合', () => {
+    const REACT: MarkdownStack = { key: 'react', displayName: 'React', iconUrl: '/media/uploads/2026/09/react.svg' }
+    const GO: MarkdownStack = { key: 'go', displayName: 'Go', iconUrl: null }
+    const icon = (stack: MarkdownStack, initial: string) =>
+      `<img src="${stack.iconUrl}" alt="" width="1" height="1" data-stack-icon="" data-initial="${initial}">`
+    const render = (markdown: string, stacks?: MarkdownStack[]) => renderMarkdown(markdown, { ...JA, stacks })
+
+    it('表示名と一致した太字の前にアイコンを入れる。src は /media/ 始まりの iconUrl', async () => {
+      const html = await render('主に **React** で', [REACT])
+      expect(html).toBe(`<p>主に ${icon(REACT, 'R')}<strong>React</strong> で</p>`)
+      expect(html).toMatch(/<img src="\/media\//)
+    })
+
+    it('識別名とも一致し、大文字小文字と前後の空白は区別しない', async () => {
+      expect(await render('**REACT**', [REACT])).toContain(`${icon(REACT, 'R')}<strong>REACT</strong>`)
+      const spaced: MarkdownStack = { key: ' bun ', displayName: ' Bun ', iconUrl: null }
+      expect(await render('**bun**', [spaced])).toContain('aria-hidden="true">B</span><strong>bun</strong>')
+    })
+
+    it('一致しない太字と、子が複数のノードの太字はそのまま', async () => {
+      expect(await render('**使いやすさ**', [REACT])).toBe('<p><strong>使いやすさ</strong></p>')
+      expect(await render('**React** と **[React](/ja)** と ***React* app**', [REACT])).toBe(
+        `<p>${icon(REACT, 'R')}<strong>React</strong> と <strong><a href="/ja">React</a></strong> と <strong><em>React</em> app</strong></p>`,
+      )
+    })
+
+    it('複数の使用技術に一致したら識別名の昇順で最初のものを使う', async () => {
+      const a: MarkdownStack = { key: 'a-react', displayName: 'Other', iconUrl: '/media/a.svg' }
+      const b: MarkdownStack = { key: 'b-react', displayName: 'React', iconUrl: '/media/b.svg' }
+      const c: MarkdownStack = { key: 'react', displayName: 'Third', iconUrl: '/media/c.svg' }
+      // 'react' は c の識別名と b の表示名に一致する。識別名の昇順で b が先
+      const html = await render('**React**', [c, b, a])
+      expect(html).toContain('src="/media/b.svg"')
+    })
+
+    it('iconUrl がなければ頭文字の丸（読み上げから外す）', async () => {
+      expect(await render('**go**', [GO])).toBe(
+        '<p><span data-stack-initial="" aria-hidden="true">G</span><strong>go</strong></p>',
+      )
+    })
+
+    it('stacks を渡さないと何もしない', async () => {
+      expect(await render('**React**')).toBe('<p><strong>React</strong></p>')
+      expect(await render('**React**', [])).toBe('<p><strong>React</strong></p>')
+    })
+
+    it('見出しの中の太字にも入れ、見出しのレベルと外部リンクの処理はそのまま', async () => {
+      const html = await render('# **React**\n\n[**React**](https://react.dev)', [REACT])
+      expect(html).toContain(`<h2>${icon(REACT, 'R')}<strong>React</strong></h2>`)
+      expect(html).toContain(
+        `<a href="https://react.dev" target="_blank" rel="noopener noreferrer">${icon(REACT, 'R')}<strong>React</strong> ↗</a>`,
+      )
+    })
+  })
+
+  it('描画の版は 3', () => {
+    expect(RENDER_VERSION).toBe(3)
   })
 })

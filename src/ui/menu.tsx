@@ -4,7 +4,7 @@
  */
 import { Menu as ArkMenu } from '@ark-ui/react/menu'
 import { Portal } from '@ark-ui/react/portal'
-import type { MouseEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { cx } from 'styled-system/css'
 import { fade, optionItem, optionList } from './overlay'
 import { overlaySurface } from './recipes'
@@ -15,8 +15,6 @@ export interface MenuItem {
   href?: string
   /** リンクを別タブで開く（公開サイトで見る） */
   external?: boolean
-  /** リンクを押したときの処理（ルーターでの移動など）。既定の移動を止めるときは event.preventDefault() */
-  onClick?: (event: MouseEvent<HTMLAnchorElement>) => void
   /** 今いる場所の項目に付ける */
   current?: boolean
   disabled?: boolean
@@ -51,7 +49,6 @@ export function Menu({ trigger, triggerClassName, triggerLabel, items, onSelect 
                     href={item.href}
                     target={item.external ? '_blank' : undefined}
                     rel={item.external ? 'noopener noreferrer' : undefined}
-                    onClick={item.onClick}
                     aria-current={item.current ? 'page' : undefined}
                     className={optionItem}
                   >

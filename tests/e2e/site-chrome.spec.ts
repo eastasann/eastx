@@ -1,6 +1,7 @@
 /**
  * 公開側のヘッダー・フッター・C1・C2（design-spec 3.1・6.1.2・1.4、SDD 4.1）。
- * make e2e のデモデータ（make db-seed）で、全セクションと SNS リンクがある状態を前提にする
+ * make e2e のデモデータ（make db-seed）で、全セクションと SNS リンクがある状態を前提にする。
+ * ヘッダーはサイト名・言語・テーマだけで、固定しない（design-spec 6.1.2）
  */
 import { expect, test } from '@playwright/test'
 import { gotoHydrated } from './hydration'
@@ -14,17 +15,6 @@ test.describe('C1 見つからないページ', () => {
 
     const header = page.getByRole('banner')
     await expect(header.getByRole('link', { name: 'eastasian' })).toBeVisible()
-    const sections = header.getByRole('navigation', { name: 'セクション' })
-    await expect(sections.getByRole('link')).toHaveText([
-      '経歴',
-      'プロジェクト',
-      '作品',
-      '使用技術',
-      'ブログ',
-      'コーディング記録',
-    ])
-    // 見つからないページでは、どのメニューも「今いる場所」にしない
-    await expect(sections.locator('[aria-current]')).toHaveCount(0)
 
     const footer = page.getByRole('contentinfo')
     await expect(footer).toContainText('© eastasian')
@@ -41,7 +31,6 @@ test.describe('C1 見つからないページ', () => {
     expect(response?.status()).toBe(404)
     await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-    await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link').first()).toHaveText('Career')
   })
 
   test('言語が ja・en 以外なら、ルート / と同じ振り分けの言語で C1', async ({ browser }) => {
@@ -130,49 +119,31 @@ test.describe('言語の切り替え', () => {
   })
 })
 
-test.describe('モバイル幅のヘッダー', () => {
-  test.use({ viewport: { width: 375, height: 740 } })
-
-  test('セクションメニューはメニューボタンから開き、選ぶとトップのセクションへ移る', async ({ page }) => {
-    await gotoHydrated(page, '/ja/no-such')
+test.describe('ヘッダーの形', () => {
+  test('サイト名・言語・テーマだけを置き、セクションメニューは無く、スクロールしても固定しない', async ({ page }) => {
+    await gotoHydrated(page, '/ja')
     const header = page.getByRole('banner')
-    await expect(header.getByRole('navigation', { name: 'セクション' })).toBeHidden()
-    await header.getByRole('button', { name: 'メニュー' }).click()
-    const menu = page.getByRole('menu')
-    await expect(menu.getByRole('menuitem')).toHaveText([
-      '経歴',
-      'プロジェクト',
-      '作品',
-      '使用技術',
-      'ブログ',
-      'コーディング記録',
-    ])
-    await menu.getByRole('menuitem', { name: '作品' }).click()
-    await expect(page).toHaveURL('/ja#works')
-    await expect(menu).toBeHidden()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  })
-})
+    await expect(header.getByRole('navigation')).toHaveCount(0)
+    await expect(header.getByRole('button', { name: 'メニュー' })).toHaveCount(0)
+    await expect(header.getByRole('link', { name: 'eastasian' })).toBeVisible()
+    await expect(header.getByRole('group', { name: '言語' })).toBeVisible()
+    await expect(header.getByRole('button', { name: /^テーマ/ })).toBeVisible()
 
-test.describe('タブレット幅のヘッダー', () => {
-  test('入りきるならメニューを横に並べ、入りきらなければメニューボタンにまとめる', async ({ page }) => {
-    for (const width of [1023, 768]) {
-      await page.setViewportSize({ width, height: 800 })
+    await page.locator('#blog').evaluate((element) => element.scrollIntoView())
+    await expect(header).not.toBeInViewport()
+  })
+
+  test.describe('モバイル幅', () => {
+    test.use({ viewport: { width: 375, height: 740 } })
+
+    test('ヘッダーは1行で、ページの横にはみ出さない', async ({ page }) => {
       await gotoHydrated(page, '/ja/no-such')
       const header = page.getByRole('banner')
-      await expect(header.getByRole('navigation', { name: 'セクション' })).toBeVisible()
-      await expect(header.getByRole('button', { name: 'メニュー' })).toBeHidden()
+      const name = await header.getByRole('link', { name: 'eastasian' }).boundingBox()
+      const theme = await header.getByRole('button', { name: /^テーマ/ }).boundingBox()
+      if (!name || !theme) throw new Error('ヘッダーの部品が見えない')
+      expect(Math.abs(name.y + name.height / 2 - (theme.y + theme.height / 2))).toBeLessThanOrEqual(2)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-    }
-
-    // セクションの名前が入りきらない幅を、ヘッダーの右側を広げて作る
-    await page.setViewportSize({ width: 800, height: 800 })
-    await gotoHydrated(page, '/ja/no-such')
-    await page.addStyleTag({ content: 'header > div:last-child { padding-left: 400px }' })
-    const header = page.getByRole('banner')
-    await expect(header.getByRole('button', { name: 'メニュー' })).toBeVisible()
-    await expect(header.getByRole('navigation', { name: 'セクション' })).toBeHidden()
-    await header.getByRole('button', { name: 'メニュー' }).click()
-    await expect(page.getByRole('menu').getByRole('menuitem')).toHaveCount(6)
+    })
   })
 })

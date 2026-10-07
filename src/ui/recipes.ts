@@ -87,7 +87,7 @@ export const input = cva({
   defaultVariants: { multiline: false },
 })
 
-/** 使用技術のチップ。リンクのときは押せる見た目にする */
+/** 使用技術のチップ。リンクのときは押せる見た目にする。公開側は枠線のない plain（design-spec 4.4） */
 export const chip = cva({
   base: {
     display: 'inline-flex',
@@ -114,8 +114,16 @@ export const chip = cva({
         _hover: { borderColor: 'accent.default', color: 'accent.default' },
       },
     },
+    plain: {
+      false: {},
+      true: { px: 'none', bg: 'transparent', borderStyle: 'none' },
+    },
   },
-  defaultVariants: { interactive: false },
+  // 公開側のリンクはアクセントにせず、ホバーで下線を引く（design-spec 4.4）
+  compoundVariants: [
+    { interactive: true, plain: true, css: { _hover: { color: 'link.default', textDecoration: 'underline' } } },
+  ],
+  defaultVariants: { interactive: false, plain: false },
 })
 
 /** 言語ラベル（「英語のみ」）・種類ラベル・状態（下書き・公開中）など、押せない小さな札 */

@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react'
 import { css } from 'styled-system/css'
 import type { Lang } from '~/i18n/detect'
+import type { MarkdownStack } from '~/markdown/render'
 import { MarkdownBody } from '~/ui/markdown-body'
 
 /** プレビューの「コピー」ボタンの文言（管理画面は日本語） */
@@ -18,13 +19,13 @@ const RENDER_DELAY_MS = 150
 
 type PreviewState = { status: 'pending' } | { status: 'done'; html: string } | { status: 'failed' }
 
-function useRenderedMarkdown(markdown: string, lang: Lang): PreviewState {
+function useRenderedMarkdown(markdown: string, lang: Lang, stacks: MarkdownStack[] | undefined): PreviewState {
   const [state, setState] = useState<PreviewState>({ status: 'pending' })
   useEffect(() => {
     let active = true
     const timer = setTimeout(() => {
       import('~/markdown/render')
-        .then(({ renderMarkdown }) => renderMarkdown(markdown, { lang, siteOrigin: window.location.origin }))
+        .then(({ renderMarkdown }) => renderMarkdown(markdown, { lang, siteOrigin: window.location.origin, stacks }))
         .then((html) => {
           if (active) setState({ status: 'done', html })
         })
@@ -36,15 +37,23 @@ function useRenderedMarkdown(markdown: string, lang: Lang): PreviewState {
       active = false
       clearTimeout(timer)
     }
-  }, [markdown, lang])
+  }, [markdown, lang, stacks])
   return state
 }
 
 /**
  * 描画した本文。描き直しのあいだは前の描画を出したままにする（打鍵のたびに「準備しています」へ戻さない）
  */
-export function MarkdownPreview({ markdown, lang }: { markdown: string; lang: Lang }) {
-  const state = useRenderedMarkdown(markdown, lang)
+export function MarkdownPreview({
+  markdown,
+  lang,
+  stacks,
+}: {
+  markdown: string
+  lang: Lang
+  stacks?: MarkdownStack[]
+}) {
+  const state = useRenderedMarkdown(markdown, lang, stacks)
   if (state.status === 'failed') {
     return <p className={css({ textStyle: 'body-sm', color: 'danger.default' })}>プレビューを表示できませんでした</p>
   }

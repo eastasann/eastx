@@ -66,7 +66,7 @@ function allStacks(resume: LegacyResume): LegacyStack[] {
 /**
  * 今の説明（Work.body・Project.body）は概要（summary）に入れる（design-spec 9章）。
  * 概要の上限（SDD 5.0 の 500字）を日英のどちらかが超える中身は、日英とも詳細本文（body）に入れて概要を空にする。
- * 上限を超えた概要は管理画面で保存できず、長い説明はカードの2行の概要より詳細ページで読ませる量なので
+ * 上限を超えた概要は管理画面で保存できず、長い説明はトップの行の概要より詳細ページで読ませる量なので
  */
 function descriptionColumns(en: string | null, ja: string | null) {
   const fitsSummary = (en?.length ?? 0) <= LIMITS.summary && (ja?.length ?? 0) <= LIMITS.summary

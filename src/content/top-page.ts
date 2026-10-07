@@ -1,8 +1,7 @@
 /**
  * P1 トップの中身（SDD 5.11 の getTopPage、design-spec 6.1.3〜6.1.5）。全セクションを1回の db.batch() で読む
  */
-import { asc, desc, eq, sql } from 'drizzle-orm'
-import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
+import { asc, desc, eq } from 'drizzle-orm'
 import {
   blogPost,
   career,
@@ -15,18 +14,15 @@ import {
   work,
   workStack,
 } from '~/db/schema'
-import { EXCERPT_SOURCE_LENGTH, excerptOf } from '~/domain/excerpt'
+import { excerptOf } from '~/domain/excerpt'
 import type { Lang } from '~/i18n/detect'
 import { getMessages } from '~/i18n/messages'
 import { availabilityOf, type Bilingual, type LocalizedText, pickText } from './localize'
 import { renderLocalizedMarkdown } from './markdown'
 import { pageMeta } from './meta'
 import { published } from './published'
-import { type ContentContext, hasDetailSql, required } from './shared'
+import { bodyPresence, type ContentContext, hasDetailSql, required } from './shared'
 import type { BlogPostItem, StackChip, TopPageView } from './types'
-
-/** 抜粋のために読む本文の先頭（SDD 5.11） */
-const bodyHead = (column: SQLiteColumn) => sql<string | null>`substr(${column}, 1, ${EXCERPT_SOURCE_LENGTH})`
 
 const stackColumns = {
   key: stack.key,
@@ -54,122 +50,123 @@ function excerptText(primary: Lang, bodies: Bilingual<string | null>): Localized
 }
 
 export async function loadTopPage({ db, siteUrl }: ContentContext, lang: Lang): Promise<TopPageView> {
-  const [profiles, links, careers, projects, projectStacks, works, workStacks, stacks, posts, logs] = await db.batch([
-    db
-      .select({
-        id: profile.id,
-        nameJa: profile.nameJa,
-        nameEn: profile.nameEn,
-        headlineJa: profile.headlineJa,
-        headlineEn: profile.headlineEn,
-        bioJa: profile.bioJa,
-        bioEn: profile.bioEn,
-        avatarUrl: profile.avatarUrl,
-        updatedAt: profile.updatedAt,
-      })
-      .from(profile)
-      .limit(1),
-    db
-      .select({ service: socialLink.service, url: socialLink.url, label: socialLink.label })
-      .from(socialLink)
-      .orderBy(asc(socialLink.sortOrder)),
-    db
-      .select({
-        id: career.id,
-        kind: career.kind,
-        titleJa: career.titleJa,
-        titleEn: career.titleEn,
-        organizationJa: career.organizationJa,
-        organizationEn: career.organizationEn,
-        locationJa: career.locationJa,
-        locationEn: career.locationEn,
-        bodyJa: career.bodyJa,
-        bodyEn: career.bodyEn,
-        startDate: career.startDate,
-        endDate: career.endDate,
-        updatedAt: career.updatedAt,
-      })
-      .from(career)
-      .where(published(career))
-      .orderBy(desc(career.startDate), asc(career.id)),
-    db
-      .select({
-        id: project.id,
-        slug: project.slug,
-        titleJa: project.titleJa,
-        titleEn: project.titleEn,
-        summaryJa: project.summaryJa,
-        summaryEn: project.summaryEn,
-        startDate: project.startDate,
-        endDate: project.endDate,
-        thumbnailUrl: project.thumbnailUrl,
-        linkUrl: project.linkUrl,
-        hasDetail: hasDetailSql(project),
-      })
-      .from(project)
-      .where(published(project))
-      .orderBy(asc(project.sortOrder), asc(project.id)),
-    db
-      .select({ ownerId: projectStack.projectId, ...stackColumns })
-      .from(projectStack)
-      .innerJoin(stack, eq(projectStack.stackId, stack.id))
-      .innerJoin(project, eq(projectStack.projectId, project.id))
-      .where(published(project))
-      .orderBy(asc(projectStack.sortOrder)),
-    db
-      .select({
-        id: work.id,
-        slug: work.slug,
-        titleJa: work.titleJa,
-        titleEn: work.titleEn,
-        summaryJa: work.summaryJa,
-        summaryEn: work.summaryEn,
-        thumbnailUrl: work.thumbnailUrl,
-        linkUrl: work.linkUrl,
-        githubUrl: work.githubUrl,
-        hasDetail: hasDetailSql(work),
-      })
-      .from(work)
-      .where(published(work))
-      .orderBy(asc(work.sortOrder), asc(work.id)),
-    db
-      .select({ ownerId: workStack.workId, ...stackColumns })
-      .from(workStack)
-      .innerJoin(stack, eq(workStack.stackId, stack.id))
-      .innerJoin(work, eq(workStack.workId, work.id))
-      .where(published(work))
-      .orderBy(asc(workStack.sortOrder)),
-    db.select(stackColumns).from(stack).where(eq(stack.showOnTop, true)).orderBy(asc(stack.sortOrder)),
-    db
-      .select({
-        id: blogPost.id,
-        slug: blogPost.slug,
-        titleJa: blogPost.titleJa,
-        titleEn: blogPost.titleEn,
-        bodyJa: bodyHead(blogPost.bodyJa),
-        bodyEn: bodyHead(blogPost.bodyEn),
-        thumbnailUrl: blogPost.thumbnailUrl,
-        publishedAt: blogPost.publishedAt,
-      })
-      .from(blogPost)
-      .where(published(blogPost))
-      .orderBy(desc(blogPost.publishedAt), asc(blogPost.id)),
-    db
-      .select({
-        id: codingLog.id,
-        slug: codingLog.slug,
-        kind: codingLog.kind,
-        titleJa: codingLog.titleJa,
-        titleEn: codingLog.titleEn,
-        bodyJa: bodyHead(codingLog.bodyJa),
-        bodyEn: bodyHead(codingLog.bodyEn),
-        thumbnailUrl: codingLog.thumbnailUrl,
-        publishedAt: codingLog.publishedAt,
-      })
-      .from(codingLog)
-      .where(published(codingLog))
-      .orderBy(desc(codingLog.publishedAt), asc(codingLog.id)),
-  ])
+  const [profiles, links, careers, projects, projectStacks, works, workStacks, stacks, allStacks, posts, logs] =
+    await db.batch([
+      db
+        .select({
+          id: profile.id,
+          nameJa: profile.nameJa,
+          nameEn: profile.nameEn,
+          headlineJa: profile.headlineJa,
+          headlineEn: profile.headlineEn,
+          bioJa: profile.bioJa,
+          bioEn: profile.bioEn,
+          avatarUrl: profile.avatarUrl,
+          updatedAt: profile.updatedAt,
+        })
+        .from(profile)
+        .limit(1),
+      db
+        .select({ service: socialLink.service, url: socialLink.url, label: socialLink.label })
+        .from(socialLink)
+        .orderBy(asc(socialLink.sortOrder)),
+      db
+        .select({
+          id: career.id,
+          kind: career.kind,
+          titleJa: career.titleJa,
+          titleEn: career.titleEn,
+          organizationJa: career.organizationJa,
+          organizationEn: career.organizationEn,
+          locationJa: career.locationJa,
+          locationEn: career.locationEn,
+          bodyJa: career.bodyJa,
+          bodyEn: career.bodyEn,
+          startDate: career.startDate,
+          endDate: career.endDate,
+          updatedAt: career.updatedAt,
+        })
+        .from(career)
+        .where(published(career))
+        .orderBy(desc(career.startDate), asc(career.id)),
+      db
+        .select({
+          id: project.id,
+          slug: project.slug,
+          titleJa: project.titleJa,
+          titleEn: project.titleEn,
+          summaryJa: project.summaryJa,
+          summaryEn: project.summaryEn,
+          startDate: project.startDate,
+          endDate: project.endDate,
+          thumbnailUrl: project.thumbnailUrl,
+          linkUrl: project.linkUrl,
+          hasDetail: hasDetailSql(project),
+        })
+        .from(project)
+        .where(published(project))
+        .orderBy(asc(project.sortOrder), asc(project.id)),
+      db
+        .select({ ownerId: projectStack.projectId, ...stackColumns })
+        .from(projectStack)
+        .innerJoin(stack, eq(projectStack.stackId, stack.id))
+        .innerJoin(project, eq(projectStack.projectId, project.id))
+        .where(published(project))
+        .orderBy(asc(projectStack.sortOrder)),
+      db
+        .select({
+          id: work.id,
+          slug: work.slug,
+          titleJa: work.titleJa,
+          titleEn: work.titleEn,
+          summaryJa: work.summaryJa,
+          summaryEn: work.summaryEn,
+          thumbnailUrl: work.thumbnailUrl,
+          linkUrl: work.linkUrl,
+          githubUrl: work.githubUrl,
+          hasDetail: hasDetailSql(work),
+        })
+        .from(work)
+        .where(published(work))
+        .orderBy(asc(work.sortOrder), asc(work.id)),
+      db
+        .select({ ownerId: workStack.workId, ...stackColumns })
+        .from(workStack)
+        .innerJoin(stack, eq(workStack.stackId, stack.id))
+        .innerJoin(work, eq(workStack.workId, work.id))
+        .where(published(work))
+        .orderBy(asc(workStack.sortOrder)),
+      db.select(stackColumns).from(stack).where(eq(stack.showOnTop, true)).orderBy(asc(stack.sortOrder)),
+      // 自己紹介の太字との照合は「トップに表示する」に関わらず全件（ADR-012）
+      db.select({ key: stack.key, displayName: stack.displayName, iconUrl: stack.iconUrl }).from(stack),
+      db
+        .select({
+          id: blogPost.id,
+          slug: blogPost.slug,
+          titleJa: blogPost.titleJa,
+          titleEn: blogPost.titleEn,
+          bodyJa: bodyPresence(blogPost.bodyJa),
+          bodyEn: bodyPresence(blogPost.bodyEn),
+          publishedAt: blogPost.publishedAt,
+        })
+        .from(blogPost)
+        .where(published(blogPost))
+        .orderBy(desc(blogPost.publishedAt), asc(blogPost.id)),
+      db
+        .select({
+          id: codingLog.id,
+          slug: codingLog.slug,
+          kind: codingLog.kind,
+          titleJa: codingLog.titleJa,
+          titleEn: codingLog.titleEn,
+          bodyJa: bodyPresence(codingLog.bodyJa),
+          bodyEn: bodyPresence(codingLog.bodyEn),
+          publishedAt: codingLog.publishedAt,
+        })
+        .from(codingLog)
+        .where(published(codingLog))
+        .orderBy(desc(codingLog.publishedAt), asc(codingLog.id)),
+    ])
 
   const projectStacksById = groupStacks(projectStacks)
   const workStacksById = groupStacks(workStacks)
@@ -185,6 +182,7 @@ export async function loadTopPage({ db, siteUrl }: ContentContext, lang: Lang): 
           lang,
           { ja: profileRow.bioJa, en: profileRow.bioEn },
           siteUrl,
+          allStacks,
         ),
         avatarUrl: profileRow.avatarUrl,
         socialLinks: links,
@@ -261,8 +259,6 @@ export async function loadTopPage({ db, siteUrl }: ContentContext, lang: Lang): 
       slug: required(row.slug, `${table}.slug`),
       publishedAt: required(row.publishedAt, `${table}.published_at`).toISOString(),
       title: required(pickText(primary, { ja: row.titleJa, en: row.titleEn }), `${table}.title`),
-      excerpt: excerptText(primary, { ja: row.bodyJa, en: row.bodyEn }),
-      thumbnailUrl: row.thumbnailUrl,
       availability,
     }
   }

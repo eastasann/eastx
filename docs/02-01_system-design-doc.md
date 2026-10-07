@@ -267,7 +267,7 @@
 
 **決定:**
 - 公開側のページは、リクエストのたびに D1 から読んで SSR する。HTML にはエッジのキャッシュをかけない（`Cache-Control: private, no-cache`）。
-- 重い処理である Markdown の描画の結果だけを、Workers の Cache API に保存する。キーは URL の形で `https://md-cache.internal/{RENDER_VERSION}/{種類}/{id}/{言語}/{updated_at}`。`RENDER_VERSION` は `src/markdown/` の定数で、描画の処理（プラグイン・サニタイズのスキーマ・Shiki の設定）を変えたら上げる。保存するレスポンスには `Cache-Control: max-age=604800`（7日）を付ける。
+- 重い処理である Markdown の描画の結果だけを、Workers の Cache API に保存する。キーは URL の形で `https://md-cache.internal/{RENDER_VERSION}/{種類}/{id}/{言語}/{updated_at}`。使用技術を渡した描画（自己紹介。ADR-012）だけ、末尾に使用技術の版のセグメント `/s-{版}` を足す（`.../{updated_at}/s-3f9a1c0b`）。版は、使用技術を識別名の昇順に並べ、各項目を `{key}\u0000{displayName}\u0000{iconUrl ?? ''}`、項目どうしを改行で連ねた文字列の SHA-256 の先頭8桁（16進）。描画結果に効く3つだけで作るので、並べ替えと「トップに表示する」の変更では変わらず、追加・削除・表示名・識別名・アイコンの変更で変わる。プロフィールの `updated_at` は使用技術を変えても変わらないため、版がないと古いアイコンの結果が出続ける。`RENDER_VERSION` は `src/markdown/` の定数で、描画の処理（プラグイン・サニタイズのスキーマ・Shiki の設定）を変えたら上げる。保存するレスポンスには `Cache-Control: max-age=604800`（7日）を付ける。
 
 **理由:** design-spec 9章の「公開サイトに変更を反映するタイミング」を「保存した瞬間」に決める。個人サイトのアクセス量なら毎回の D1 の読み取りで足り、キャッシュの無効化を考えずに済む。Markdown のキャッシュは、キーに `updated_at` と `RENDER_VERSION` を含むので、中身を保存しても描画の処理を変えても別のキーになり、古い結果が出ない。
 
@@ -280,7 +280,7 @@
 
 ### ADR-012: Markdown は unified ＋ rehype-sanitize ＋ Shiki で、公開側とプレビューで同じ描画をする
 
-**決定:** `src/markdown/` に描画の関数を1つ持ち、公開側（サーバー）と管理画面のプレビュー（ブラウザ）の両方から使う。処理は remark-parse → remark-gfm → remark-rehype（生の HTML は通さない）→ rehype-sanitize（GitHub のスキーマ）→ 見出しのレベルと外部リンクの処理 → Shiki（コードの色分け）→ HTML の文字列。Shiki は JavaScript の正規表現エンジンと、使う言語だけを読み込む細かいバンドルにする。テーマはライト・ダークの2つを CSS 変数で切り替える。テーマは、トークンの色がすべてコードブロックの地の色（`bg.subtle`）に対して 4.5:1 以上になるもの（ライトは `github-light-high-contrast`、ダークは `github-dark-default`）にする（SDD 10章のアクセシビリティの検査）。コードブロックの「コピー」ボタンは描画結果に含めず、本文を出す部品（`src/ui/markdown-body.tsx`）がブラウザで付ける。描画結果を UI の言語に依らない形に保ち、本文の言語をキーにした Cache API（ADR-011）でそのまま使い回すため。
+**決定:** `src/markdown/` に描画の関数を1つ持ち、公開側（サーバー）と管理画面のプレビュー（ブラウザ）の両方から使う。処理は remark-parse → remark-gfm → remark-rehype（生の HTML は通さない）→ rehype-sanitize（GitHub のスキーマ）→ 太字と使用技術の照合（`stacks` を渡したときだけ）→ 見出しのレベルと外部リンクの処理 → Shiki（コードの色分け）→ HTML の文字列。太字と使用技術の照合は design-spec 6.3.1 の規則で、一致した太字の前に技術のアイコン（`img`。`alt` は空にして装飾として扱う。表示名は隣の太字にある）か、アイコンがなければ頭文字の丸を入れる。サニタイズの後に入れるのでスキーマは広げず、`src` は DB の `iconUrl`（CHECK 制約 `stack_icon_url` で `/media/` 始まり）だけ。`stacks` を渡すのは自己紹介の描画（公開側の `getTopPage` と A3 のプレビュー）だけ。Shiki は JavaScript の正規表現エンジンと、使う言語だけを読み込む細かいバンドルにする。テーマはライト・ダークの2つを CSS 変数で切り替える。テーマは、トークンの色がすべてコードブロックの地の色（`bg.subtle`）に対して 4.5:1 以上になるもの（ライトは `github-light-high-contrast`、ダークは `github-dark-default`）にする（SDD 10章のアクセシビリティの検査）。コードブロックの「コピー」ボタンは描画結果に含めず、本文を出す部品（`src/ui/markdown-body.tsx`）がブラウザで付ける。描画結果を UI の言語に依らない形に保ち、本文の言語をキーにした Cache API（ADR-011）でそのまま使い回すため。
 
 **理由:** design-spec 6.3.1 のルールを1か所で実装し、プレビューと公開の見た目を一致させる。HTML の文字列を返すので、Cache API に入れやすい（ADR-011）。サニタイズを Shiki より前に置くのは、Shiki が付けるスタイルを消さないため。
 
@@ -499,13 +499,13 @@
 | 管理画面で一致しないパス | `admin/_authed/$.tsx`（スプラット。`beforeLoad` で `/admin` へ移す） | 画面なし。design-spec 6.6 の「存在しない管理画面の URL」の扱い |
 
 - 管理画面の一覧は、絞り込みをクエリで持つ: `?status=draft|published`（A4〜A6・A8・A9）、`?kind=work|education`（A4）、`?kind=learning_log|snippet|problem|memo`（A9）。ダッシュボードの下書き件数からは `?status=draft` 付きで移る。
-- `$lang` が `ja`・`en` 以外のときの C1 の言語は、design-spec 3.1 のとおりルート `/` と同じ振り分けで決める。`$lang/route.tsx` の `beforeLoad` が表示の言語を決めて context に入れ、ローダーが `getSiteChrome`（5.11）でヘッダーとフッターの中身を読む。`ja`・`en` 以外のときは、読んだ結果を `notFound({ data })` に載せて投げ、C1 がそれでヘッダーとフッターを出す。C1・C2 は、ルーターが `$lang` のレイアウトの中（`Outlet`）に描くとき（子のルートが当たらない・子が失敗した）と、レイアウトの代わりに描くとき（`$lang` 自身が `notFound()`・失敗した）があるので、ヘッダーとフッターの部品（`src/site/layouts.tsx` の `SiteChrome`）は、すでに外側にあれば二重に出さない。
+- `$lang` が `ja`・`en` 以外のときの C1 の言語は、design-spec 3.1 のとおりルート `/` と同じ振り分けで決める。`$lang/route.tsx` の `beforeLoad` が表示の言語を決めて context に入れ、ローダーが `getSiteChrome`（5.11）でフッターの中身を読む。`ja`・`en` 以外のときは、読んだ結果を `notFound({ data })` に載せて投げ、C1 がそれでヘッダーとフッターを出す。C1・C2 は、ルーターが `$lang` のレイアウトの中（`Outlet`）に描くとき（子のルートが当たらない・子が失敗した）と、レイアウトの代わりに描くとき（`$lang` 自身が `notFound()`・失敗した）があるので、ヘッダーとフッターの部品（`src/site/layouts.tsx` の `SiteChrome`）は、すでに外側にあれば二重に出さない。
 - C2 は、取得に失敗したルートの `errorComponent` で出す。TanStack Router は SSR で、失敗したルート自身の `errorComponent`（なければルーターの `defaultErrorComponent`）を使い、親のルートへは上げない。そこで `src/router.tsx` の `defaultErrorComponent`（`src/site/status-pages.tsx` の `DefaultRouteError`）が、`$lang` の下なら C2 を出し、それ以外（管理画面）はライブラリの既定の表示にする。公開側の画面のルートは個別に `errorComponent` を付けない。見つからないとき（`notFound()`）は親へ上がるので、各ルートに `notFoundComponent` は要らない。
 - 編集ビューの `{id}` が `new` のときは新規作成のビュー。新規作成で初めて保存したら、URL を作成した項目の `/{id}` に置き換える（履歴を増やさない `replace`）。
 - `admin/_authed/route.tsx` は `ssr: false` のレイアウトで、`beforeLoad` でセッションを確かめ、なければ `/admin/login?redirect={開こうとしたパス}` へ移す。A1 はこのレイアウトの外に置く（`ssr: false`）。
-- トップのセクションの ID（ヘッダーのメニュー・戻るリンクのハッシュ）: `profile`、`career`、`projects`、`works`、`stack`、`blog`、`coding`。
+- トップのセクションの要素の ID: `profile`、`career`、`projects`、`works`、`stack`、`blog`、`coding`。詳細ページの戻るリンクは、このうち `projects`・`works`・`blog`・`coding` をハッシュに使う。
 - セクション内ページングのページ番号は URL に載せない（design-spec 6.1.3）。詳細ページの戻るリンクは `/{lang}#{セクションID}` へ移り、どの項目を含むページを開くかを history state（`{ section, itemId }`）で渡す。ブラウザの「戻る」では、離れたときのページ番号を戻す。ページ番号は history state ではなく、sessionStorage に履歴のキー（`__TSR_key`）ごとに持つ（`src/site/page-memory.ts`）。TanStack Router の history は `history.replaceState` を包んでいて、ページングのたびに書くとルーターが読み込み直し、URL にハッシュがあればそこへスクロールし直すため。同じ履歴にページ番号と `itemId` の両方があれば、ページ番号を使う（戻るリンクで来たあとにページングしていれば、離れたときのページ）。
-- 言語の切り替えは、同じルートのパラメーター `lang` だけを変えて移る。トップでは、表示中のセクションの ID を history state で渡し、移ったあとにそのセクションまでスクロールする。
+- 言語の切り替えは、同じルートのパラメーター `lang` だけを変えて移る。ハッシュと history state は引き継がず、切り替えた先はページの一番上から始まる（ヘッダーを固定しないので、切り替えはページの一番上で押す。design-spec 1.4）。
 
 ### 4.2 画面以外のエンドポイント
 
@@ -1080,7 +1080,7 @@ type TopPageView = {
   profile: null | {
     name: LocalizedText | null
     headline: LocalizedText | null
-    bio: LocalizedHtml | null
+    bio: LocalizedHtml | null          // 太字と一致した使用技術のアイコン入り（ADR-012）
     avatarUrl: string | null
     socialLinks: { service: SocialService; url: string; label: string | null }[]
   }
@@ -1101,12 +1101,11 @@ type TopPageView = {
   }[]
   stacks: StackChip[]                       // show_on_top のものだけ、表示順
   blogPosts: {
-    id: string; slug: string; publishedAt: string; title: LocalizedText; excerpt: LocalizedText | null
-    thumbnailUrl: string | null; availability: Availability
+    id: string; slug: string; publishedAt: string; title: LocalizedText; availability: Availability
   }[]
   codingLogs: {
     id: string; slug: string; kind: CodingLogKind; publishedAt: string; title: LocalizedText
-    excerpt: LocalizedText | null; thumbnailUrl: string | null; availability: Availability
+    availability: Availability
   }[]
 }
 
@@ -1130,18 +1129,17 @@ type BlogPostView = {
 }
 type CodingLogView = BlogPostView & { kind: CodingLogKind; referenceUrl: string | null }
 
-/** 公開側の全画面（C1・C2 を含む）のヘッダーとフッター（design-spec 6.1.2）。`$lang/route.tsx` のローダーが読む */
-type SectionId = 'career' | 'projects' | 'works' | 'stack' | 'blog' | 'coding'
+/** 公開側の全画面（C1・C2 を含む）のフッター（design-spec 6.1.2）。`$lang/route.tsx` のローダーが読む */
 type SiteChromeView = {
-  sections: SectionId[]                     // P1 に出るセクション（中身が1件以上。design-spec 6.1.5）。並びは P1 と同じ
   socialLinks: { service: SocialService; url: string; label: string | null }[]  // プロフィールのSNSリンク。プロフィールがなければ空
 }
 ```
 
 - 各配列は design-spec 6.1.3 の並び順で返す。0件の配列はそのまま返し、セクションを出すかどうかは画面が決める。
-- `getTopPage` は1回の `db.batch()` で全セクションを読む。抜粋のために本文は先頭 2,000 字だけを読む（`substr`）。切った位置でコードブロックが閉じていなければ、その開始の行から後ろを捨ててから抜粋を作る（design-spec 6.1.4 の「コードブロックを取り除く」と同じ結果にするため）。
+- `getTopPage` は1回の `db.batch()` で全セクションと、自己紹介の描画に渡す使用技術の全件（`key`・`displayName`・`iconUrl`）を読む。ブログ・コーディング記録は本文を読まず、「言語あり」の判定（design-spec 1.4）のために本文があるかだけを読む。
 - 詳細ページの `body` が両方の言語で空のブログ・コーディング記録は、公開のルールで起こらない。
-- `getSiteChrome` の `sections` と、P1 がセクションを出すかの判定（`getTopPage` の配列が0件か）は同じ規則にする。使用技術は「トップに表示する」の技術が1件以上で出す。中身が言語に依らないので入力を取らない。
+- P1 がセクションを出すかは、`getTopPage` の配列が0件かで画面が決める。使用技術は「トップに表示する」の技術が1件以上で出す。
+- `getSiteChrome` は中身が言語に依らないので入力を取らない。
 
 ---
 
@@ -1672,7 +1670,7 @@ export default defineConfig({
 守るための設計:
 
 - D1 の場所のヒントを `apac` にする（訪問者と管理者の多くが日本から）。
-- `getTopPage` は全セクションのクエリを1回の `db.batch()` で送る。必要なカラムだけを選び、抜粋のための本文は先頭 2,000 字だけを読む。
+- `getTopPage` は全セクションのクエリを1回の `db.batch()` で送る。必要なカラムだけを選び、ブログ・コーディング記録の本文は読まない（あるかだけを読む）。
 - インデックス: 一覧の絞り込みと並び（`status` ＋ `sort_order` ／ `start_date` ／ `published_at`）、スラッグの一意、中間テーブルの `stack_id`（6.4）。
 - Markdown の描画結果を Cache API に置く（ADR-011）。Shiki は使う言語だけを読み込む（ADR-012）。
 - 画像は長期キャッシュ（ADR-010）。サムネイルには `width`・`height` か `aspect-ratio` を指定してレイアウトのずれを防ぎ、ファーストビューの外は `loading="lazy"`。
@@ -1756,10 +1754,10 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 
 | レイヤー | ツール | カバレッジ目標 | 対象 |
 |----------|--------|---------------|------|
-| ユニット | Vitest（Node.js 環境） | `src/domain/`・`src/i18n/`・`src/markdown/` の行カバレッジ 90% | スラッグの生成と重複の連番、言語ありの判定と代替、抜粋の作り方、公開状態の遷移（5.3）と公開のルール、日付・期間の書式、Markdown の描画（生の HTML・`javascript:`・見出しのレベル・外部リンク） |
+| ユニット | Vitest（Node.js 環境） | `src/domain/`・`src/i18n/`・`src/markdown/` の行カバレッジ 90% | スラッグの生成と重複の連番、言語ありの判定と代替、抜粋の作り方、公開状態の遷移（5.3）と公開のルール、日付・期間の書式、Markdown の描画（生の HTML・`javascript:`・見出しのレベル・外部リンク・太字と使用技術の照合）、キャッシュのキーの使用技術の版 |
 | API 結合 | Vitest ＋ `@cloudflare/vitest-pool-workers`（workerd 上で、ローカルの D1・R2 を使う。テストファイルごとにマイグレーションを当てた空の D1） | `/api/admin/*` の全手続きについて、未認証で 401・管理者でないセッションで 403 になるテストを必ず持つ（認可マトリクスの照合）。主要な手続きの正常系とエラー系 | CMS API の全手続き、Better Auth の hooks（管理者でない ID を拒否）、アップロードの形式・上限、`/media/*` |
 | 公開側の読み取り | 同上 | 各サーバー関数の正常系と、下書き・詳細本文なしが返らないこと | 公開中だけを返す、並び順、前後のナビ、言語の代替 |
-| E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元 |
+| E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、経歴・作品の行の展開、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元 |
 | アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P5・A1・A2 で重大（serious 以上）な違反 0件 | 自動で検出できる範囲 |
 | Lighthouse | Lighthouse CI（`@lhci/cli`。モバイルの設定） | PRD 5章の Lighthouse の目標を、3回の中央値で assert する | デモデータを入れたプレビューの P1 と、P2〜P5 の各1ページ。本番では Cloudflare の拠点が HTML・JS・CSS を圧縮するが、ローカルのプレビューは圧縮しないので、gzip で圧縮して中継する（`scripts/lhci/server.ts`。本番の brotli より縮まない側で測る）。ローカルの robots.txt はすべてを拒否する（ADR-019）ので、SEO の `is-crawlable` の項目は外して測る |
 

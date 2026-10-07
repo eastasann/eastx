@@ -66,7 +66,7 @@ const initialBadge = cva({
   },
   variants: {
     size: {
-      avatar: { w: 'avatar', textStyle: 'display' },
+      avatar: { w: 'avatar-sm', textStyle: 'heading-2' },
       icon: { w: 'icon', textStyle: 'label' },
     },
   },

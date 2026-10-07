@@ -41,7 +41,7 @@ export function SiteFooter({ socialLinks, messages }: SiteFooterProps) {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 'inline',
-          maxW: 'content',
+          maxW: 'site-column',
           mx: 'auto',
           px: 'gutter',
         })}
@@ -59,9 +59,9 @@ export function SiteFooter({ socialLinks, messages }: SiteFooterProps) {
                   rel="noopener noreferrer"
                   className={css({
                     textStyle: 'ui',
-                    color: 'accent.default',
+                    color: 'text.muted',
                     textDecoration: 'none',
-                    _hover: { color: 'accent.hover', textDecoration: 'underline' },
+                    _hover: { color: 'link.default', textDecoration: 'underline' },
                   })}
                 >
                   {socialLinkName(link)}

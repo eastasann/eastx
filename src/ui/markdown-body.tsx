@@ -33,7 +33,30 @@ const body = css({
   '& h2': { textStyle: 'heading-2', mt: 'stack' },
   '& h3, & h4, & h5, & h6': { textStyle: 'heading-3', mt: 'stack' },
   '& > :first-child': { mt: 'none' },
-  '& a': { color: 'accent.default', textDecoration: 'underline', _hover: { color: 'accent.hover' } },
+  '& a': {
+    color: 'link.default',
+    textDecoration: 'underline',
+    textDecorationColor: 'link.underline',
+    _hover: { textDecorationColor: 'link.default' },
+  },
+  // 太字と一致した使用技術のアイコン（src/markdown/render.ts）。行の高さを変えないよう、文字の高さに収める
+  '& [data-stack-icon], & [data-stack-initial]': {
+    w: 'icon-sm',
+    h: 'icon-sm',
+    mr: 'inline-tight',
+    verticalAlign: 'text-bottom',
+  },
+  '& [data-stack-icon]': { display: 'inline-block', objectFit: 'contain' },
+  '& [data-stack-initial]': {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'avatar',
+    bg: 'bg.muted',
+    color: 'text.muted',
+    textStyle: 'label',
+    userSelect: 'none',
+  },
   '& ul': { listStyleType: 'disc', pl: 'gutter' },
   '& ol': { listStyleType: 'decimal', pl: 'gutter' },
   '& li + li': { mt: 'inline' },
@@ -50,7 +73,7 @@ const body = css({
   },
   '& hr': { borderTopWidth: 'default', borderTopStyle: 'solid', borderTopColor: 'border.default' },
   // 本文の幅に収める（design-spec 6.3.1）は、preflight の img の max-width: 100% が受け持つ
-  '& img': { borderRadius: 'image' },
+  '& img:not([data-stack-icon])': { borderRadius: 'image' },
   '& table': { display: 'block', overflowX: 'auto', borderCollapse: 'collapse', textStyle: 'body-sm' },
   '& th, & td': {
     px: 'inset-dense',
@@ -66,6 +89,8 @@ const body = css({
   '& pre': {
     overflowX: 'auto',
     p: 'inset',
+    // 「コピー」ボタン（copyButton）を上の余白に置き、コードの1行目と重ねない
+    pt: 'stack',
     textStyle: 'code',
     bg: 'bg.subtle',
     borderWidth: 'default',
@@ -82,8 +107,8 @@ const body = css({
 // 並べた順ではなくスタイルシートの順で勝ち負けが決まる）
 const copyButton = css(button.raw({ variant: 'outline' }), {
   position: 'absolute',
-  top: 'inset-dense',
-  right: 'inset-dense',
+  top: 'none',
+  right: 'none',
   h: 'auto',
   py: 'none',
   px: 'inset-dense',
@@ -94,8 +119,19 @@ const COPIED_MS = 2000
 /** 読み込めない本文の画像の代わりの、背景色だけの枠（design-spec 6.1.5・6.2.3。壊れた画像のアイコンを出さない） */
 const brokenImageFrame = css({ display: 'block', aspectRatio: 'thumbnail', bg: 'bg.muted', borderRadius: 'image' })
 
-/** 画像を枠に置き換える。代替テキストは枠の読み上げ名に移す */
+/**
+ * 画像を枠に置き換える。代替テキストは枠の読み上げ名に移す。
+ * 技術アイコンは、行のアイコンの列と同じく頭文字の丸にする（design-spec 6.1.5）
+ */
 function replaceWithFrame(image: HTMLImageElement): void {
+  if (image.dataset.stackIcon !== undefined) {
+    const initial = document.createElement('span')
+    initial.dataset.stackInitial = ''
+    initial.setAttribute('aria-hidden', 'true')
+    initial.textContent = image.dataset.initial ?? ''
+    image.replaceWith(initial)
+    return
+  }
   const frame = document.createElement('span')
   frame.className = brokenImageFrame
   if (image.alt === '') {

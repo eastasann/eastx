@@ -85,7 +85,7 @@ test('A5: 書く → 下書き保存 → プレビュー → 公開 → 公開�
     await expect(page.getByRole('option', { name: /新しい技術として追加/ })).toHaveCount(0)
     await stackInput.fill(newStack)
     await page.getByRole('option', { name: `「${newStack}」を新しい技術として追加` }).click()
-    const chips = page.getByRole('list', { name: '選んだ使用技術（並びがカードに出る順）' })
+    const chips = page.getByRole('list', { name: '選んだ使用技術（並びがトップの行に出る順）' })
     await expect(chips.getByRole('listitem')).toHaveText([firstName, newStack])
     // チップの並べ替え（キーボード）: 作った技術を先頭へ
     await moveUpByKeyboard(

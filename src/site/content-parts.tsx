@@ -1,5 +1,5 @@
 /**
- * 公開側の中身の部品（design-spec 6.1.4・6.2.2）。トップのカード・行と詳細ページで共通
+ * 公開側の中身の部品（design-spec 6.1.4・6.2.2）。トップの行と詳細ページで共通
  */
 import { css, cx } from 'styled-system/css'
 import type { Availability, LocalizedText } from '~/content/localize'
@@ -10,8 +10,8 @@ import { ExternalLinkIcon } from '~/ui/icons'
 import { FallbackImage, InitialBadge } from '~/ui/image'
 import { chip, label } from '~/ui/recipes'
 
-/** カードのアイコンの列に出す使用技術の数（design-spec 6.1.4）。超えた分は「+N」 */
-export const MAX_CARD_STACKS = 6
+/** 行のアイコンの列に出す使用技術の数（design-spec 6.1.4）。行には3個、行を広げた中には6個。超えた分は「+N」 */
+export const MAX_ROW_STACKS = { row: 3, expanded: 6 } as const
 
 /**
  * 代替した文字列。表示中の言語と違う言語の値には、その部分の言語を付ける（design-spec 1.4・SDD 9章）。
@@ -55,7 +55,7 @@ const stackIcon = css({ w: 'icon', h: 'icon', aspectRatio: 'avatar', objectFit: 
 
 /**
  * 技術のアイコン。アイコンがない・読み込めない技術は、表示名の頭文字の丸（design-spec 6.1.4）。
- * `labelled` はアイコンだけで技術を伝える場所（カードのアイコンの列）で付け、代替テキストを表示名にする（design-spec 4.4）。
+ * `labelled` はアイコンだけで技術を伝える場所（行のアイコンの列）で付け、代替テキストを表示名にする（design-spec 4.4）。
  * チップのように表示名が隣に出る場所では付けず、同じ名前を2回読み上げないようにする
  */
 export function StackIcon({ stack, labelled = false }: { stack: StackChip; labelled?: boolean }) {
@@ -76,16 +76,13 @@ export function StackIcon({ stack, labelled = false }: { stack: StackChip; label
   )
 }
 
-/** カードの使用技術のアイコンの列。その中身の中での並び順で最大6個、超えた分は「+N」 */
-export function StackIconRow({ stacks, messages }: { stacks: StackChip[]; messages: Messages }) {
+/** 行の使用技術のアイコンの列。その中身の中での並び順で最大 max 個、超えた分は「+N」 */
+export function StackIconRow({ stacks, max, messages }: { stacks: StackChip[]; max: number; messages: Messages }) {
   if (stacks.length === 0) return null
-  const shown = stacks.slice(0, MAX_CARD_STACKS)
+  const shown = stacks.slice(0, max)
   const rest = stacks.length - shown.length
   return (
-    <ul
-      aria-label={messages.section.stack}
-      className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'inline' })}
-    >
+    <ul aria-label={messages.section.stack} className={css({ display: 'flex', alignItems: 'center', gap: 'inline' })}>
       {shown.map((stack) => (
         // 表示名はポインターを重ねたときにも出す
         <li key={stack.key} title={stack.displayName} className={css({ display: 'inline-flex' })}>
@@ -102,7 +99,7 @@ export function StackIconRow({ stacks, messages }: { stacks: StackChip[]; messag
   )
 }
 
-/** 使用技術のチップ（アイコンと表示名）。リンクがあれば公式サイトなどを別タブで開く */
+/** 使用技術のチップ（アイコンと表示名。枠線なし）。リンクがあれば公式サイトなどを別タブで開く */
 export function StackChipList({
   stacks,
   messages,
@@ -116,7 +113,7 @@ export function StackChipList({
   return (
     <ul
       aria-label={messages.section.stack}
-      className={cx(css({ display: 'flex', flexWrap: 'wrap', gap: 'inline' }), className)}
+      className={cx(css({ display: 'flex', flexWrap: 'wrap', columnGap: 'inset', rowGap: 'inline' }), className)}
     >
       {stacks.map((stack) => {
         const content = (
@@ -128,13 +125,13 @@ export function StackChipList({
         return (
           <li key={stack.key}>
             {stack.linkUrl === null ? (
-              <span className={chip()}>{content}</span>
+              <span className={chip({ plain: true })}>{content}</span>
             ) : (
               <a
                 href={stack.linkUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={cx(chip({ interactive: true }), css({ textDecoration: 'none' }))}
+                className={cx(chip({ interactive: true, plain: true }), css({ textDecoration: 'none' }))}
               >
                 {content}
                 <ExternalMark messages={messages} />
