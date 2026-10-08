@@ -19,8 +19,13 @@ describe('プロフィール', () => {
     await expect(client.profile.get()).rejects.toMatchObject({ code: 'NOT_FOUND', status: 404 })
 
     const created = await client.profile.update({
-      ja: { name: '東 太郎', headline: 'フロントエンドエンジニア', bio: '## こんにちは' },
-      en: { name: null, headline: null, bio: null },
+      ja: {
+        name: '東 太郎',
+        headline: 'フロントエンドエンジニア',
+        tagline: '使いやすい Web を作る。',
+        bio: '## こんにちは',
+      },
+      en: { name: null, headline: null, tagline: null, bio: null },
       avatarUrl: '/media/uploads/2026/10/a.webp',
       socialLinks: [
         { service: 'github', url: 'https://github.com/example', label: null },
@@ -28,17 +33,42 @@ describe('プロフィール', () => {
       ],
     })
     expect(created.languages).toEqual({ ja: true, en: false })
+    expect(created.ja.tagline).toBe('使いやすい Web を作る。')
+    expect(await client.profile.get()).toEqual(created)
     expect(created.socialLinks.map((link) => link.service)).toEqual(['github', 'other'])
 
     const updated = await client.profile.update({
-      ja: { name: '東 太郎', headline: null, bio: null },
-      en: { name: 'Taro Higashi', headline: null, bio: null },
+      ja: { name: '東 太郎', headline: null, tagline: null, bio: null },
+      en: { name: 'Taro Higashi', headline: null, tagline: null, bio: null },
       avatarUrl: null,
       socialLinks: [{ service: 'x', url: 'https://x.com/example', label: null }],
     })
     expect(updated.id).toBe(created.id)
     expect(updated.socialLinks).toEqual([{ service: 'x', url: 'https://x.com/example', label: null }])
     expect(await client.profile.get()).toEqual(updated)
+  })
+
+  it('一言は前後の空白を除き、空文字とキーの省略は null。201字で INPUT_VALIDATION_FAILED', async () => {
+    const put = (body: unknown) =>
+      call('/profile', {
+        method: 'PUT',
+        cookie,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    const saved = await put({ ja: { name: '東', tagline: '  一言  ' }, en: { tagline: '' }, socialLinks: [] })
+    expect(saved.status).toBe(200)
+    const body = (await saved.json()) as { ja: { tagline: string | null }; en: { tagline: string | null } }
+    expect(body.ja.tagline).toBe('一言')
+    expect(body.en.tagline).toBeNull()
+
+    expect((await put({ ja: { name: '東' }, en: {}, socialLinks: [] })).status).toBe(200)
+    expect((await client.profile.get()).ja.tagline).toBeNull()
+
+    const tooLong = await put({ ja: { name: '東', tagline: 'あ'.repeat(201) }, en: {}, socialLinks: [] })
+    expect(tooLong.status).toBe(422)
+    const { data } = (await tooLong.json()) as { data: { fieldErrors: Record<string, string[]> } }
+    expect(Object.keys(data.fieldErrors)).toEqual(['ja.tagline'])
   })
 
   it('名前が日英とも空、other で表示名が空、URL の形式は INPUT_VALIDATION_FAILED', async () => {

@@ -59,6 +59,8 @@ export async function loadTopPage({ db, siteUrl }: ContentContext, lang: Lang): 
           nameEn: profile.nameEn,
           headlineJa: profile.headlineJa,
           headlineEn: profile.headlineEn,
+          taglineJa: profile.taglineJa,
+          taglineEn: profile.taglineEn,
           bioJa: profile.bioJa,
           bioEn: profile.bioEn,
           avatarUrl: profile.avatarUrl,
@@ -177,6 +179,7 @@ export async function loadTopPage({ db, siteUrl }: ContentContext, lang: Lang): 
         // プロフィールは中身全体の代替をせず、項目単位の代替表示だけで出す（design-spec 1.4）
         name: pickText(lang, { ja: profileRow.nameJa, en: profileRow.nameEn }),
         headline: pickText(lang, { ja: profileRow.headlineJa, en: profileRow.headlineEn }),
+        tagline: pickText(lang, { ja: profileRow.taglineJa, en: profileRow.taglineEn }),
         bio: await renderLocalizedMarkdown(
           { kind: 'profile', id: profileRow.id, updatedAt: profileRow.updatedAt },
           lang,

@@ -44,6 +44,8 @@ export const profile = sqliteTable(
     nameEn: text('name_en'),
     headlineJa: text('headline_ja'),
     headlineEn: text('headline_en'),
+    taglineJa: text('tagline_ja'),
+    taglineEn: text('tagline_en'),
     bioJa: text('bio_ja'), // Markdown
     bioEn: text('bio_en'), // Markdown
     avatarUrl: text('avatar_url'),

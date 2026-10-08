@@ -112,9 +112,11 @@ export function transform(resume: LegacyResume, mediaPathOf: MediaPathOf): Migra
     id: resume.id,
     nameJa: clean(resume.nameJp),
     nameEn: clean(resume.name),
-    // 肩書きは新しく足した項目で、今の DB に無い（SDD 6.5）
+    // 肩書き・一言は新しく足した項目で、今の DB に無い（SDD 6.5）
     headlineJa: null,
     headlineEn: null,
+    taglineJa: null,
+    taglineEn: null,
     bioJa: clean(resume.descriptionJp),
     bioEn: clean(resume.description),
     avatarUrl: media(resume.profileImage),

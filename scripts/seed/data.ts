@@ -87,6 +87,8 @@ export function buildSeed(options: SeedOptions): SeedData {
       nameEn: 'Asia Higashi',
       headlineJa: 'ソフトウェアエンジニア',
       headlineEn: 'Software Engineer',
+      taglineJa: '日英で届ける、使いやすい Web を作る。',
+      taglineEn: 'Building usable web apps in two languages.',
       // 太字の React・TypeScript は使用技術と一致してアイコンが付き、使いやすさ・usability は一致しない（design-spec 8章）
       bioJa:
         'Web のフロントエンドとバックエンドを作っています。主に **React** と **TypeScript** を使います。\n\n小さく作って早く出し、**使いやすさ**を確かめながら直すのが好きです。',

@@ -13,7 +13,17 @@ describe('デモデータ（design-spec 8章）', () => {
   it('profile: 1件。日英とも全項目あり、写真あり', () => {
     expect(seed.profile).toHaveLength(1)
     const p = seed.profile[0]
-    for (const key of ['nameJa', 'nameEn', 'headlineJa', 'headlineEn', 'bioJa', 'bioEn', 'avatarUrl'] as const) {
+    for (const key of [
+      'nameJa',
+      'nameEn',
+      'headlineJa',
+      'headlineEn',
+      'taglineJa',
+      'taglineEn',
+      'bioJa',
+      'bioEn',
+      'avatarUrl',
+    ] as const) {
       expect(p?.[key]).toBeTruthy()
     }
   })

@@ -10,6 +10,8 @@ const LANG_NAMES: Record<Lang, string> = { ja: '日本語', en: '英語' }
 
 export const ja = {
   siteName: 'eastasian',
+  /** ヘッダーに出す。どの環境でも同じ文字（design-spec 6.1.2） */
+  siteDomain: 'x.eastasian.dev',
   section: { profile: 'プロフィール', ...SECTION_NAMES },
   careerKind: { work: '職歴', education: '学歴' },
   codingLogKind: {

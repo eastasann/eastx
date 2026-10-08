@@ -14,6 +14,7 @@ import {
 const localized = z.object({
   name: optionalText(LIMITS.shortText),
   headline: optionalText(LIMITS.shortText),
+  tagline: optionalText(LIMITS.shortText),
   bio: optionalText(LIMITS.markdown),
 })
 
@@ -52,6 +53,7 @@ export const profileInput = z
 const localizedOutput = z.object({
   name: z.string().nullable(),
   headline: z.string().nullable(),
+  tagline: z.string().nullable(),
   bio: z.string().nullable(),
 })
 

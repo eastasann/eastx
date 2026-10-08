@@ -6,6 +6,7 @@ const LANG_NAMES: Record<Lang, string> = { ja: 'Japanese', en: 'English' }
 
 export const en = {
   siteName: 'eastasian',
+  siteDomain: 'x.eastasian.dev',
   section: { profile: 'Profile', ...SECTION_NAMES },
   careerKind: { work: 'Work', education: 'Education' },
   codingLogKind: {

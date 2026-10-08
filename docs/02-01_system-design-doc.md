@@ -531,7 +531,7 @@
 - `/{id}` を持つ手続きは、入力を oRPC の `detailed`（パスの `params` と本文の `body` を分ける）にする。本文やクエリの `id` がパスの `{id}` を上書きしないようにするため。管理画面の型付きクライアントは `{ params: { id }, body }` で呼ぶ。`fieldErrors` のキーは `body.` を付けない欄の名前（`ja.title` など）にそろえる。
 - 状態は `"draft"` ／ `"published"`。作成（POST）と更新（PUT）の本文の `status` に「保存後にしたい状態」を入れ、サーバーが今の状態との組み合わせで、design-spec 6.7.1 のボタンの意味（下書き保存・公開する・更新する・非公開に戻す）を決める（5.3）。
 - 一覧はページングしない（design-spec 6.6）。並び順は design-spec 6.6 の表のとおりにサーバーで並べて返す。
-- 文字数などの技術的な上限（超えたら `INPUT_VALIDATION_FAILED`）: タイトル・名前・所属・場所・肩書き・表示名 200字、概要 500字、Markdown の本文 100,000字、URL 2,048字、スラッグ・識別名 100字。
+- 文字数などの技術的な上限（超えたら `INPUT_VALIDATION_FAILED`）: タイトル・名前・所属・場所・肩書き・一言・表示名 200字、概要 500字、Markdown の本文 100,000字、URL 2,048字、スラッグ・識別名 100字。
 - URL の項目の形式は design-spec 6.7.3。画像の URL の項目（サムネイル・写真・アイコン）は `/media/` で始まること。
 - すべてのレスポンスに `x-request-id`（`cf-ray` の値）を付ける。
 - 管理画面のクライアントは、oRPC の CSRF 対策プラグインが付けるヘッダー（`x-csrf-token: orpc`）を必ず送る（7章）。
@@ -680,8 +680,8 @@ A2 の件数カードと下書きの一覧。
 // 200
 {
   "id": "6b1f…",
-  "ja": { "name": "東 太郎", "headline": "フロントエンドエンジニア", "bio": "## こんにちは\n…" },
-  "en": { "name": "Taro Higashi", "headline": "Frontend Engineer", "bio": "## Hi\n…" },
+  "ja": { "name": "東 太郎", "headline": "フロントエンドエンジニア", "tagline": "日英で届ける、使いやすい Web を作る。", "bio": "## こんにちは\n…" },
+  "en": { "name": "Taro Higashi", "headline": "Frontend Engineer", "tagline": "Building usable web apps in two languages.", "bio": "## Hi\n…" },
   "avatarUrl": "/media/uploads/2026/09/2a4c….webp",
   "socialLinks": [
     { "service": "github",   "url": "https://github.com/…",      "label": null },
@@ -701,8 +701,8 @@ A2 の件数カードと下書きの一覧。
 ```json
 // リクエスト
 {
-  "ja": { "name": "東 太郎", "headline": "フロントエンドエンジニア", "bio": "…" },
-  "en": { "name": "Taro Higashi", "headline": null, "bio": null },
+  "ja": { "name": "東 太郎", "headline": "フロントエンドエンジニア", "tagline": "日英で届ける、使いやすい Web を作る。", "bio": "…" },
+  "en": { "name": "Taro Higashi", "headline": null, "tagline": null, "bio": null },
   "avatarUrl": "/media/uploads/2026/09/2a4c….webp",
   "socialLinks": [
     { "service": "github", "url": "https://github.com/…", "label": null }
@@ -1081,6 +1081,7 @@ type TopPageView = {
   profile: null | {
     name: LocalizedText | null
     headline: LocalizedText | null
+    tagline: LocalizedText | null
     bio: LocalizedHtml | null          // 太字と一致した使用技術のアイコン入り（ADR-012）
     avatarUrl: string | null
     socialLinks: { service: SocialService; url: string; label: string | null }[]
@@ -1248,6 +1249,8 @@ export const profile = sqliteTable(
     nameEn: text('name_en'),
     headlineJa: text('headline_ja'),
     headlineEn: text('headline_en'),
+    taglineJa: text('tagline_ja'),
+    taglineEn: text('tagline_en'),
     bioJa: text('bio_ja'), // Markdown
     bioEn: text('bio_en'), // Markdown
     avatarUrl: text('avatar_url'),
@@ -1604,7 +1607,7 @@ export default defineConfig({
 
 | 今のテーブル | 新しいテーブル | 主な変更 |
 |---|---|---|
-| Profile | `profile` ＋ `social_link` | 名前・自己紹介を `_ja`／`_en` に揃える。肩書きを追加。SNS（Instagram・LinkedIn・GitHub）を `social_link` に分ける |
+| Profile | `profile` ＋ `social_link` | 名前・自己紹介を `_ja`／`_en` に揃える。肩書き・一言を追加。SNS（Instagram・LinkedIn・GitHub）を `social_link` に分ける |
 | Experience ＋ Education | `career` | 1つにまとめて `kind` で分ける。タイトル以外（所属・場所）も日英に分ける。公開状態を追加 |
 | Work | `work` | 概要と詳細本文を分ける。サムネイル・表示順・公開状態・初めて公開した日時・スラッグを追加 |
 | Project | `project` | Work と同じ |
@@ -1741,7 +1744,7 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 | 項目 | 実装 |
 |---|---|
 | ライブラリ | 使わない（ADR-013） |
-| メッセージカタログ | `src/i18n/messages/ja.ts`（型の基準）と `en.ts`（`satisfies Messages`）。領域ごとに入れ子にする（例: `section.career`、`label.onlyIn`、`paging.next`、`notice.postOnlyIn`）。値に差し込みがあるものは関数にする（例: `notice.postOnlyIn: (lang) => ...`。引数は実際に出している中身の言語）。管理画面の文言は辞書にせず、日本語を直接書く |
+| メッセージカタログ | `src/i18n/messages/ja.ts`（型の基準）と `en.ts`（`satisfies Messages`）。言語に依らない値も日英に同じ値で持つ（例: `siteName`、ヘッダーのドメイン名 `siteDomain`）。領域ごとに入れ子にする（例: `section.career`、`label.onlyIn`、`paging.next`、`notice.postOnlyIn`）。値に差し込みがあるものは関数にする（例: `notice.postOnlyIn: (lang) => ...`。引数は実際に出している中身の言語）。管理画面の文言は辞書にせず、日本語を直接書く |
 | ロケールの判定 | 公開側はルートのパラメーター `lang`（`ja`／`en` 以外は C1）が常に正。ルート `/` の振り分けの順序は design-spec 1.4 で、`src/routes/index.tsx` のサーバーハンドラーが Cookie `eastx-lang` と `Accept-Language`（q 値で並べた最優先の言語タグ）を読んで 302 を返す。`$lang` が `ja`・`en` 以外の C1 も同じ判定で言語を決める（`__root.tsx` の `beforeLoad` が `createIsomorphicFn` で、サーバーではリクエストのヘッダー、ブラウザでは `document.cookie` と `navigator.languages` を読んで context に入れ、`$lang/route.tsx` の `beforeLoad` が使う） |
 | 言語の記憶 | Cookie `eastx-lang`（属性は7章）。言語を切り替えたときにクライアントで書く |
 | 代替表示と言語ラベル | `src/domain/languages.ts`（言語ありの判定）と `src/content/localize.ts`（`LocalizedText`・`Availability` を作る）で行う。画面は `lang` 属性を `LocalizedText.lang` から付けるだけ |
@@ -1758,8 +1761,8 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 | ユニット | Vitest（Node.js 環境） | `src/domain/`・`src/i18n/`・`src/markdown/` の行カバレッジ 90% | スラッグの生成と重複の連番、言語ありの判定と代替、抜粋の作り方、公開状態の遷移（5.3）と公開のルール、日付・期間の書式、Markdown の描画（生の HTML・`javascript:`・見出しのレベル・外部リンク・太字と使用技術の照合・元の行番号）、キャッシュのキーの使用技術の版。管理画面の規則（`src/admin/`）: 自動退避の規則（design-spec 6.4 の表の各行）、Cmd/Ctrl+S の割り当て、保存の状態の文言、ボタンを押せない理由、最初の誤りの欄の順、文字数の表示、表示の切り替えの記憶。公開側の行の規則（`src/site/row-rules.ts`）: トップの行を広げられるかの判定 |
 | API 結合 | Vitest ＋ `@cloudflare/vitest-pool-workers`（workerd 上で、ローカルの D1・R2 を使う。テストファイルごとにマイグレーションを当てた空の D1） | `/api/admin/*` の全手続きについて、未認証で 401・管理者でないセッションで 403 になるテストを必ず持つ（認可マトリクスの照合）。主要な手続きの正常系とエラー系 | CMS API の全手続き、Better Auth の hooks（管理者でない ID を拒否）、アップロードの形式・上限、`/media/*` |
 | 公開側の読み取り | 同上 | 各サーバー関数の正常系と、下書き・詳細本文なしが返らないこと | 公開中だけを返す、並び順、前後のナビ、言語の代替 |
-| E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、経歴・作品・プロジェクトの行を行全体（キーボードの Enter・Space を含む）で広げ、広げた中の入口から詳細・外部へ移る、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元、長い本文をスクロールしても操作バーが見えている、Cmd/Ctrl+S、「日英」で日英の本文を書いて保存、誤りの欄への移動、設定の引き出し、自動退避の復元の提案、使用技術を検索の欄を閉じずに続けて選ぶ、画像を挿入、L6（経歴）の「日英」で保存、ログアウトで退避を消す |
-| アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P5・A1・A2 と、A4・A5・A8 の編集ビュー（ライト・ダーク）で重大（serious 以上）な違反 0件。P1 は経歴・作品・プロジェクトを各1行広げた状態も検査する | 自動で検出できる範囲。表示の切り替え・設定の引き出し・画像を挿入をキーボードだけで操作できること。トップの行をキーボードで広げ、広げた中のリンクへ Tab で移れること |
+| E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、ヘッダーのドメイン名からトップへ、プロフィールの上の一言（無ければ詰め、ヘッダーからの余白が変わらない）、経歴・作品・プロジェクトの行を行全体（キーボードの Enter・Space を含む）で広げ、広げた中の入口から詳細・外部へ移る、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元、長い本文をスクロールしても操作バーが見えている、Cmd/Ctrl+S、「日英」で日英の本文を書いて保存、誤りの欄への移動、設定の引き出し、自動退避の復元の提案、使用技術を検索の欄を閉じずに続けて選ぶ、画像を挿入、L6（経歴）の「日英」で保存、A3 で一言を保存すると P1 に出る、ログアウトで退避を消す |
+| アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P5・A1・A2 と、A3・A4・A5・A8 の編集ビュー（ライト・ダーク）で重大（serious 以上）な違反 0件。P1 は経歴・作品・プロジェクトを各1行広げた状態も検査する | 自動で検出できる範囲。表示の切り替え・設定の引き出し・画像を挿入をキーボードだけで操作できること。トップの行をキーボードで広げ、広げた中のリンクへ Tab で移れること |
 | Lighthouse | Lighthouse CI（`@lhci/cli`。モバイルの設定） | PRD 5章の Lighthouse の目標を、3回の中央値で assert する | デモデータを入れたプレビューの P1 と、P2〜P5 の各1ページ。本番では Cloudflare の拠点が HTML・JS・CSS を圧縮するが、ローカルのプレビューは圧縮しないので、gzip で圧縮して中継する（`scripts/lhci/server.ts`。本番の brotli より縮まない側で測る）。ローカルの robots.txt はすべてを拒否する（ADR-019）ので、SEO の `is-crawlable` の項目は外して測る |
 
 - API 結合テストの 401・403 の確認は、CSRF のヘッダーを付けたリクエストで行う（5.1）。ヘッダーがないときに 403 になることも別に確かめる。

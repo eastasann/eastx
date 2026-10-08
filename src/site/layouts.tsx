@@ -43,13 +43,12 @@ const column = css({
   maxW: 'site-column',
   mx: 'auto',
   px: 'gutter',
-  py: 'section',
 })
 
-/** L1 シングルカラム・ロングページ。セクションを縦に積む */
+/** L1 シングルカラム・ロングページ。セクションを縦に積む。ヘッダーから最初の中身までは詰める（design-spec 6.1.1） */
 export function SingleColumnLayout({ children }: { children: ReactNode }) {
   useScrollToStateSection()
-  return <div className={cx(column, css({ gap: 'section' }))}>{children}</div>
+  return <div className={cx(column, css({ gap: 'section', pt: 'stack', pb: 'section' }))}>{children}</div>
 }
 
 export interface ArticleLayoutProps {
@@ -65,7 +64,7 @@ export interface ArticleLayoutProps {
 /** L2 記事カラム。上から「戻るリンク → タイトルとメタ情報 → 画像 → 本文 → 前後のナビ」 */
 export function ArticleLayout({ back, title, meta, media, children, footer }: ArticleLayoutProps) {
   return (
-    <article className={cx(column, css({ gap: 'stack' }))}>
+    <article className={cx(column, css({ gap: 'stack', py: 'section' }))}>
       {back}
       <header className={css({ display: 'flex', flexDirection: 'column', gap: 'stack-dense' })}>
         <h1 className={css({ textStyle: 'heading-1' })}>{title}</h1>

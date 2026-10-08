@@ -46,12 +46,13 @@ export function browserStorage(): Storage | null {
 
 /**
  * 退避を読む。形の違う値（手で書き換えられた・壊れた）は無いものとして扱い、消す。
- * 値の中身の形は呼び出し側の `isValues` で確かめる（フォームの形は画面ごとに違う）
+ * 値の中身は呼び出し側の `parseValues` で今のフォームの形に読み直す（フォームの形は画面ごとに違う）。
+ * 形が合わなければ `parseValues` は null を返す。あとから足した欄が無い退避は、その欄を空にして返してよい（design-spec 6.4）
  */
 export function readBackup<T>(
   storage: Storage,
   key: string,
-  isValues: (value: unknown) => value is T,
+  parseValues: (value: unknown) => T | null,
 ): Backup<T> | null {
   const raw = storage.getItem(key)
   if (raw === null) return null
@@ -63,10 +64,10 @@ export function readBackup<T>(
       'savedAt' in parsed &&
       typeof parsed.savedAt === 'string' &&
       !Number.isNaN(Date.parse(parsed.savedAt)) &&
-      'values' in parsed &&
-      isValues(parsed.values)
+      'values' in parsed
     ) {
-      return { savedAt: parsed.savedAt, values: parsed.values }
+      const values = parseValues(parsed.values)
+      if (values !== null) return { savedAt: parsed.savedAt, values }
     }
   } catch {
     // 下で消す
@@ -162,9 +163,9 @@ export class AutoBackup<V> {
    * 開いたときの復元の提案。退避が比べる元と同じなら、提案せずに消す。
    * `serverUpdatedAt` は既存の項目のサーバーの最終保存（新規作成は null）
    */
-  takeOffer(isValues: (value: unknown) => value is V, serverUpdatedAt: string | null): BackupOffer<V> | null {
+  takeOffer(parseValues: (value: unknown) => V | null, serverUpdatedAt: string | null): BackupOffer<V> | null {
     if (this.storage === null) return null
-    const backup = readBackup(this.storage, this.key, isValues)
+    const backup = readBackup(this.storage, this.key, parseValues)
     if (backup === null) return null
     if (this.isClean(backup.values)) {
       clearBackup(this.storage, this.key)

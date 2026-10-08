@@ -254,6 +254,19 @@ describe('loadTopPage', () => {
     expect(view.meta.description).toBe('Engineer')
     expect(view.meta.ogImageUrl).toBe(`${SITE_URL}/og/default-en.png`)
   })
+
+  it('一言は項目単位で代替し、どちらの言語も空なら null', async () => {
+    await db.insert(profile).values({ nameJa: '東', taglineJa: '一言', taglineEn: null })
+    expect((await loadTopPage(context, 'ja')).profile?.tagline).toEqual({ value: '一言', lang: 'ja' })
+    expect((await loadTopPage(context, 'en')).profile?.tagline).toEqual({ value: '一言', lang: 'ja' })
+
+    await db.update(profile).set({ taglineJa: null, taglineEn: 'Tagline' })
+    expect((await loadTopPage(context, 'ja')).profile?.tagline).toEqual({ value: 'Tagline', lang: 'en' })
+    expect((await loadTopPage(context, 'en')).profile?.tagline).toEqual({ value: 'Tagline', lang: 'en' })
+
+    await db.update(profile).set({ taglineEn: null })
+    expect((await loadTopPage(context, 'ja')).profile?.tagline).toBeNull()
+  })
 })
 
 describe('loadWorkDetail', () => {

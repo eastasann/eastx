@@ -144,7 +144,7 @@ const stackFormSchema = z.object({
 })
 type StackForm = z.infer<typeof stackFormSchema>
 
-const isStackForm = (value: unknown): value is StackForm => stackFormSchema.safeParse(value).success
+const parseStackForm = (value: unknown): StackForm | null => stackFormSchema.safeParse(value).data ?? null
 
 /** 欄のキーの並び（画面の上から。誤りの欄へ移るときの順） */
 const FIELD_ORDER = ['displayName', 'key', 'iconUrl', 'linkUrl', 'showOnTop']
@@ -200,7 +200,7 @@ function StackEditor({ initial, onCreated }: { initial: Stack | null; onCreated:
     initial,
     toForm,
     backupType: 'stack',
-    isValues: isStackForm,
+    parseValues: parseStackForm,
     idOf: (item) => item.id,
     updatedAtOf: (item) => item.updatedAt,
     saveKind: 'plain',

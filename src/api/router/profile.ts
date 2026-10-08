@@ -11,8 +11,8 @@ async function readProfile() {
   ])
   const row = rows[0]
   if (!row) return null
-  const ja = { name: row.nameJa, headline: row.headlineJa, bio: row.bioJa }
-  const en = { name: row.nameEn, headline: row.headlineEn, bio: row.bioEn }
+  const ja = { name: row.nameJa, headline: row.headlineJa, tagline: row.taglineJa, bio: row.bioJa }
+  const en = { name: row.nameEn, headline: row.headlineEn, tagline: row.taglineEn, bio: row.bioEn }
   return {
     id: row.id,
     ja,
@@ -39,6 +39,8 @@ export const profileRouter = {
       nameEn: input.en.name,
       headlineJa: input.ja.headline,
       headlineEn: input.en.headline,
+      taglineJa: input.ja.tagline,
+      taglineEn: input.en.tagline,
       bioJa: input.ja.bio,
       bioEn: input.en.bio,
       avatarUrl: input.avatarUrl,

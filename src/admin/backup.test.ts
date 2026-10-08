@@ -23,8 +23,10 @@ class MemoryStorage implements Storage {
   }
 }
 
-const isTitle = (value: unknown): value is { title: string } =>
+const parseTitle = (value: unknown): { title: string } | null =>
   typeof value === 'object' && value !== null && 'title' in value && typeof value.title === 'string'
+    ? { title: value.title }
+    : null
 
 describe('退避の読み書き（design-spec 6.4、SDD 8章）', () => {
   it('キーは eastx:backup:{種類}:{id か new}', () => {
@@ -35,12 +37,12 @@ describe('退避の読み書き（design-spec 6.4、SDD 8章）', () => {
   it('保存した値を読み、消したら読めない', () => {
     const storage = new MemoryStorage()
     saveBackup(storage, 'k', { title: '書きかけ' }, new Date('2026-10-07T05:32:00Z'))
-    expect(readBackup(storage, 'k', isTitle)).toEqual({
+    expect(readBackup(storage, 'k', parseTitle)).toEqual({
       savedAt: '2026-10-07T05:32:00.000Z',
       values: { title: '書きかけ' },
     })
     clearBackup(storage, 'k')
-    expect(readBackup(storage, 'k', isTitle)).toBeNull()
+    expect(readBackup(storage, 'k', parseTitle)).toBeNull()
   })
 
   it('形の違う値・JSON でない値は無いものとして消す', () => {
@@ -49,7 +51,7 @@ describe('退避の読み書き（design-spec 6.4、SDD 8章）', () => {
     storage.setItem('broken', '{')
     storage.setItem('noTime', JSON.stringify({ values: { title: 'x' } }))
     storage.setItem('badTime', JSON.stringify({ savedAt: 'きのう', values: { title: 'x' } }))
-    for (const key of ['shape', 'broken', 'noTime', 'badTime']) expect(readBackup(storage, key, isTitle)).toBeNull()
+    for (const key of ['shape', 'broken', 'noTime', 'badTime']) expect(readBackup(storage, key, parseTitle)).toBeNull()
     expect(storage.length).toBe(0)
   })
 
@@ -81,7 +83,7 @@ describe('自動退避の規則（design-spec 6.4）', () => {
 
   const create = (baseline: Form = { title: 'サーバー' }, k = key) =>
     new AutoBackup<Form>({ storage, key: k, baseline, now: () => NOW })
-  const stored = (k = key) => readBackup(storage, k, isTitle)?.values ?? null
+  const stored = (k = key) => readBackup(storage, k, parseTitle)?.values ?? null
 
   it('開いた直後は書きも消しもしない', () => {
     saveBackup(storage, key, { title: '書きかけ' })
@@ -97,7 +99,10 @@ describe('自動退避の規則（design-spec 6.4）', () => {
     vi.advanceTimersByTime(BACKUP_DELAY_MS - 1)
     expect(stored()).toBeNull()
     vi.advanceTimersByTime(1)
-    expect(readBackup(storage, key, isTitle)).toEqual({ savedAt: NOW.toISOString(), values: { title: 'サーバー直し' } })
+    expect(readBackup(storage, key, parseTitle)).toEqual({
+      savedAt: NOW.toISOString(),
+      values: { title: 'サーバー直し' },
+    })
     backup.changed({ title: 'サーバー' })
     vi.advanceTimersByTime(BACKUP_DELAY_MS)
     expect(stored()).toBeNull()
@@ -117,31 +122,31 @@ describe('自動退避の規則（design-spec 6.4）', () => {
   describe('復元の提案', () => {
     it('退避が比べる元と違えば、退避の時刻と一緒に提案する', () => {
       saveBackup(storage, key, { title: '書きかけ' }, NOW)
-      const offer = create().takeOffer(isTitle, '2026-10-07T05:00:00Z')
+      const offer = create().takeOffer(parseTitle, '2026-10-07T05:00:00Z')
       expect(offer).toEqual({ savedAt: NOW.toISOString(), values: { title: '書きかけ' }, serverNewer: false })
     })
 
     it('サーバーの最終保存の方が新しければ、その旨を添える', () => {
       saveBackup(storage, key, { title: '書きかけ' }, NOW)
-      expect(create().takeOffer(isTitle, '2026-10-07T06:00:00Z')?.serverNewer).toBe(true)
+      expect(create().takeOffer(parseTitle, '2026-10-07T06:00:00Z')?.serverNewer).toBe(true)
     })
 
     it('新規作成（サーバーの最終保存がない）は添えない', () => {
       const newKey = backupKey('work', null)
       saveBackup(storage, newKey, { title: '書きかけ' }, NOW)
-      expect(create(empty, newKey).takeOffer(isTitle, null)?.serverNewer).toBe(false)
+      expect(create(empty, newKey).takeOffer(parseTitle, null)?.serverNewer).toBe(false)
     })
 
     it('退避が比べる元と同じなら、提案せずに消す', () => {
       saveBackup(storage, key, { title: 'サーバー' })
-      expect(create().takeOffer(isTitle, null)).toBeNull()
+      expect(create().takeOffer(parseTitle, null)).toBeNull()
       expect(stored()).toBeNull()
     })
 
     it('提案しているあいだは、入力しても書きも消しもしない', () => {
       saveBackup(storage, key, { title: '書きかけ' })
       const backup = create()
-      backup.takeOffer(isTitle, null)
+      backup.takeOffer(parseTitle, null)
       backup.changed({ title: 'サーバー' })
       vi.advanceTimersByTime(BACKUP_DELAY_MS)
       expect(stored()).toEqual({ title: '書きかけ' })
@@ -150,10 +155,10 @@ describe('自動退避の規則（design-spec 6.4）', () => {
     it('「復元する」で、復元した値を最初の退避として書く。以後は入力で書き換わる', () => {
       saveBackup(storage, key, { title: '書きかけ' }, new Date('2026-10-01T00:00:00Z'))
       const backup = create()
-      const offer = backup.takeOffer(isTitle, null)
+      const offer = backup.takeOffer(parseTitle, null)
       if (offer === null) throw new Error('提案がない')
       backup.restored(offer.values)
-      expect(readBackup(storage, key, isTitle)?.savedAt).toBe(NOW.toISOString())
+      expect(readBackup(storage, key, parseTitle)?.savedAt).toBe(NOW.toISOString())
       backup.changed({ title: '書きかけの続き' })
       vi.advanceTimersByTime(BACKUP_DELAY_MS)
       expect(stored()).toEqual({ title: '書きかけの続き' })
@@ -162,13 +167,13 @@ describe('自動退避の規則（design-spec 6.4）', () => {
     it('「破棄する」で消す。提案のあいだに入力していれば、今の値で書き直す', () => {
       saveBackup(storage, key, { title: '書きかけ' })
       const backup = create()
-      backup.takeOffer(isTitle, null)
+      backup.takeOffer(parseTitle, null)
       backup.discarded({ title: 'サーバー' })
       expect(stored()).toBeNull()
 
       saveBackup(storage, key, { title: '書きかけ' })
       const again = create()
-      again.takeOffer(isTitle, null)
+      again.takeOffer(parseTitle, null)
       again.discarded({ title: '提案のあいだの入力' })
       expect(stored()).toEqual({ title: '提案のあいだの入力' })
     })
@@ -176,7 +181,7 @@ describe('自動退避の規則（design-spec 6.4）', () => {
     it('提案しているあいだは、保存しても期限が切れても、提案した退避を消しも書き換えもしない', () => {
       saveBackup(storage, key, { title: '書きかけ' })
       const backup = create()
-      backup.takeOffer(isTitle, null)
+      backup.takeOffer(parseTitle, null)
       backup.saved({ key, baseline: { title: '保存した' }, values: { title: '保存した' } })
       backup.flush({ title: '期限切れの前の入力' })
       expect(stored()).toEqual({ title: '書きかけ' })
@@ -236,14 +241,15 @@ describe('自動退避の規則（design-spec 6.4）', () => {
     type Links = { links: { id: string; url: string }[] }
     const k = backupKey('profile', 'p1')
     saveBackup(storage, k, { links: [{ id: 'old', url: 'https://a' }] })
-    const isLinks = (value: unknown): value is Links => typeof value === 'object' && value !== null && 'links' in value
+    const parseLinks = (value: unknown): Links | null =>
+      typeof value === 'object' && value !== null && 'links' in value ? (value as Links) : null
     const backup = new AutoBackup<Links>({
       storage,
       key: k,
       baseline: { links: [{ id: 'new', url: 'https://a' }] },
       comparable: (values) => values.links.map((link) => link.url),
     })
-    expect(backup.takeOffer(isLinks, null)).toBeNull()
+    expect(backup.takeOffer(parseLinks, null)).toBeNull()
   })
 })
 
@@ -251,7 +257,7 @@ describe('退避を使えない・止めたとき', () => {
   it('localStorage を使えなければ何もしない', () => {
     vi.useFakeTimers()
     const backup = new AutoBackup<{ title: string }>({ storage: null, key: 'k', baseline: { title: '' } })
-    expect(backup.takeOffer(isTitle, null)).toBeNull()
+    expect(backup.takeOffer(parseTitle, null)).toBeNull()
     backup.changed({ title: 'x' })
     vi.advanceTimersByTime(BACKUP_DELAY_MS)
     backup.flush({ title: 'y' })

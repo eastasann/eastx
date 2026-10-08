@@ -514,6 +514,93 @@ test.describe('トップの行', () => {
   })
 })
 
+test.describe('一言（design-spec 6.1.4・6.1.5）', () => {
+  const [seedProfile] = buildSeed({ empty: false }).profile
+
+  /** ヘッダーの下端から要素の上端までの距離 */
+  async function gapBelowHeader(page: Page, target: Locator): Promise<number> {
+    const header = await page.getByRole('banner').boundingBox()
+    const box = await target.boundingBox()
+    if (!header || !box) throw new Error('ヘッダーか対象の要素が見えない')
+    return box.y - (header.y + header.height)
+  }
+
+  // ほかのテストのため、終わったら全件のシードに戻す
+  test.afterEach(async ({ local }) => {
+    await insertSeed(local.db, buildSeed({ empty: false }))
+  })
+
+  for (const [lang, value] of [
+    ['ja', seedProfile?.taglineJa],
+    ['en', seedProfile?.taglineEn],
+  ] as const) {
+    test(`${lang}: プロフィールの上に一言を出し、ページの見出しは名前のまま`, async ({ page }) => {
+      if (!value) throw new Error('デモデータに一言が無い')
+      await page.goto(`/${lang}`)
+      const profile = page.locator('#profile')
+      const tagline = profile.getByText(value, { exact: true })
+      await expect(tagline).toBeVisible()
+      await expect(tagline).not.toHaveAttribute('lang')
+      const taglineBox = await tagline.boundingBox()
+      const nameBox = await page.getByRole('heading', { level: 1 }).boundingBox()
+      if (!taglineBox || !nameBox) throw new Error('一言か名前が見えない')
+      expect(taglineBox.y + taglineBox.height).toBeLessThanOrEqual(nameBox.y)
+    })
+  }
+
+  test('表示中の言語で空なら、もう片方の言語の一言を lang 付きで出す', async ({ page, local }) => {
+    await local.db.update(schema.profile).set({ taglineJa: null })
+    await page.goto('/ja')
+    await expect(page.locator('#profile').getByText(seedProfile?.taglineEn ?? '', { exact: true })).toHaveAttribute(
+      'lang',
+      'en',
+    )
+  })
+
+  test('ヘッダーから最初の中身までは、一言・プロフィールの有無に関わらず同じ狭い余白', async ({ page, local }) => {
+    await page.goto('/ja')
+    const withTagline = await gapBelowHeader(page, page.locator('#profile'))
+    const profileBox = await page.locator('#profile').boundingBox()
+    const careerBox = await page.locator('#career').boundingBox()
+    if (!profileBox || !careerBox) throw new Error('セクションが見えない')
+    // 余白の値はトークンが持つので、今のセクションどうしの間（section）より狭いことで stack になったと見る
+    expect(withTagline).toBeLessThan(careerBox.y - (profileBox.y + profileBox.height))
+
+    await local.db.update(schema.profile).set({ taglineJa: null, taglineEn: null })
+    await page.goto('/ja')
+    await expect(page.locator('#profile').getByText(seedProfile?.taglineJa ?? '', { exact: true })).toHaveCount(0)
+    await expect(page.locator('#profile > p')).toHaveCount(0)
+    expect(Math.abs((await gapBelowHeader(page, page.locator('#profile'))) - withTagline)).toBeLessThanOrEqual(1)
+
+    await local.db.delete(schema.socialLink)
+    await local.db.delete(schema.profile)
+    await page.goto('/ja')
+    await expect(page.locator('#profile')).toHaveCount(0)
+    // 見出しは画面に出さない（srOnly）ので、-1px の margin の分を許す
+    const heading = page.getByRole('heading', { level: 1, name: 'eastasian' })
+    expect(Math.abs((await gapBelowHeader(page, heading)) - withTagline)).toBeLessThanOrEqual(2)
+  })
+
+  test.describe('モバイル幅', () => {
+    test.use({ viewport: { width: 360, height: 740 } })
+
+    test('200字の一言でも折り返して、ページの横にはみ出さず、ヘッダーは1行', async ({ page, local }) => {
+      // 長い英単語も折り返すかを見るため、区切りの無い英字を混ぜる
+      const long = `${'日英で届ける'.repeat(25)}${'a'.repeat(50)}`
+      expect(long).toHaveLength(200)
+      await local.db.update(schema.profile).set({ taglineJa: long })
+      await page.goto('/ja')
+      await expect(page.locator('#profile').getByText(long, { exact: true })).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+      const header = page.getByRole('banner')
+      const domain = await header.getByRole('link', { name: 'x.eastasian.dev', exact: true }).boundingBox()
+      const theme = await header.getByRole('button', { name: /^テーマ/ }).boundingBox()
+      if (!domain || !theme) throw new Error('ヘッダーの部品が見えない')
+      expect(Math.abs(domain.y + domain.height / 2 - (theme.y + theme.height / 2))).toBeLessThanOrEqual(2)
+    })
+  })
+})
+
 test.describe('ブログ・コーディング記録が0件', () => {
   // ほかのテストのため、終わったら全件のシードに戻す
   test.afterEach(async ({ local }) => {

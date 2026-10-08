@@ -3,7 +3,7 @@
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { css, cx } from 'styled-system/css'
-import { z } from 'zod'
+import type { z } from 'zod'
 import { LIMITS } from '~/api/contract/common'
 import { profileInput, type profileOutput } from '~/api/contract/profile'
 import { SOCIAL_SERVICES } from '~/db/enums'
@@ -29,6 +29,7 @@ import {
 import { isNotFoundError } from './errors'
 import { fieldLabel, ImageField, MarkdownField, SelectField, TextField } from './fields'
 import { FormLayout } from './layouts'
+import { FIELD_ORDER, parseProfileForm, toBody, toForm } from './profile-form'
 import { SortableList } from './sortable'
 
 type Profile = z.infer<typeof profileOutput>
@@ -44,51 +45,11 @@ const SERVICE_LABELS: Record<SocialService, string> = {
   other: 'その他',
 }
 
-const localizedForm = z.object({ name: z.string(), headline: z.string(), bio: z.string() })
-const profileFormSchema = z.object({
-  ja: localizedForm,
-  en: localizedForm,
-  avatarUrl: z.string(),
-  socialLinks: z.array(
-    // id は並べ替えの目印だけに使い、API には送らない
-    z.object({ id: z.string(), service: z.enum(SOCIAL_SERVICES), url: z.string(), label: z.string() }),
-  ),
-})
-type ProfileForm = z.infer<typeof profileFormSchema>
-
-const isProfileForm = (value: unknown): value is ProfileForm => profileFormSchema.safeParse(value).success
-
-function toForm(profile: Profile | null): ProfileForm {
-  const localized = (lang: Lang) => ({
-    name: profile?.[lang].name ?? '',
-    headline: profile?.[lang].headline ?? '',
-    bio: profile?.[lang].bio ?? '',
-  })
-  return {
-    ja: localized('ja'),
-    en: localized('en'),
-    avatarUrl: profile?.avatarUrl ?? '',
-    socialLinks: (profile?.socialLinks ?? []).map((link) => ({
-      id: crypto.randomUUID(),
-      service: link.service,
-      url: link.url,
-      label: link.label ?? '',
-    })),
-  }
-}
-
-function toBody(values: ProfileForm) {
-  return { ...values, socialLinks: values.socialLinks.map(({ id: _id, ...link }) => link) }
-}
-
 /**
  * 保存した内容と比べるときの形。SNS リンクの id は並べ替えの目印で、開くたびに作り直すので比べない
  * （比べると、開き直すたびに退避がサーバーの内容と違って見える）
  */
 const comparable = toBody
-
-/** 欄のキーの並び（画面の上から。誤りの欄へ移るときの順） */
-const FIELD_ORDER = ['ja.name', 'ja.headline', 'ja.bio', 'en.name', 'en.headline', 'en.bio', 'avatarUrl', 'socialLinks']
 
 const TITLE = 'プロフィール'
 
@@ -129,7 +90,7 @@ function ProfileEditor({ initial, stacks }: { initial: Profile | null; stacks: M
     initial,
     toForm,
     backupType: 'profile',
-    isValues: isProfileForm,
+    parseValues: parseProfileForm,
     comparable,
     idOf: (item) => item.id,
     updatedAtOf: (item) => item.updatedAt,
@@ -177,6 +138,19 @@ function ProfileEditor({ initial, stacks }: { initial: Profile | null; stacks: M
         {(field) => (
           <TextField
             label="肩書き"
+            limit={LIMITS.shortText}
+            name={field.name}
+            value={field.state.value}
+            onChange={field.handleChange}
+            lang={lang}
+            {...save.fieldState(field.name)}
+          />
+        )}
+      </form.Field>
+      <form.Field name={`${lang}.tagline`}>
+        {(field) => (
+          <TextField
+            label="一言"
             limit={LIMITS.shortText}
             name={field.name}
             value={field.state.value}
