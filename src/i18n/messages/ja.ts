@@ -20,6 +20,7 @@ export const ja = {
   },
   period: { present: '現在' },
   action: {
+    viewDetails: '詳細を見る',
     visitSite: 'サイトを見る',
     github: 'GitHub',
     reload: '再読み込み',

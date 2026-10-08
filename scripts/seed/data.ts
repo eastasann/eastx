@@ -262,9 +262,10 @@ export function buildSeed(options: SeedOptions): SeedData {
       stackKeys: ['typescript', 'nextjs', 'postgresql'],
     },
     {
+      // タイトルが長く、モバイル幅の閉じた行では「…」で切れる（広げると全文が出る）
       slug: 'weather-cli',
-      titleJa: '天気の CLI',
-      titleEn: 'Weather CLI',
+      titleJa: 'ターミナルで天気予報をすばやく確かめるコマンドラインツール',
+      titleEn: 'Weather CLI: a command-line tool for checking the forecast from the terminal',
       summaryJa: 'ターミナルで天気予報を見るツール。',
       summaryEn: 'A tool to check the weather forecast in the terminal.',
       bodyJa: '## 使い方\n\n`weather tokyo` で東京の天気を出します。',
@@ -294,7 +295,7 @@ export function buildSeed(options: SeedOptions): SeedData {
       stackKeys: ['docker'],
     },
     {
-      // 外部リンクも GitHub もなく押せない
+      // 外部リンクも GitHub もなく、行き先が無い（広げると概要・使用技術だけが出る）
       slug: 'internal-tool',
       titleJa: '社内ツール',
       titleEn: 'Internal Tool',
@@ -451,7 +452,7 @@ export function buildSeed(options: SeedOptions): SeedData {
       stackKeys: ['typescript'],
     },
     {
-      // 外部リンクもなく押せない
+      // 外部リンクもなく、行き先が無い（広げると期間・概要・使用技術だけが出る）
       slug: 'legacy-migration',
       titleJa: '古いシステムの移行',
       titleEn: 'Legacy System Migration',

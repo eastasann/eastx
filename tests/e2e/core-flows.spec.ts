@@ -8,6 +8,7 @@ import { insertSeed } from '../../scripts/seed/insert'
 import { expect, test } from './fixtures'
 import { gotoHydrated } from './hydration'
 import { moveUpByKeyboard } from './keyboard-sort'
+import { expandRow, rowButton } from './top-rows'
 
 test.describe('訪問者', () => {
   test.use({ locale: 'ja-JP' })
@@ -24,23 +25,22 @@ test.describe('訪問者', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Career' })).toBeVisible()
     await expect(page.locator('#career').getByText('シニアエンジニア')).toBeVisible()
 
-    // プロジェクト欄（10件以下なのでページングなし）の行を ▸ で広げて中身を見て、プロジェクト詳細へ → 戻る
-    const projects = page.locator('#projects')
-    await projects.getByRole('button', { name: /決済基盤の刷新/ }).click()
-    await expect(projects.getByRole('img', { name: '決済基盤の刷新' })).toBeVisible()
-    await projects.getByRole('link', { name: '決済基盤の刷新' }).click()
+    // プロジェクト欄（10件以下なのでページングなし）の行を広げて中身を見て、広げた中の入口からプロジェクト詳細へ → 戻る
+    const project = await expandRow(page, 'projects', '決済基盤の刷新')
+    await expect(project.getByRole('img', { name: '決済基盤の刷新' })).toBeVisible()
+    await project.getByRole('link', { name: '詳細を見る' }).click()
     await expect(page).toHaveURL('/ja/projects/payment-renewal')
     await expect(page.getByRole('heading', { level: 1, name: '決済基盤の刷新' })).toBeVisible()
     await page.getByRole('link', { name: 'Projects へ戻る' }).click()
     await expect(page).toHaveURL('/ja#projects')
-    await expect(projects.getByRole('link', { name: '決済基盤の刷新' })).toBeVisible()
+    await expect(rowButton(page, 'projects', '決済基盤の刷新')).toBeVisible()
 
     // 作品欄をページングして作品詳細へ → 戻るで元のページ（2ページ目）
     const works = page.locator('#works')
     const workPaging = works.getByRole('group', { name: 'Lab のページ' })
     await workPaging.getByRole('button', { name: '次のページ' }).click()
     await expect(workPaging).toContainText('2 / 2')
-    await works.getByRole('link', { name: 'レシピノート' }).click()
+    await (await expandRow(page, 'works', 'レシピノート')).getByRole('link', { name: '詳細を見る' }).click()
     await expect(page).toHaveURL('/ja/works/recipe-notes')
     await expect(page.getByRole('heading', { level: 1, name: 'レシピノート' })).toBeVisible()
     await page.getByRole('link', { name: 'Lab へ戻る' }).click()
@@ -48,7 +48,7 @@ test.describe('訪問者', () => {
     await expect(workPaging).toContainText('2 / 2')
 
     // 前後のナビで別の作品へ → 外部リンクで実物を確かめる（別タブ）
-    await works.getByRole('link', { name: 'レシピノート' }).click()
+    await (await expandRow(page, 'works', 'レシピノート')).getByRole('link', { name: '詳細を見る' }).click()
     await page.getByRole('navigation', { name: '前後のページ' }).getByRole('link').click()
     await expect(page).toHaveURL('/ja/works/budget-app')
     await expect(page.getByRole('heading', { level: 1, name: '家計簿アプリ' })).toBeVisible()
@@ -59,7 +59,7 @@ test.describe('訪問者', () => {
     // 戻るリンクは、いま見ている作品を含むページを開く
     await page.getByRole('link', { name: 'Lab へ戻る' }).click()
     await expect(workPaging).toContainText('1 / 2')
-    await expect(works.getByRole('link', { name: '家計簿アプリ' })).toBeVisible()
+    await expect(rowButton(page, 'works', '家計簿アプリ')).toBeVisible()
 
     // 言語を切り替えると、同じ画面の英語版になる
     await page.getByRole('group', { name: '言語' }).getByRole('link', { name: 'EN' }).click()
@@ -68,10 +68,9 @@ test.describe('訪問者', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Career' })).toBeVisible()
   })
 
-  test('詳細のない作品は、トップの行から外部リンク・GitHub へ直接進む', async ({ page }) => {
-    await page.goto('/ja')
-    const works = page.locator('#works')
-    const landing = works.getByRole('link', { name: /ランディングページ/ })
+  test('詳細のない作品は、トップの行を広げた中の外部リンク・GitHub へ進む', async ({ page }) => {
+    await gotoHydrated(page, '/ja')
+    const landing = (await expandRow(page, 'works', 'ランディングページ')).getByRole('link', { name: /サイトを見る/ })
     await expect(landing).toHaveAttribute('href', 'https://example.com/landing')
     await expect(landing).toHaveAttribute('target', '_blank')
     const response = await page.request.get('/ja/works/landing-page')
@@ -157,10 +156,10 @@ test.describe('管理者', () => {
       await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
       await expect(page.getByText('受入テストの本文です。')).toBeVisible()
 
-      // 新規作成は先頭に入る（design-spec 6.7.2）ので、トップの作品欄の先頭に出る
-      const firstWork = page.locator('#works').getByRole('article').first().getByRole('link').first()
+      // 新規作成は先頭に入る（design-spec 6.7.2）ので、トップの作品欄の先頭に出る。行のボタンの読み上げ名はタイトル
+      const firstWork = page.locator('#works').getByRole('article').first().getByRole('button')
       await page.goto('/ja')
-      await expect(firstWork).toHaveText(title)
+      await expect(firstWork).toHaveAccessibleName(title)
 
       // 並べ替え: 一覧で2番目の作品を先頭へ動かすと、トップの作品欄の先頭がその作品になる
       await page.goto('/admin/works')
@@ -175,7 +174,7 @@ test.describe('管理者', () => {
       await moveUpByKeyboard(page, table.getByRole('button', { name: second }), secondTitle, 2, 1)
       await expect(page.getByText('表示順を保存しました')).toBeVisible()
       await page.goto('/ja')
-      await expect(firstWork).toHaveText(secondTitle)
+      await expect(firstWork).toHaveAccessibleName(secondTitle)
     } finally {
       await page.goto('/admin/works')
       await table.getByRole('button', { name: `「${title}」の操作` }).click()

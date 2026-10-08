@@ -16,6 +16,7 @@ export const en = {
   },
   period: { present: 'Present' },
   action: {
+    viewDetails: 'View details',
     visitSite: 'Visit site',
     github: 'GitHub',
     reload: 'Reload',
