@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { fakeMediaPath, LONG_EN, legacyFixture, stackOf } from './fixture'
 import { extractResume, legacyCounts } from './legacy'
-import { clean, imageSources, toYearMonth, transform } from './transform'
+import { clean, imageSources, LEGACY_STACK_CATEGORIES, legacyStackCategory, toYearMonth, transform } from './transform'
 
 const data = () => transform(legacyFixture(), fakeMediaPath)
 
@@ -116,6 +118,41 @@ describe('transform', () => {
       iconUrl: '/media/uploads/legacy/node.svg',
       showOnTop: true,
     })
+  })
+
+  it('使用技術のカテゴリは識別名の表で決め、Core はどれもオフ', () => {
+    const stacks = data().stacks
+    expect(stacks.map((s) => [s.key, s.category])).toEqual([
+      ['typescript', 'languages'],
+      ['node', 'infrastructure'],
+      ['atomic-design', 'tools'],
+      ['sap', 'tools'],
+      ['mantine', 'frameworks'],
+      ['bazel', 'tools'],
+    ])
+    expect(stacks.every((s) => s.isCore === false)).toBe(true)
+  })
+
+  it('識別名のカテゴリの表に無い識別名は Tools', () => {
+    expect(legacyStackCategory('unknown-tool')).toBe('tools')
+    expect(legacyStackCategory('typescript')).toBe('languages')
+  })
+
+  it('識別名のカテゴリの表が、マイグレーションの SQL の UPDATE と一致する', () => {
+    const migration = readFileSync(
+      path.join(import.meta.dirname, '../../drizzle/migrations/0002_dizzy_junta.sql'),
+      'utf8',
+    )
+    const fromSql = Object.fromEntries(
+      [...migration.matchAll(/UPDATE `stack` SET `category` = '([a-z]+)' WHERE `key` IN \(([^)]*)\)/g)].map((m) => [
+        m[1],
+        [...(m[2] ?? '').matchAll(/'([^']+)'/g)].map((k) => k[1]).sort(),
+      ]),
+    )
+    const fromTable = Object.fromEntries(
+      Object.entries(LEGACY_STACK_CATEGORIES).map(([category, keys]) => [category, [...keys].sort()]),
+    )
+    expect(fromSql).toEqual(fromTable)
   })
 
   it('識別名が同じになる技術には連番を付ける', () => {

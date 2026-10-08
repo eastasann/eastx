@@ -15,6 +15,7 @@ import {
   workStack,
 } from '~/db/schema'
 import { excerptOf } from '~/domain/excerpt'
+import { toStackGroups } from '~/domain/stack-groups'
 import type { Lang } from '~/i18n/detect'
 import { getMessages } from '~/i18n/messages'
 import { availabilityOf, type Bilingual, type LocalizedText, pickText } from './localize'
@@ -138,7 +139,11 @@ export async function loadTopPage({ db, siteUrl }: ContentContext, lang: Lang): 
         .innerJoin(work, eq(workStack.workId, work.id))
         .where(published(work))
         .orderBy(asc(workStack.sortOrder)),
-      db.select(stackColumns).from(stack).where(eq(stack.showOnTop, true)).orderBy(asc(stack.sortOrder)),
+      db
+        .select({ ...stackColumns, category: stack.category, isCore: stack.isCore })
+        .from(stack)
+        .where(eq(stack.showOnTop, true))
+        .orderBy(asc(stack.sortOrder)),
       // 自己紹介の太字との照合は「トップに表示する」に関わらず全件（ADR-012）
       db.select({ key: stack.key, displayName: stack.displayName, iconUrl: stack.iconUrl }).from(stack),
       db
@@ -285,7 +290,10 @@ export async function loadTopPage({ db, siteUrl }: ContentContext, lang: Lang): 
     careers: careerItems,
     projects: projectItems,
     works: workItems,
-    stacks,
+    stackGroups: toStackGroups(stacks).map((group) => ({
+      key: group.key,
+      stacks: group.stacks.map(({ category: _category, isCore: _isCore, ...chip }) => chip),
+    })),
     blogPosts: posts.map((row) => toPostItem(row, 'blog_post')),
     codingLogs: logs.map((row) => ({ ...toPostItem(row, 'coding_log'), kind: row.kind })),
   }

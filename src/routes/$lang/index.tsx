@@ -4,7 +4,7 @@ import { getTopPage } from '~/content/server-fns'
 import type { BlogPostItem, CareerItem, CodingLogItem, ProjectItem, WorkItem } from '~/content/types'
 import { isLang } from '~/i18n/detect'
 import { getMessages } from '~/i18n/messages'
-import { StackChipList } from '~/site/content-parts'
+import { TechStackGroups } from '~/site/content-parts'
 import { pageHead, statusHead } from '~/site/head'
 import { SingleColumnLayout } from '~/site/layouts'
 import { ProfileSection } from '~/site/profile-section'
@@ -59,14 +59,14 @@ function TopPage() {
         messages={messages}
         renderItem={(item) => <WorkRow item={item} lang={lang} messages={messages} />}
       />
-      {view.stacks.length > 0 && (
+      {view.stackGroups.length > 0 && (
         <section
           id="stack"
           aria-labelledby="stack-heading"
           className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}
         >
           <SectionHeading id="stack-heading" title={section.stack} />
-          <StackChipList stacks={view.stacks} messages={messages} />
+          <TechStackGroups groups={view.stackGroups} messages={messages} />
         </section>
       )}
       <PagedSection<BlogPostItem>

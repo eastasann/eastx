@@ -14,6 +14,7 @@ import type {
   work,
   workStack,
 } from '../../src/db/schema'
+import type { StackCategory } from '../../src/domain/stack-groups'
 import { createImageFactory, type SeedImage } from './images'
 
 export type SeedData = {
@@ -201,23 +202,93 @@ export function buildSeed(options: SeedOptions): SeedData {
     },
   ]
 
-  // ---- stack（15。アイコンあり14・なし1、トップに出さない2） -------------------
-  const stackDefs: { key: string; name: string; link?: string; icon: boolean; top: boolean }[] = [
-    { key: 'typescript', name: 'TypeScript', link: 'https://www.typescriptlang.org', icon: true, top: true },
-    { key: 'react', name: 'React', link: 'https://react.dev', icon: true, top: true },
-    { key: 'tanstack-start', name: 'TanStack Start', link: 'https://tanstack.com/start', icon: true, top: true },
-    { key: 'nextjs', name: 'Next.js', link: 'https://nextjs.org', icon: true, top: true },
-    { key: 'nodejs', name: 'Node.js', link: 'https://nodejs.org', icon: true, top: true },
-    { key: 'bun', name: 'Bun', link: 'https://bun.sh', icon: true, top: true },
-    { key: 'cloudflare-workers', name: 'Cloudflare Workers', icon: true, top: true },
-    { key: 'postgresql', name: 'PostgreSQL', link: 'https://www.postgresql.org', icon: true, top: true },
-    { key: 'sqlite', name: 'SQLite', link: 'https://www.sqlite.org', icon: true, top: true },
-    { key: 'drizzle', name: 'Drizzle ORM', link: 'https://orm.drizzle.team', icon: true, top: true },
-    { key: 'go', name: 'Go', link: 'https://go.dev', icon: true, top: true },
-    { key: 'python', name: 'Python', link: 'https://www.python.org', icon: true, top: true },
-    { key: 'docker', name: 'Docker', link: 'https://www.docker.com', icon: true, top: true },
-    { key: 'jquery', name: 'jQuery', icon: true, top: false },
-    { key: 'perl', name: 'Perl', icon: false, top: false },
+  // ---- stack（16。アイコンあり14・なし2、トップに出さない2、4カテゴリ、Core 4） ----------
+  type StackDef = {
+    key: string
+    name: string
+    link?: string
+    icon: boolean
+    top: boolean
+    category: StackCategory
+    core?: boolean
+  }
+  const stackDefs: StackDef[] = [
+    {
+      key: 'typescript',
+      name: 'TypeScript',
+      link: 'https://www.typescriptlang.org',
+      icon: true,
+      top: true,
+      category: 'languages',
+      core: true,
+    },
+    {
+      key: 'react',
+      name: 'React',
+      link: 'https://react.dev',
+      icon: true,
+      top: true,
+      category: 'frameworks',
+      core: true,
+    },
+    {
+      key: 'tanstack-start',
+      name: 'TanStack Start',
+      link: 'https://tanstack.com/start',
+      icon: true,
+      top: true,
+      category: 'frameworks',
+      core: true,
+    },
+    { key: 'nextjs', name: 'Next.js', link: 'https://nextjs.org', icon: true, top: true, category: 'frameworks' },
+    { key: 'nodejs', name: 'Node.js', link: 'https://nodejs.org', icon: true, top: true, category: 'infrastructure' },
+    { key: 'bun', name: 'Bun', link: 'https://bun.sh', icon: true, top: true, category: 'infrastructure' },
+    {
+      key: 'cloudflare-workers',
+      name: 'Cloudflare Workers',
+      icon: true,
+      top: true,
+      category: 'infrastructure',
+      core: true,
+    },
+    {
+      key: 'postgresql',
+      name: 'PostgreSQL',
+      link: 'https://www.postgresql.org',
+      icon: true,
+      top: true,
+      category: 'infrastructure',
+    },
+    {
+      key: 'sqlite',
+      name: 'SQLite',
+      link: 'https://www.sqlite.org',
+      icon: true,
+      top: true,
+      category: 'infrastructure',
+    },
+    {
+      key: 'drizzle',
+      name: 'Drizzle ORM',
+      link: 'https://orm.drizzle.team',
+      icon: true,
+      top: true,
+      category: 'frameworks',
+    },
+    { key: 'go', name: 'Go', link: 'https://go.dev', icon: true, top: true, category: 'languages' },
+    { key: 'python', name: 'Python', link: 'https://www.python.org', icon: true, top: true, category: 'languages' },
+    {
+      key: 'docker',
+      name: 'Docker',
+      link: 'https://www.docker.com',
+      icon: true,
+      top: true,
+      category: 'infrastructure',
+    },
+    // Tech Stack の枠の中の頭文字を確かめるための、アイコンの無いトップに出す技術
+    { key: 'git', name: 'Git', link: 'https://git-scm.com', icon: false, top: true, category: 'tools' },
+    { key: 'jquery', name: 'jQuery', icon: true, top: false, category: 'frameworks' },
+    { key: 'perl', name: 'Perl', icon: false, top: false, category: 'languages' },
   ]
   const stacks: SeedData['stacks'] = stackDefs.map((s, i) => ({
     id: crypto.randomUUID(),
@@ -226,6 +297,8 @@ export function buildSeed(options: SeedOptions): SeedData {
     linkUrl: s.link ?? null,
     iconUrl: s.icon ? image.url('icon', s.name) : null,
     showOnTop: s.top,
+    category: s.category,
+    isCore: s.core ?? false,
     sortOrder: i,
   }))
   const stackId = (key: string) => {

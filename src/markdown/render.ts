@@ -13,6 +13,7 @@ import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
 import { SKIP, visit } from 'unist-util-visit'
+import { initialOf } from '../domain/initial'
 import type { Lang } from '../i18n/detect'
 import { getHighlighter, rehypeHighlight } from './highlight'
 
@@ -78,11 +79,6 @@ function rehypeShiftHeadings() {
 /** 識別名の昇順。照合で複数に一致したときの優先と、キャッシュのキーの版の並びに使う */
 export function byStackKey(a: MarkdownStack, b: MarkdownStack): number {
   return a.key < b.key ? -1 : a.key > b.key ? 1 : 0
-}
-
-/** 頭文字の丸の文字。表示名の最初の1文字（src/ui/image.tsx の InitialBadge と同じ規則） */
-function initialOf(name: string): string {
-  return Array.from(name.trim())[0]?.toUpperCase() ?? ''
 }
 
 /**

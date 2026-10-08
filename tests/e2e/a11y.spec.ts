@@ -1,5 +1,5 @@
 /**
- * アクセシビリティ（P1〜P5・A1・A2 と、A3・A4・A5・A8 の編集ビューで axe の serious 以上の違反 0件。SDD 10章）と、
+ * アクセシビリティ（P1〜P5・A1・A2 と、A3・A4・A5・A7・A8 の編集ビューで axe の serious 以上の違反 0件。SDD 10章）と、
  * セキュリティヘッダー・X-Robots-Tag（SDD 7章・ADR-019）。どの画面でもブラウザに CSP の違反が出ないことも確かめる。
  * make e2e のデモデータ（make db-seed）を前提にする
  */
@@ -121,6 +121,19 @@ test.describe('管理画面', () => {
       await login({ admin: true })
       await page.goto('/admin/profile')
       await expect(page.getByRole('radiogroup', { name: '表示' })).toBeVisible()
+      await expect(page.getByRole('status').filter({ hasText: /^保存済み/ })).toBeVisible()
+      expect(await seriousViolations(page)).toEqual([])
+    })
+  }
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(`A7 使用技術の編集（${theme}）: axe の重大な違反がない`, async ({ page, login }) => {
+      await page.emulateMedia({ colorScheme: theme })
+      await login({ admin: true })
+      await page.goto('/admin/stacks')
+      // Core の技術を開き、押せない「トップに表示する」と欄の下の説明も検査に入れる
+      await page.getByRole('table', { name: 'Tech Stack の一覧' }).getByRole('link', { name: 'TypeScript' }).click()
+      await expect(page.getByRole('checkbox', { name: 'トップに表示する' })).toBeDisabled()
       await expect(page.getByRole('status').filter({ hasText: /^保存済み/ })).toBeVisible()
       expect(await seriousViolations(page)).toEqual([])
     })

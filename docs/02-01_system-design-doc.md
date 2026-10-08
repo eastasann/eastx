@@ -204,7 +204,7 @@
 **理由:** Drizzle は D1 に正式に対応していて軽く、Workers のバンドルを圧迫しない。`db.batch()` で複数のクエリを1往復にまとめられる。SQL のファイルがリポジトリに残るので、何が適用されるかをレビューできる。
 
 **トレードオフ:**
-- drizzle-kit は SQLite で CHECK 制約などを変えるとき、テーブルを作り直す SQL（`PRAGMA foreign_keys=OFF` → 新しいテーブル → コピー → `DROP` → `RENAME`）を出す。D1 は外部キーを常に有効にしていてこの PRAGMA が効かないため、親のテーブル（`work`・`project`・`stack`）を `DROP` すると、`ON DELETE CASCADE` で `work_stack`・`project_stack` の行が消えるおそれがある。対処の決まりは `docs/03_dev-setup.md` 4章（生成した SQL を必ず読む、作り直しには `PRAGMA defer_foreign_keys` か子の行の退避と復元を手で足す、本番のコピーで件数を比べる）。
+- drizzle-kit は SQLite で CHECK 制約などを変えるとき、テーブルを作り直す SQL（`PRAGMA foreign_keys=OFF` → 新しいテーブル → コピー → `DROP` → `RENAME`）を出す。D1 は外部キーを常に有効にしていてこの PRAGMA が効かないため、親のテーブル（`work`・`project`・`stack`）を `DROP` すると、`ON DELETE CASCADE` で `work_stack`・`project_stack` の行が消えるおそれがある。対処の決まりは `docs/03_dev-setup.md` 4章（生成した SQL を必ず読む、作り直しには `PRAGMA defer_foreign_keys` か子の行の退避と復元を手で足す、本番のコピーで件数を比べる）。列を足すだけの変更（CHECK を伴うものを含む）は、作り直しの SQL を列の追加に置き換えてテーブルを作り直さない（手順は同じ 4章）。
 - Prisma（今のサイトで使っていた）ほどのリレーションの表現力はない。`drizzle-kit push` は D1 のローカルと相性が悪いので使わない。
 - 捨てた案:
   - Prisma: Workers では重く、D1 にはドライバーアダプターが要り、マイグレーションの中身も見えにくい。
@@ -315,7 +315,7 @@
 - 06 の型と Panda の対応: color → `colors`、space → `spacing`、size → `sizes`、radius → `radii`、border-width → `borderWidths`、shadow → `shadows`、duration → `durations`、cubicBezier → `easings`、opacity → `opacities`、z-index → `zIndex`、aspect-ratio → `aspectRatios`、fontFamily・fontWeight・font.size・letter-spacing → `fonts`・`fontWeights`・`fontSizes`・`letterSpacings`。typography（合成値）は Panda の `textStyles` に、transition（合成値）は `durations` と `easings` のセマンティックトークンの組に展開する。
 - Panda ではプリミティブ層もトークンになり、型では「セマンティック層だけを参照する」を止められない。そこでプリミティブは `primitive` の名前空間に出し、`make lint` の中で `src/` からの `primitive.` の参照を検査して止める。
 - スタイルは静的に書けるもの（`css()` に渡すオブジェクト、レシピとそのバリアント）だけにし、実行時に組み立てない。
-- トークンを通さない値は、ライブラリが実行時に渡す値を受ける CSS 変数だけにする: Ark UI のトーストの積み重ね（`var(--x)`・`var(--z-index)` など）、Shiki のテーマの色（`var(--shiki-light)`・`var(--shiki-dark)`。ADR-012）、dnd-kit のドラッグ中の位置と遷移（要素の `style` に `--drag-transform`・`--drag-transition` として渡し、`transform`・`transition` で読む。ADR-015）。どれもデザインの値ではなく、ライブラリの出力をそのまま使う。
+- トークンを通さない値は、ライブラリが実行時に渡す値を受ける CSS 変数と、画像の処理の種類を示す値だけにする。前者は Ark UI のトーストの積み重ね（`var(--x)`・`var(--z-index)` など）、Shiki のテーマの色（`var(--shiki-light)`・`var(--shiki-dark)`。ADR-012）、dnd-kit のドラッグ中の位置と遷移（要素の `style` に `--drag-transform`・`--drag-transition` として渡し、`transform`・`transition` で読む。ADR-015）で、どれもデザインの値ではなく、ライブラリの出力をそのまま使う。後者は公開側の使用技術の並びのアイコンのグレースケール（`filter: 'auto'` と `grayscale: '100%'`。design-spec 4.4）で、色・余白のようなデザインの値ではなく、DTCG にも Panda にも filter のトークンの型が無いため。
 
 **理由:** design-spec 4.4 の「見た目はすべてデザイントークン経由で指定し、コンポーネントに値を直接書かない」を、レビューではなく型の仕組みで守れる。Panda のトークンは「プリミティブ＋セマンティック（条件付き）」の2層で、06 の構造にそのまま対応する。ビルド時に CSS を生成するので、SSR でもランタイムの負荷がない。Ark UI は Panda と同じチームが作っていて、キーボード操作や読み上げをライブラリに任せられる。Style Dictionary を使わないのは、06 で使う DTCG の型が少なく（color・dimension・fontFamily・fontWeight・duration・cubicBezier・number・shadow・typography・transition）、出力先も Panda の2層だけなので、設定と変換の仕組みを1つ増やすより、短いスクリプトの方が単純なため。
 
@@ -527,7 +527,7 @@
 - CMS API のベースパスは `/api/admin`。コントラクトは `src/api/contract/`、実装は `src/api/router/`。
 - リクエスト・レスポンスの本文は JSON（アップロードだけ `multipart/form-data`）。文字コードは UTF-8。
 - ID は UUID の文字列。日時は ISO 8601 の文字列（UTC。例: `"2026-09-30T03:12:45.000Z"`）。年月は `"YYYY-MM"` の文字列（例: `"2024-04"`）。
-- 日英を持つ項目は `ja` と `en` のオブジェクトに分ける。文字列は前後の空白を取り除き、空文字は `null` として保存する。空にできる項目（文字列・URL・日時・年月）はキーを省いても `null` として扱う。`status` と `kind`（経歴・コーディング記録）、使用技術の更新の `key`・`displayName`・`showOnTop` は省けない（省いた PUT で値が書き換わらないように）。
+- 日英を持つ項目は `ja` と `en` のオブジェクトに分ける。文字列は前後の空白を取り除き、空文字は `null` として保存する。空にできる項目（文字列・URL・日時・年月）はキーを省いても `null` として扱う。`status` と `kind`（経歴・コーディング記録）、使用技術の更新の `key`・`displayName`・`category`・`isCore`・`showOnTop` は省けない（省いた PUT で値が書き換わらないように）。
 - `/{id}` を持つ手続きは、入力を oRPC の `detailed`（パスの `params` と本文の `body` を分ける）にする。本文やクエリの `id` がパスの `{id}` を上書きしないようにするため。管理画面の型付きクライアントは `{ params: { id }, body }` で呼ぶ。`fieldErrors` のキーは `body.` を付けない欄の名前（`ja.title` など）にそろえる。
 - 状態は `"draft"` ／ `"published"`。作成（POST）と更新（PUT）の本文の `status` に「保存後にしたい状態」を入れ、サーバーが今の状態との組み合わせで、design-spec 6.7.1 のボタンの意味（下書き保存・公開する・更新する・非公開に戻す）を決める（5.3）。
 - 一覧はページングしない（design-spec 6.6）。並び順は design-spec 6.6 の表のとおりにサーバーで並べて返す。
@@ -884,6 +884,8 @@ A2 の件数カードと下書きの一覧。
       "displayName": "React",
       "iconUrl": "/media/uploads/2026/09/….svg",
       "linkUrl": "https://react.dev",
+      "category": "frameworks",
+      "isCore": true,
       "showOnTop": true,
       "sortOrder": 0,
       "usageCount": 5
@@ -892,7 +894,7 @@ A2 の件数カードと下書きの一覧。
 }
 ```
 
-`usageCount` は、この技術を使っている作品とプロジェクトの数の合計（一覧の列と削除の確認ダイアログに使う）。並び順は `sortOrder`。A5・A6 の「+ 追加」の候補もこの一覧を使う。
+`usageCount` は、この技術を使っている作品とプロジェクトの数の合計（一覧の列と削除の確認ダイアログに使う）。並び順は `sortOrder`。A5・A6 の「+ 追加」の候補もこの一覧を使う。`category` は `"languages"` ／ `"frameworks"` ／ `"infrastructure"` ／ `"tools"`（`src/db/enums.ts` の `STACK_CATEGORIES`）、`isCore` は Core（主要な技術）の印。
 
 #### `GET /api/admin/stacks/{id}`
 
@@ -902,19 +904,22 @@ A2 の件数カードと下書きの一覧。
 
 ```json
 // リクエスト（A7 の新規作成）
-{ "key": "react", "displayName": "React", "iconUrl": null, "linkUrl": "https://react.dev", "showOnTop": true }
-// リクエスト（A5・A6 の「新しい技術として追加」。表示名だけ）
-{ "displayName": "Hono" }
+{ "key": "react", "displayName": "React", "iconUrl": null, "linkUrl": "https://react.dev", "category": "frameworks", "isCore": true, "showOnTop": true }
+// リクエスト（A5・A6 の「新しい技術として追加」。表示名と showOnTop だけ）
+{ "displayName": "Hono", "showOnTop": false }
 // 201: GET /stacks/{id} と同じ形
 ```
 
 - `key` を省くと、design-spec 6.7.1 の規則で表示名から作る。
 - `showOnTop` を省くと `true`。A5・A6 の「新しい技術として追加」からは `showOnTop: false` を付けて送る（design-spec 6.7.1）。表示順の入れ方は 6.1。
+- `category` を省くと `"tools"`、`isCore` を省くと `false`。
+- `isCore: true` と `showOnTop: false` の組み合わせは `INPUT_VALIDATION_FAILED`（`fieldErrors.showOnTop`。文言は design-spec 6.7.3）。`showOnTop` を省いたときは `true` になるので、`isCore: true` だけを送っても通る。DB の CHECK では縛らない（6.4 の `stack` の注記）。
+- 4つ以外の `category` は `INPUT_VALIDATION_FAILED`（`fieldErrors.category`）。
 - エラー: `INPUT_VALIDATION_FAILED`、`STACK_KEY_CONFLICT`（`key` を指定して重複したとき）。
 
 #### `PUT /api/admin/stacks/{id}`（200）
 
-本文は POST と同じで、`key`・`displayName`・`showOnTop` は必須。
+本文は POST と同じで、`key`・`displayName`・`category`・`isCore`・`showOnTop` は必須（省いた PUT で値が書き換わらないように。5.0）。Core とトップに表示するかの組み合わせの誤りは POST と同じ。
 
 #### `DELETE /api/admin/stacks/{id}`
 
@@ -1060,6 +1065,7 @@ type LocalizedHtml = { html: string; lang: Lang }
 /** 中身全体の言語。fallback が true なら、言語ラベル・注記を出す */
 type Availability = { lang: Lang; fallback: boolean }
 type StackChip = { key: string; displayName: string; iconUrl: string | null; linkUrl: string | null }
+type StackCategory = 'languages' | 'frameworks' | 'infrastructure' | 'tools'
 type Period = { start: string /* YYYY-MM */; end: string | null }
 type Neighbor = { slug: string; title: LocalizedText } | null
 type PageMeta = { title: string; description: string | null; ogImageUrl: string; alternates: { ja: string; en: string } }
@@ -1101,7 +1107,10 @@ type TopPageView = {
     thumbnailUrl: string | null; linkUrl: string | null; githubUrl: string | null; hasDetail: boolean
     stacks: StackChip[]; availability: Availability
   }[]
-  stacks: StackChip[]                       // show_on_top のものだけ、表示順
+  stackGroups: {                            // show_on_top のものだけ。空の群は含めない
+    key: 'core' | StackCategory             // core → languages → frameworks → infrastructure → tools の順
+    stacks: StackChip[]                     // 群の中は表示順。Core の技術は core の群にだけ入る
+  }[]
   blogPosts: {
     id: string; slug: string; publishedAt: string; title: LocalizedText; availability: Availability
   }[]
@@ -1190,7 +1199,7 @@ auth_verification (N)                     ※ OAuth の state などの一時デ
 | `career` | 経歴（職歴と学歴） | `kind` で職歴・学歴を分ける（初期値 `work`）。`end_date` が空なら「現在」 |
 | `work` | 作品 | `body_ja` か `body_en` があれば詳細ページを持つ。`first_published_at` は「初めて公開した日時」（design-spec 6.7.2 の「公開したことがある」の判定に使う。値を入れるのは 5.3） |
 | `project` | プロジェクト | 作品との違いは、GitHub を持たず期間を持つこと（今の DB に合わせた）。詳細ページの有無・`first_published_at` は作品と同じ |
-| `stack` | 使用技術 | `key` は識別名（例: `nextjs`）、`display_name` は日英共通の表示名。`show_on_top` の初期値は true |
+| `stack` | 使用技術 | `key` は識別名（例: `nextjs`）、`display_name` は日英共通の表示名。`show_on_top` の初期値は true。`category` は `languages`・`frameworks`・`infrastructure`・`tools`（初期値 `tools`。P1 の Tech Stack の群）。`is_core` は Core（主要な技術。初期値 false）。Core の技術はトップに表示する決まりだが、DB では縛らず API の入力チェック（5.8）で守る（CHECK にすると、古いコードが Core の技術を非表示にして保存したときに失敗し、前のコードで動く形にならないため。公開側は `show_on_top` だけで出す技術を決めるので、矛盾した行は表に出ない） |
 | `work_stack` ／ `project_stack` | 作品・プロジェクトと使用技術の紐づけ | 主キーは2つの外部キーの組。`sort_order` が作品・プロジェクトの中での技術の表示順 |
 | `blog_post` | ブログ記事 | `published_at` は「公開日」、`content_updated_at` は「更新日」（値を入れるのは 5.3。`published_at` は design-spec 6.7.2 の「公開したことがある」の判定にも使う）。抜粋はカラムを持たず本文から作る |
 | `coding_log` | コーディング記録 | `kind` は `learning_log`（初期値）・`snippet`・`problem`・`memo`。日時のカラムはブログ記事と同じ |
@@ -1211,9 +1220,10 @@ import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } fro
 //   SOCIAL_SERVICES = ['github', 'linkedin', 'instagram', 'x', 'zenn', 'qiita', 'other']
 //   CAREER_KINDS = ['work', 'education']
 //   CODING_LOG_KINDS = ['learning_log', 'snippet', 'problem', 'memo']
+//   STACK_CATEGORIES = ['languages', 'frameworks', 'infrastructure', 'tools']  // 並びは P1 の Tech Stack の群の順
 // ブラウザで動くコード（公開側の表示、管理画面）は enums.ts から読み、Drizzle をバンドルに入れない（7章「パフォーマンス」）
-import { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STATUSES } from './enums'
-export { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STATUSES }
+import { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STACK_CATEGORIES, STATUSES } from './enums'
+export { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STACK_CATEGORIES, STATUSES }
 
 // ---- 共通のカラム ------------------------------------------------------
 const id = () => text('id').primaryKey().$defaultFn(() => crypto.randomUUID())
@@ -1409,10 +1419,14 @@ export const stack = sqliteTable(
     linkUrl: text('link_url'),
     sortOrder: integer('sort_order').notNull(),
     showOnTop: integer('show_on_top', { mode: 'boolean' }).notNull().default(true),
+    category: text('category', { enum: STACK_CATEGORIES }).notNull().default('tools'),
+    /** Core（主要な技術）。true のとき show_on_top も true であることは API が守る（6.3） */
+    isCore: integer('is_core', { mode: 'boolean' }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
+    check('stack_category', sql`${t.category} in (${inList(STACK_CATEGORIES)})`),
     check('stack_key_format', sql`${t.key} <> '' and ${t.key} not glob '*[^a-z0-9-]*'`),
     check('stack_link_url', httpsOrNull(t.linkUrl)),
     check('stack_icon_url', mediaOrNull(t.iconUrl)),
@@ -1611,7 +1625,7 @@ export default defineConfig({
 | Experience ＋ Education | `career` | 1つにまとめて `kind` で分ける。タイトル以外（所属・場所）も日英に分ける。公開状態を追加 |
 | Work | `work` | 概要と詳細本文を分ける。サムネイル・表示順・公開状態・初めて公開した日時・スラッグを追加 |
 | Project | `project` | Work と同じ |
-| Stack | `stack` | `name` → `key`、`stackImage` → `icon_url`。表示順とトップに表示するかを追加 |
+| Stack | `stack` | `name` → `key`、`stackImage` → `icon_url`。表示順とトップに表示するかを追加。カテゴリは識別名から決める（design-spec 9章）。Core はオフ |
 | （Work・Project と Stack の暗黙の中間テーブル） | `work_stack` ＋ `project_stack` | 技術の表示順を追加 |
 | Coding（中身なし） | `coding_log` | 新しく作る |
 | なし | `blog_post` | 新しく作る |
@@ -1702,7 +1716,7 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 
 | コード | HTTP | `data` | 使う場面 |
 |---|---|---|---|
-| `INPUT_VALIDATION_FAILED` | 422 | `{ "fieldErrors": { "ja.title": ["…"], "linkUrl": ["https:// で始めてください"] }, "formErrors": ["…"] }` | 形式の誤り・上限超え・存在しない ID（Zod のエラーを、インターセプターでこの形に変える）。本文を解釈できない・本文が大きすぎるとき（5.1）は `formErrors` に入れる |
+| `INPUT_VALIDATION_FAILED` | 422 | `{ "fieldErrors": { "ja.title": ["…"], "linkUrl": ["https:// で始めてください"] }, "formErrors": ["…"] }` | 形式の誤り・上限超え・存在しない ID・項目どうしの組み合わせの誤り（Zod のエラーを、インターセプターでこの形に変える）。組み合わせの誤りの例は、Core でトップに表示しない技術（5.8）。本文を解釈できない・本文が大きすぎるとき（5.1）は `formErrors` に入れる |
 | `PUBLISH_REQUIREMENTS_NOT_MET` | 422 | `{ "missing": [{ "field": "slug" }, { "field": "title", "lang": "en" }] }` | 公開・更新するのに足りない項目（design-spec 6.7.3） |
 | `SLUG_CONFLICT` | 409 | `{ "suggestion": "my-app-2" }` | 同じ種類の中でスラッグが重複 |
 | `STACK_KEY_CONFLICT` | 409 | `{ "suggestion": "react-2" }` | 使用技術の識別名が重複 |
@@ -1758,11 +1772,11 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 
 | レイヤー | ツール | カバレッジ目標 | 対象 |
 |----------|--------|---------------|------|
-| ユニット | Vitest（Node.js 環境） | `src/domain/`・`src/i18n/`・`src/markdown/` の行カバレッジ 90% | スラッグの生成と重複の連番、言語ありの判定と代替、抜粋の作り方、公開状態の遷移（5.3）と公開のルール、日付・期間の書式、Markdown の描画（生の HTML・`javascript:`・見出しのレベル・外部リンク・太字と使用技術の照合・元の行番号）、キャッシュのキーの使用技術の版。管理画面の規則（`src/admin/`）: 自動退避の規則（design-spec 6.4 の表の各行）、Cmd/Ctrl+S の割り当て、保存の状態の文言、ボタンを押せない理由、最初の誤りの欄の順、文字数の表示、表示の切り替えの記憶。公開側の行の規則（`src/site/row-rules.ts`）: トップの行を広げられるかの判定 |
-| API 結合 | Vitest ＋ `@cloudflare/vitest-pool-workers`（workerd 上で、ローカルの D1・R2 を使う。テストファイルごとにマイグレーションを当てた空の D1） | `/api/admin/*` の全手続きについて、未認証で 401・管理者でないセッションで 403 になるテストを必ず持つ（認可マトリクスの照合）。主要な手続きの正常系とエラー系 | CMS API の全手続き、Better Auth の hooks（管理者でない ID を拒否）、アップロードの形式・上限、`/media/*` |
-| 公開側の読み取り | 同上 | 各サーバー関数の正常系と、下書き・詳細本文なしが返らないこと | 公開中だけを返す、並び順、前後のナビ、言語の代替 |
-| E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、ヘッダーのドメイン名からトップへ、プロフィールの上の一言（無ければ詰め、ヘッダーからの余白が変わらない）、経歴・作品・プロジェクトの行を行全体（キーボードの Enter・Space を含む）で広げ、広げた中の入口から詳細・外部へ移る、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元、長い本文をスクロールしても操作バーが見えている、Cmd/Ctrl+S、「日英」で日英の本文を書いて保存、誤りの欄への移動、設定の引き出し、自動退避の復元の提案、使用技術を検索の欄を閉じずに続けて選ぶ、画像を挿入、L6（経歴）の「日英」で保存、A3 で一言を保存すると P1 に出る、ログアウトで退避を消す |
-| アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P5・A1・A2 と、A3・A4・A5・A8 の編集ビュー（ライト・ダーク）で重大（serious 以上）な違反 0件。P1 は経歴・作品・プロジェクトを各1行広げた状態も検査する | 自動で検出できる範囲。表示の切り替え・設定の引き出し・画像を挿入をキーボードだけで操作できること。トップの行をキーボードで広げ、広げた中のリンクへ Tab で移れること |
+| ユニット | Vitest（Node.js 環境） | `src/domain/`・`src/i18n/`・`src/markdown/` の行カバレッジ 90% | スラッグの生成と重複の連番、言語ありの判定と代替、抜粋の作り方、公開状態の遷移（5.3）と公開のルール、日付・期間の書式、Markdown の描画（生の HTML・`javascript:`・見出しのレベル・外部リンク・太字と使用技術の照合・元の行番号）、キャッシュのキーの使用技術の版、Tech Stack の群の分け方（`src/domain/stack-groups.ts`）。データ移行の使用技術のカテゴリの表（表に無い識別名が Tools になること、表とマイグレーションの SQL の識別名の集合が一致すること）。管理画面の規則（`src/admin/`）: 自動退避の規則（design-spec 6.4 の表の各行。A7 のカテゴリと Core のキーが無い退避を読み込んだ値で埋めることを含む）、A7 の Core と「トップに表示するか」の規則、Cmd/Ctrl+S の割り当て、保存の状態の文言、ボタンを押せない理由、最初の誤りの欄の順、文字数の表示、表示の切り替えの記憶。公開側の行の規則（`src/site/row-rules.ts`）: トップの行を広げられるかの判定 |
+| API 結合 | Vitest ＋ `@cloudflare/vitest-pool-workers`（workerd 上で、ローカルの D1・R2 を使う。テストファイルごとにマイグレーションを当てた空の D1） | `/api/admin/*` の全手続きについて、未認証で 401・管理者でないセッションで 403 になるテストを必ず持つ（認可マトリクスの照合）。主要な手続きの正常系とエラー系 | CMS API の全手続き、Better Auth の hooks（管理者でない ID を拒否）、アップロードの形式・上限、`/media/*`。手で書いたマイグレーションが DB に入れた形（既定値・NOT NULL・CHECK）と、新しい列を書かない insert（古いコード）が既定値で入ること |
+| 公開側の読み取り | 同上 | 各サーバー関数の正常系と、下書き・詳細本文なしが返らないこと | 公開中だけを返す、並び順、前後のナビ、言語の代替、Tech Stack の群（トップに出さない技術を含めない）、自己紹介のキャッシュのキーが使用技術のカテゴリと Core で変わらないこと |
+| E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、ヘッダーのドメイン名からトップへ、プロフィールの上の一言（無ければ詰め、ヘッダーからの余白が変わらない）、経歴・作品・プロジェクトの行を行全体（キーボードの Enter・Space を含む）で広げ、広げた中の入口から詳細・外部へ移る、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元、長い本文をスクロールしても操作バーが見えている、Cmd/Ctrl+S、「日英」で日英の本文を書いて保存、誤りの欄への移動、設定の引き出し、自動退避の復元の提案、使用技術を検索の欄を閉じずに続けて選ぶ、画像を挿入、L6（経歴）の「日英」で保存、A3 で一言を保存すると P1 に出る、ログアウトで退避を消す。P1 の Tech Stack の群（見出しの順と `lang`、Core の技術が Core の群にだけ出る、トップに出さない技術が無い、アイコンが無い・読み込めない技術の頭文字の丸、空の群を出さない）、公開側の使用技術の並びのアイコン（Tech Stack・行・P2）がグレースケールで切り抜かれず、自己紹介の太字の前と管理画面のアイコンは元の色、A7 でカテゴリ・Core を変えて保存すると P1 の群が移る、Core をオンにすると「トップに表示するか」がオンで押せなくなる、Core でトップに表示しない値を保存すると欄の下に誤りを出す |
+| アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P5・A1・A2 と、A3・A4・A5・A7・A8 の編集ビュー（ライト・ダーク）で重大（serious 以上）な違反 0件。P1 は経歴・作品・プロジェクトを各1行広げた状態も検査する | 自動で検出できる範囲。表示の切り替え・設定の引き出し・画像を挿入をキーボードだけで操作できること。トップの行をキーボードで広げ、広げた中のリンクへ Tab で移れること |
 | Lighthouse | Lighthouse CI（`@lhci/cli`。モバイルの設定） | PRD 5章の Lighthouse の目標を、3回の中央値で assert する | デモデータを入れたプレビューの P1 と、P2〜P5 の各1ページ。本番では Cloudflare の拠点が HTML・JS・CSS を圧縮するが、ローカルのプレビューは圧縮しないので、gzip で圧縮して中継する（`scripts/lhci/server.ts`。本番の brotli より縮まない側で測る）。ローカルの robots.txt はすべてを拒否する（ADR-019）ので、SEO の `is-crawlable` の項目は外して測る |
 
 - API 結合テストの 401・403 の確認は、CSRF のヘッダーを付けたリクエストで行う（5.1）。ヘッダーがないときに 403 になることも別に確かめる。

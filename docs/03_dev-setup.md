@@ -64,7 +64,7 @@ eastx/
 │   │   └── media.ts               #   /media/* の配信
 │   ├── auth/                      # Better Auth（server.ts・client.ts）
 │   ├── db/                        # Drizzle のスキーマとクライアント
-│   ├── domain/                    # 純粋関数: スラッグ・言語あり・抜粋・公開のルール
+│   ├── domain/                    # 純粋関数: スラッグ・言語あり・抜粋・公開のルール・Tech Stack の群
 │   ├── content/                   # 公開側のサーバー関数と、表示用の形への変換
 │   ├── markdown/                  # Markdown の描画（公開側とプレビューで共通）
 │   ├── i18n/                      # 辞書（messages/ja.ts・en.ts）と日付の書式
@@ -162,7 +162,7 @@ Worker が読む値。ローカルは `.dev.vars`、staging・本番は `wrangle
 - 管理者はシードで作らない（SDD ADR-009）。ログインの準備は6章。
 - スキーマを変えたら `make db-generate` → `make db-migrate` の順。`drizzle-kit push` は使わない（SDD ADR-007）。
 - マイグレーションは、staging・本番で古いコードのまま動いても壊れない形にする（列の追加 → データの移行 → 古い列の削除を、別々のリリースに分ける）。ロールバックではスキーマが戻らないため（SDD ADR-017）。
-- テーブルを作り直す SQL（`PRAGMA foreign_keys=OFF` → 新しいテーブル → コピー → `DROP` → `RENAME`）が生成されたら、そのまま使わない。D1 ではこの PRAGMA が効かず、親のテーブルの `DROP` で子の行が `ON DELETE CASCADE` で消えるおそれがある（SDD ADR-007）。`PRAGMA defer_foreign_keys = on` に置き換えるか、子のテーブルの行を退避・復元する SQL を手で足す。
+- テーブルを作り直す SQL（`PRAGMA foreign_keys=OFF` → 新しいテーブル → コピー → `DROP` → `RENAME`）が生成されたら、そのまま使わない。D1 ではこの PRAGMA が効かず、親のテーブルの `DROP` で子の行が `ON DELETE CASCADE` で消えるおそれがある（SDD ADR-007）。`PRAGMA defer_foreign_keys = on` に置き換えるか、子のテーブルの行を退避・復元する SQL を手で足す。列を足すだけの変更（CHECK を伴うものを含む）なら、作り直しの SQL を `ALTER TABLE … ADD`（CHECK は列の定義に名前つきで付け、名前と式はスナップショットの `checkConstraints` の値にそろえる）に置き換えてよい。スナップショットは drizzle-kit が出したものをそのまま使い、置き換えた後に `make db-generate` をもう一度走らせて、新しいマイグレーションが出ないことを確かめる。
 - テーブルを作り直す変更は、本番のデータを書き出したもの（`docs/04_deployment-procedure.md` 5章の `d1 export`）をローカルの D1 に入れて適用し、各テーブルの件数が変わらないことを確かめてから出す。
 
 ---

@@ -48,6 +48,12 @@ describe('CHECK 制約: スラッグの形式', () => {
     await expect(work({ slug: 'dup-slug' })).rejects.toThrow(/UNIQUE constraint failed: work\.slug/)
   })
 
+  it('使用技術のカテゴリは4つのどれか', async () => {
+    await expect(
+      insert('stack', { key: 'cat-bad', display_name: 'x', sort_order: 0, category: 'databases' }),
+    ).rejects.toThrow(/CHECK constraint failed: stack_category/)
+  })
+
   it('使用技術の key も同じ形式', async () => {
     await expect(insert('stack', { key: 'Next.js', display_name: 'Next.js', sort_order: 0 })).rejects.toThrow(
       /CHECK constraint failed: stack_key_format/,
@@ -230,5 +236,24 @@ describe('外部キー: ON DELETE CASCADE', () => {
         .bind(crypto.randomUUID(), stackId)
         .run(),
     ).rejects.toThrow(/FOREIGN KEY constraint failed/)
+  })
+})
+
+describe('マイグレーション: 使用技術のカテゴリと Core', () => {
+  it('category は既定値 tools・NOT NULL、is_core は既定値 false・NOT NULL', async () => {
+    const { results } = await env.DB.prepare('pragma table_info(stack)').all<{
+      name: string
+      notnull: number
+      dflt_value: string | null
+    }>()
+    const column = (name: string) => results.find((row) => row.name === name)
+    expect(column('category')).toMatchObject({ notnull: 1, dflt_value: "'tools'" })
+    expect(column('is_core')).toMatchObject({ notnull: 1, dflt_value: 'false' })
+  })
+
+  it('2つのカラムを書かない insert（古いコードの insert）は Tools・0 で入る', async () => {
+    await insert('stack', { key: 'old-code', display_name: 'Old', sort_order: 0 })
+    const row = await env.DB.prepare("select category, is_core from stack where key = 'old-code'").first()
+    expect(row).toEqual({ category: 'tools', is_core: 0 })
   })
 })

@@ -7,6 +7,7 @@
  * 1ページ目の「ターミナルで天気予報を…」は、モバイル幅の閉じた行で「…」で切れる長さのタイトルにしてある
  */
 import type { Locator, Page } from '@playwright/test'
+import { eq } from 'drizzle-orm'
 import { buildSeed } from '../../scripts/seed/data'
 import { insertSeed } from '../../scripts/seed/insert'
 import * as schema from '../../src/db/schema'
@@ -598,6 +599,75 @@ test.describe('一言（design-spec 6.1.4・6.1.5）', () => {
       if (!domain || !theme) throw new Error('ヘッダーの部品が見えない')
       expect(Math.abs(domain.y + domain.height / 2 - (theme.y + theme.height / 2))).toBeLessThanOrEqual(2)
     })
+  })
+})
+
+test.describe('Tech Stack の群（design-spec 6.1.4）', () => {
+  // ほかのテストのため、終わったら全件のシードに戻す
+  test.afterEach(async ({ local }) => {
+    await insertSeed(local.db, buildSeed({ empty: false }))
+  })
+
+  const GROUPS = ['Core', 'Languages', 'Frameworks', 'Infrastructure', 'Tools']
+  const group = (page: Page, name: string) => page.locator('#stack').getByRole('list', { name, exact: true })
+
+  for (const lang of ['ja', 'en'] as const) {
+    test(`${lang}: Core → Languages → Frameworks → Infrastructure → Tools の見出しを英語で出し、Core の技術は Core の群にだけ出す`, async ({
+      page,
+    }) => {
+      await gotoHydrated(page, `/${lang}`)
+      const headings = page.locator('#stack').getByRole('heading', { level: 3 })
+      await expect(headings).toHaveText(GROUPS)
+      for (const heading of await headings.all()) await expect(heading).toHaveAttribute('lang', 'en')
+      await expect(group(page, 'Core').getByText('TypeScript', { exact: true })).toBeVisible()
+      await expect(group(page, 'Languages').getByText('TypeScript', { exact: true })).toHaveCount(0)
+      await expect(group(page, 'Languages').getByText('Python', { exact: true })).toBeVisible()
+      // トップに出さない技術はどの群にも無い
+      for (const name of ['jQuery', 'Perl']) {
+        await expect(page.locator('#stack').getByText(name, { exact: true })).toHaveCount(0)
+      }
+    })
+  }
+
+  test('使用技術の並びのアイコンは枠を付けずにグレースケールで、切らずに収める。アイコンの無い技術は頭文字の丸', async ({
+    page,
+  }) => {
+    await gotoHydrated(page, '/ja')
+    const icons = [page.locator('#stack img').first(), page.locator('#works ul:not([inert]) img').first()]
+    for (const icon of icons) {
+      await expect(icon).toHaveCSS('filter', 'grayscale(1)')
+      await expect(icon).toHaveCSS('object-fit', 'contain')
+    }
+    // 自己紹介の太字の前のアイコンは元の色
+    await expect(page.locator('img[data-stack-icon]').first()).toHaveCSS('filter', 'none')
+    // Git はアイコンが無いので頭文字の丸
+    const git = group(page, 'Tools').getByRole('listitem').filter({ hasText: 'Git' })
+    await expect(git.locator('span[aria-hidden="true"]').first()).toHaveText('G')
+    await expect(group(page, 'Tools').locator('img')).toHaveCount(0)
+
+    await gotoHydrated(page, '/ja/works/portfolio-cms')
+    await expect(page.locator('main').getByRole('list', { name: 'Tech Stack' }).locator('img').first()).toHaveCSS(
+      'filter',
+      'grayscale(1)',
+    )
+  })
+
+  test('読み込めないアイコンは、SSR の後でも頭文字の丸に替える', async ({ page, local }) => {
+    await local.db
+      .update(schema.stack)
+      .set({ iconUrl: '/media/uploads/missing/go.svg' })
+      .where(eq(schema.stack.key, 'go'))
+    await gotoHydrated(page, '/ja')
+    const go = group(page, 'Languages').getByRole('listitem').filter({ hasText: 'Go' })
+    await expect(go.locator('span[aria-hidden="true"]').first()).toHaveText('G')
+    await expect(go.locator('img')).toHaveCount(0)
+  })
+
+  test('技術の無い群は見出しごと出さない', async ({ page, local }) => {
+    await local.db.update(schema.stack).set({ showOnTop: false }).where(eq(schema.stack.category, 'tools'))
+    await gotoHydrated(page, '/ja')
+    await expect(page.locator('#stack').getByRole('heading', { level: 3 })).toHaveText(GROUPS.slice(0, 4))
+    await expect(page.locator('#stack').getByText('Tools', { exact: true })).toHaveCount(0)
   })
 })
 

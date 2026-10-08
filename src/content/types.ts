@@ -2,6 +2,7 @@
  * 公開側のサーバー関数が返す表示用の形（SDD 5.11）。言語の代替は済ませてあり、画面は `lang` 属性を付けるだけ
  */
 import type { CODING_LOG_KINDS } from '~/db/schema'
+import type { StackGroup } from '~/domain/stack-groups'
 import type { Lang } from '~/i18n/detect'
 import type { Availability, LocalizedHtml, LocalizedText } from './localize'
 import type { SocialService } from './site-chrome'
@@ -106,8 +107,11 @@ export interface TopPageView {
   careers: CareerItem[]
   projects: ProjectItem[]
   works: WorkItem[]
-  /** 「トップに表示する」の技術だけ、表示順 */
-  stacks: StackChip[]
+  /**
+   * 「トップに表示する」の技術だけ。core → languages → frameworks → infrastructure → tools の順で、空の群は含めない。
+   * 群の中は表示順
+   */
+  stackGroups: StackGroup<StackChip>[]
   blogPosts: BlogPostItem[]
   codingLogs: CodingLogItem[]
 }

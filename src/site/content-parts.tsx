@@ -4,10 +4,10 @@
 import { useId } from 'react'
 import { css, cx } from 'styled-system/css'
 import type { Availability, LocalizedText } from '~/content/localize'
-import type { StackChip } from '~/content/types'
+import type { StackChip, TopPageView } from '~/content/types'
 import type { Lang } from '~/i18n/detect'
 import type { Messages } from '~/i18n/messages'
-import { SECTION_NAME_LANG } from '~/i18n/section-names'
+import { SECTION_NAME_LANG, STACK_GROUP_NAMES } from '~/i18n/section-names'
 import { ExternalLinkIcon } from '~/ui/icons'
 import { FallbackImage, InitialBadge } from '~/ui/image'
 import { chip, label } from '~/ui/recipes'
@@ -53,7 +53,8 @@ export function ExternalMark({ messages }: { messages: Messages }) {
   )
 }
 
-const stackIcon = css({ w: 'icon', h: 'icon', aspectRatio: 'avatar', objectFit: 'contain' })
+/** 縦横比・余白・色がまちまちな画像を、切らずに収めてグレースケールでそろえる（design-spec 4.4。ADR-014 の例外） */
+const stackIcon = css({ w: 'icon', h: 'icon', aspectRatio: 'avatar', filter: 'auto', grayscale: '100%' })
 
 /**
  * 技術のアイコン。アイコンがない・読み込めない技術は、表示名の頭文字の丸（design-spec 6.1.4）。
@@ -73,6 +74,7 @@ export function StackIcon({ stack, labelled = false }: { stack: StackChip; label
       src={stack.iconUrl}
       alt={labelled ? stack.displayName : ''}
       className={stackIcon}
+      fit="contain"
       fallback={fallback}
     />
   )
@@ -142,7 +144,36 @@ export function StackIconRow({
   )
 }
 
-/** 使用技術のチップ（アイコンと表示名。枠線なし）。リンクがあれば公式サイトなどを別タブで開く */
+const chipList = css({ display: 'flex', flexWrap: 'wrap', columnGap: 'inset', rowGap: 'inline' })
+
+/** チップ1つ（アイコンと表示名。枠線なし）。リンクがあれば公式サイトなどを別タブで開く */
+function StackChipItem({ stack, messages }: { stack: StackChip; messages: Messages }) {
+  const content = (
+    <>
+      <StackIcon stack={stack} />
+      <span>{stack.displayName}</span>
+    </>
+  )
+  return (
+    <li>
+      {stack.linkUrl === null ? (
+        <span className={chip({ plain: true })}>{content}</span>
+      ) : (
+        <a
+          href={stack.linkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cx(chip({ interactive: true, plain: true }), css({ textDecoration: 'none' }))}
+        >
+          {content}
+          <ExternalMark messages={messages} />
+        </a>
+      )}
+    </li>
+  )
+}
+
+/** 使用技術のチップの並び（P2・P3） */
 export function StackChipList({
   stacks,
   messages,
@@ -157,36 +188,38 @@ export function StackChipList({
   return (
     <>
       <StackListName id={labelId} messages={messages} />
-      <ul
-        aria-labelledby={labelId}
-        className={cx(css({ display: 'flex', flexWrap: 'wrap', columnGap: 'inset', rowGap: 'inline' }), className)}
-      >
-        {stacks.map((stack) => {
-          const content = (
-            <>
-              <StackIcon stack={stack} />
-              <span>{stack.displayName}</span>
-            </>
-          )
-          return (
-            <li key={stack.key}>
-              {stack.linkUrl === null ? (
-                <span className={chip({ plain: true })}>{content}</span>
-              ) : (
-                <a
-                  href={stack.linkUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={cx(chip({ interactive: true, plain: true }), css({ textDecoration: 'none' }))}
-                >
-                  {content}
-                  <ExternalMark messages={messages} />
-                </a>
-              )}
-            </li>
-          )
-        })}
+      <ul aria-labelledby={labelId} className={cx(chipList, className)}>
+        {stacks.map((stack) => (
+          <StackChipItem key={stack.key} stack={stack} messages={messages} />
+        ))}
       </ul>
     </>
+  )
+}
+
+/**
+ * P1 の Tech Stack（design-spec 6.1.4）。群ごとに見出しとチップのリストを出す。群の名前は日英共通の英語なので、
+ * /ja でも英語の発音で読ませる
+ */
+export function TechStackGroups({ groups, messages }: { groups: TopPageView['stackGroups']; messages: Messages }) {
+  const baseId = useId()
+  return (
+    <div className={css({ display: 'flex', flexDirection: 'column', gap: 'stack' })}>
+      {groups.map((group) => {
+        const headingId = `${baseId}-${group.key}`
+        return (
+          <div key={group.key} className={css({ display: 'flex', flexDirection: 'column', gap: 'stack-dense' })}>
+            <h3 id={headingId} lang={SECTION_NAME_LANG} className={css({ textStyle: 'label', color: 'text.muted' })}>
+              {STACK_GROUP_NAMES[group.key]}
+            </h3>
+            <ul aria-labelledby={headingId} className={chipList}>
+              {group.stacks.map((stack) => (
+                <StackChipItem key={stack.key} stack={stack} messages={messages} />
+              ))}
+            </ul>
+          </div>
+        )
+      })}
+    </div>
   )
 }
