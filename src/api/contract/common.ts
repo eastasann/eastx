@@ -5,7 +5,7 @@
 import { oc } from '@orpc/contract'
 import { z } from 'zod'
 import ja from 'zod/v4/locales/ja.js'
-import { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STATUSES } from '../../db/enums'
+import { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STACK_CATEGORIES, STATUSES } from '../../db/enums'
 import { hasAnyTitle } from '../../domain/publishing'
 import { SLUG_MAX_LENGTH, SLUG_PATTERN } from '../../domain/slug'
 
@@ -70,6 +70,7 @@ export const statusSchema = z.enum(STATUSES)
 export const careerKindSchema = z.enum(CAREER_KINDS)
 export const codingLogKindSchema = z.enum(CODING_LOG_KINDS)
 export const socialServiceSchema = z.enum(SOCIAL_SERVICES)
+export const stackCategorySchema = z.enum(STACK_CATEGORIES)
 
 /** パスの ID。形式の誤りは、存在しない ID と同じく NOT_FOUND にするため、文字列であることだけを見る */
 export const idParam = z.string().max(100)

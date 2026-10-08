@@ -24,7 +24,7 @@
 - `src/api/`: CMS API（`contract/` がコントラクト、`router/` が実装、`middleware/`、`media.ts`）
 - `src/auth/`: Better Auth の設定（server・client）
 - `src/db/`: Drizzle のスキーマとクライアント
-- `src/domain/`: 純粋関数（スラッグ・言語あり・抜粋・公開のルール）
+- `src/domain/`: 純粋関数（スラッグ・言語あり・抜粋・公開のルール・Tech Stack の群）
 - `src/content/`: 公開側のサーバー関数と、表示用の形への変換
 - `src/markdown/`、`src/i18n/`: 描画と辞書・日付の書式（公開側と管理画面で共通）
 - `src/routes/`: ルート。`src/site/`（公開側の部品）、`src/admin/`（管理画面の部品）、`src/ui/`（共通の部品）

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { STACK_CATEGORIES } from '../../src/db/enums'
 import { buildSeed } from './data'
 
 // design-spec 8章の表の「件数」と「内容のバリエーション」を1項目ずつ照合する
@@ -85,10 +86,14 @@ describe('デモデータ（design-spec 8章）', () => {
     expect(seed.projects.filter((p) => p.thumbnailUrl)).toHaveLength(3)
   })
 
-  it('stack: 15件。アイコンあり14・なし1、トップに出さない2', () => {
-    expect(seed.stacks).toHaveLength(15)
+  it('stack: 16件。アイコンあり14・なし2、トップに出さない2、4カテゴリ、Core 4（どれもトップに出す）', () => {
+    expect(seed.stacks).toHaveLength(16)
     expect(seed.stacks.filter((s) => s.iconUrl)).toHaveLength(14)
     expect(seed.stacks.filter((s) => s.showOnTop === false)).toHaveLength(2)
+    expect(new Set(seed.stacks.map((s) => s.category))).toEqual(new Set(STACK_CATEGORIES))
+    const core = seed.stacks.filter((s) => s.isCore)
+    expect(core).toHaveLength(4)
+    expect(core.every((s) => s.showOnTop !== false)).toBe(true)
   })
 
   it('blog_post: 13件（公開12・下書き1）。日英6・日本語のみ4・英語のみ2、更新1、サムネイル5、コード3', () => {

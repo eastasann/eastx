@@ -3,6 +3,9 @@
  * 存在しない管理画面の URL の通知、保存していない変更の確認、ログインの期限切れの一時保存と復元。
  * make e2e のデモデータ（make db-seed）を前提にする。デモデータを書き換えたものは、テストの中で元に戻す
  */
+import { eq } from 'drizzle-orm'
+import { buildSeed } from '../../scripts/seed/data'
+import { insertSeed } from '../../scripts/seed/insert'
 import * as schema from '../../src/db/schema'
 import { expect, test } from './fixtures'
 import { moveUpByKeyboard } from './keyboard-sort'
@@ -159,6 +162,59 @@ test('A7: 作成・保存・キーボードでの並べ替え・使っている�
   await page.getByRole('menuitem', { name: '削除' }).click()
   await expect(page.getByRole('dialog')).toContainText(/使っている Projects・Lab \d+件の紐づけも外れます/)
   await page.getByRole('dialog').getByRole('button', { name: 'キャンセル' }).click()
+})
+
+test('A7: カテゴリと Core の列、カテゴリと Core を変えて保存すると P1 の群が移る', async ({ page, login, local }) => {
+  await login({ admin: true })
+  try {
+    await page.goto('/admin/stacks')
+    const table = page.getByRole('table', { name: 'Tech Stack の一覧' })
+    await expect(table.getByRole('columnheader', { name: 'カテゴリ' })).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: 'Core', exact: true })).toBeVisible()
+    const typescript = table.getByRole('row').filter({ hasText: 'TypeScript' })
+    await expect(typescript.getByRole('cell', { name: 'Languages' })).toBeVisible()
+    await expect(typescript.getByRole('cell', { name: 'Core', exact: true })).toBeVisible()
+
+    // カテゴリを変えると、P1 の群が移る
+    await table.getByRole('link', { name: 'Go', exact: true }).click()
+    await page.getByRole('combobox', { name: 'カテゴリ' }).click()
+    await page.getByRole('option', { name: 'Tools' }).click()
+    await page.getByRole('button', { name: '保存' }).click()
+    await expect(page.getByText('保存しました').last()).toBeVisible()
+    await page.goto('/ja')
+    const stackSection = page.locator('#stack')
+    await expect(stackSection.getByRole('list', { name: 'Tools' }).getByText('Go', { exact: true })).toBeVisible()
+    await expect(stackSection.getByRole('list', { name: 'Languages' }).getByText('Go', { exact: true })).toHaveCount(0)
+
+    // Core をオンにすると「トップに表示する」がオンで押せなくなり、保存すると Core の群に出る
+    await page.goBack()
+    const showOnTop = page.getByRole('checkbox', { name: 'トップに表示する' })
+    await page.getByText('トップに表示する', { exact: true }).click()
+    await expect(showOnTop).not.toBeChecked()
+    await page.getByText('Core', { exact: true }).click()
+    await expect(page.getByRole('checkbox', { name: 'Core' })).toBeChecked()
+    await expect(showOnTop).toBeChecked()
+    await expect(showOnTop).toBeDisabled()
+    await expect(page.getByText('Core の技術はトップに表示します')).toBeVisible()
+    await page.getByRole('button', { name: '保存' }).click()
+    await expect(page.getByText('保存しました').last()).toBeVisible()
+    await page.goto('/ja')
+    await expect(stackSection.getByRole('list', { name: 'Core' }).getByText('Go', { exact: true })).toBeVisible()
+    await expect(stackSection.getByRole('list', { name: 'Tools' }).getByText('Go', { exact: true })).toHaveCount(0)
+
+    // 古いコードが作りうる「Core かつトップに表示しない」値は、黙って直さず、保存すると欄の下に誤りを出す
+    await local.db.update(schema.stack).set({ isCore: true, showOnTop: false }).where(eq(schema.stack.key, 'python'))
+    await page.goto('/admin/stacks')
+    await table.getByRole('link', { name: 'Python', exact: true }).click()
+    await expect(page.getByRole('checkbox', { name: 'Core' })).toBeChecked()
+    await expect(showOnTop).not.toBeChecked()
+    await expect(showOnTop).toBeEnabled()
+    await page.getByRole('button', { name: '保存' }).click()
+    await expect(page.locator('[data-field="showOnTop"]').getByText('Core の技術はトップに表示します')).toBeVisible()
+    await expect(showOnTop).toBeFocused()
+  } finally {
+    await insertSeed(local.db, buildSeed({ empty: false }))
+  }
 })
 
 test('A3: 自己紹介のプレビュー、SNSリンクの追加・並べ替え・削除、保存が公開サイトに出る', async ({ page, login }) => {

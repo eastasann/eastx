@@ -19,6 +19,8 @@ function toListItem(row: StackRow, usage: number) {
     displayName: row.displayName,
     iconUrl: row.iconUrl,
     linkUrl: row.linkUrl,
+    category: row.category,
+    isCore: row.isCore,
     showOnTop: row.showOnTop,
     sortOrder: row.sortOrder,
     usageCount: usage,
@@ -75,6 +77,8 @@ export const stacks = {
           displayName: input.displayName,
           iconUrl: input.iconUrl,
           linkUrl: input.linkUrl,
+          category: input.category,
+          isCore: input.isCore,
           showOnTop: input.showOnTop,
           sortOrder: sql`(select coalesce(max(${stack.sortOrder}), -1) + 1 from ${stack})`,
         })
@@ -107,6 +111,8 @@ export const stacks = {
           displayName: input.displayName,
           iconUrl: input.iconUrl,
           linkUrl: input.linkUrl,
+          category: input.category,
+          isCore: input.isCore,
           showOnTop: input.showOnTop,
         })
         .where(eq(stack.id, params.id))

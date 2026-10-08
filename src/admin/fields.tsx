@@ -343,15 +343,49 @@ export function SwitchField({
   name,
   checked,
   onChange,
+  disabled,
+  hint,
+  descriptionId,
+  alsoDescribedBy,
+  errors = [],
 }: {
   label: string
   name: string
   checked: boolean
   onChange: (checked: boolean) => void
-}) {
+  disabled?: boolean
+  /** 欄の下に出す説明（A7 の Core の「Core の技術はトップに表示します」） */
+  hint?: string
+  /** 欄の下の要素の ID。ほかの欄から説明として指すときに渡す */
+  descriptionId?: string
+  /** ほかの欄の説明も読ませるときの、その要素の ID（押せなくした理由がほかの欄の下にあるとき） */
+  alsoDescribedBy?: string
+} & Pick<FieldStateProps, 'errors'>) {
+  const generatedId = useId()
+  const describedBy = descriptionId ?? generatedId
+  const described = hint !== undefined || errors.length > 0
+  const describedByIds = [described ? describedBy : undefined, alsoDescribedBy].filter(Boolean).join(' ')
   return (
-    <div data-field={name}>
-      <Switch label={label} name={name} checked={checked} onCheckedChange={onChange} />
+    <div data-field={name} className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
+      <Switch
+        label={label}
+        name={name}
+        checked={checked}
+        onCheckedChange={onChange}
+        disabled={disabled}
+        invalid={errors.length > 0}
+        describedBy={describedByIds === '' ? undefined : describedByIds}
+      />
+      {described && (
+        <div id={describedBy} className={css({ display: 'flex', flexDirection: 'column', gap: 'inline' })}>
+          {hint !== undefined && <p className={css({ textStyle: 'body-sm', color: 'text.muted' })}>{hint}</p>}
+          {errors.map((message) => (
+            <p key={message} className={css({ textStyle: 'body-sm', color: 'danger.default' })}>
+              {message}
+            </p>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -461,12 +495,8 @@ export function ImageField({ label, name, value, onChange, alt, fit = 'contain',
           <FallbackImage
             src={value}
             alt={alt}
-            className={css({
-              w: 'thumbnail-card',
-              aspectRatio: 'thumbnail',
-              objectFit: fit === 'thumbnail' ? 'cover' : 'contain',
-              borderRadius: 'image',
-            })}
+            className={css({ w: 'thumbnail-card', aspectRatio: 'thumbnail', borderRadius: 'image' })}
+            fit={fit === 'thumbnail' ? 'cover' : 'contain'}
           />
         )}
         <input

@@ -6,3 +6,5 @@ export const STATUSES = ['draft', 'published'] as const
 export const SOCIAL_SERVICES = ['github', 'linkedin', 'instagram', 'x', 'zenn', 'qiita', 'other'] as const
 export const CAREER_KINDS = ['work', 'education'] as const
 export const CODING_LOG_KINDS = ['learning_log', 'snippet', 'problem', 'memo'] as const
+/** 使用技術のカテゴリ。並びは公開側の Tech Stack の群の順（design-spec 6.1.4） */
+export const STACK_CATEGORIES = ['languages', 'frameworks', 'infrastructure', 'tools'] as const

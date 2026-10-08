@@ -1,10 +1,10 @@
 import { relations, sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STATUSES } from './enums'
+import { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STACK_CATEGORIES, STATUSES } from './enums'
 
 // ---- 値の定義（ブラウザからも読むので enums.ts に置く） ---------------------
-export { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STATUSES }
+export { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STACK_CATEGORIES, STATUSES }
 
 // ---- 共通のカラム ------------------------------------------------------
 const id = () =>
@@ -204,10 +204,17 @@ export const stack = sqliteTable(
     linkUrl: text('link_url'),
     sortOrder: integer('sort_order').notNull(),
     showOnTop: integer('show_on_top', { mode: 'boolean' }).notNull().default(true),
+    category: text('category', { enum: STACK_CATEGORIES }).notNull().default('tools'),
+    /**
+     * Core（主要な技術）。API は true のとき show_on_top も true であることを求める。DB では縛らないので、
+     * 古いコードが作った「Core かつ非表示」の行がありうる（公開側では出ない）
+     */
+    isCore: integer('is_core', { mode: 'boolean' }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
+    check('stack_category', sql`${t.category} in (${inList(STACK_CATEGORIES)})`),
     check('stack_key_format', sql`${t.key} <> '' and ${t.key} not glob '*[^a-z0-9-]*'`),
     check('stack_link_url', httpsOrNull(t.linkUrl)),
     check('stack_icon_url', mediaOrNull(t.iconUrl)),

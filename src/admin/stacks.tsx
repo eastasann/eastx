@@ -4,11 +4,12 @@
 import { ORPCError } from '@orpc/client'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { css, cx } from 'styled-system/css'
-import { z } from 'zod'
 import { LIMITS } from '~/api/contract/common'
-import { type stackOutput, stackUpdateInput } from '~/api/contract/stacks'
+import { CORE_REQUIRES_TOP_MESSAGE, stackUpdateInput } from '~/api/contract/stacks'
+import { STACK_CATEGORIES } from '~/db/enums'
+import { STACK_GROUP_NAMES } from '~/i18n/section-names'
 import { PlusIcon } from '~/ui/icons'
 import { FallbackImage, InitialBadge } from '~/ui/image'
 import { button } from '~/ui/recipes'
@@ -30,16 +31,16 @@ import {
   useSaveShortcut,
 } from './editor'
 import { isAuthError, isNotFoundError } from './errors'
-import { ImageField, SwitchField, TextField } from './fields'
+import { ImageField, SelectField, SwitchField, TextField } from './fields'
 import { listLabel, NOTICES, newItemTitle, SECTION_LABELS } from './labels'
 import { FormLayout, ListLayout } from './layouts'
 import { AdminLink } from './link'
 import { AdminList } from './list-view'
+import { FIELD_ORDER, parseStackForm, type Stack, showOnTopLocked, toForm, withCore } from './stack-form'
 
 /** 使用技術を使う種類（プロジェクト・作品）。画面に出す名前は公開サイトのセクションの名前（design-spec 1.4） */
 const USED_IN = `${SECTION_LABELS.projects}・${SECTION_LABELS.works}`
 
-type Stack = z.infer<typeof stackOutput>
 type StackListOutput = Awaited<ReturnType<typeof api.stacks.list>>
 
 const LIST_HREF = '/admin/stacks'
@@ -55,12 +56,7 @@ function StackIconCell({ name, url }: { name: string; url: string | null }) {
   const fallback = <InitialBadge name={name} size="icon" />
   if (url === null) return fallback
   return (
-    <FallbackImage
-      src={url}
-      alt={name}
-      className={css({ w: 'icon', h: 'icon', objectFit: 'contain' })}
-      fallback={fallback}
-    />
+    <FallbackImage src={url} alt={name} className={css({ w: 'icon', h: 'icon' })} fit="contain" fallback={fallback} />
   )
 }
 
@@ -90,6 +86,8 @@ export function StacksListPage() {
             cell: (item) => <StackIconCell name={item.displayName} url={item.iconUrl} />,
           },
           { key: 'displayName', header: '表示名', primary: true, mobile: true, cell: (item) => item.displayName },
+          { key: 'category', header: 'カテゴリ', cell: (item) => STACK_GROUP_NAMES[item.category] },
+          { key: 'isCore', header: 'Core', cell: (item) => (item.isCore ? STACK_GROUP_NAMES.core : '') },
           { key: 'showOnTop', header: 'トップに表示', cell: (item) => (item.showOnTop ? '表示する' : '表示しない') },
           { key: 'usageCount', header: `使っている ${USED_IN}`, cell: (item) => `${item.usageCount}件` },
         ]}
@@ -135,31 +133,6 @@ export function StacksListPage() {
 
 // ---- 編集 ------------------------------------------------------------------
 
-const stackFormSchema = z.object({
-  key: z.string(),
-  displayName: z.string(),
-  iconUrl: z.string(),
-  linkUrl: z.string(),
-  showOnTop: z.boolean(),
-})
-type StackForm = z.infer<typeof stackFormSchema>
-
-const parseStackForm = (value: unknown): StackForm | null => stackFormSchema.safeParse(value).data ?? null
-
-/** 欄のキーの並び（画面の上から。誤りの欄へ移るときの順） */
-const FIELD_ORDER = ['displayName', 'key', 'iconUrl', 'linkUrl', 'showOnTop']
-
-function toForm(stack: Stack | null): StackForm {
-  if (stack === null) return { key: '', displayName: '', iconUrl: '', linkUrl: '', showOnTop: true }
-  return {
-    key: stack.key,
-    displayName: stack.displayName,
-    iconUrl: stack.iconUrl ?? '',
-    linkUrl: stack.linkUrl ?? '',
-    showOnTop: stack.showOnTop,
-  }
-}
-
 export function StackEditPage({ id }: { id: string }) {
   const isNew = id === 'new'
   const query = useQuery({
@@ -196,11 +169,13 @@ function StackEditor({ initial, onCreated }: { initial: Stack | null; onCreated:
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // 押せなくした「トップに表示する」の理由は Core の欄の下にあるので、その要素を両方の欄から指す
+  const coreHintId = useId()
   const editor = useEditor({
     initial,
     toForm,
     backupType: 'stack',
-    parseValues: parseStackForm,
+    parseValues: (value) => parseStackForm(value, toForm(initial)),
     idOf: (item) => item.id,
     updatedAtOf: (item) => item.updatedAt,
     saveKind: 'plain',
@@ -322,6 +297,38 @@ function StackEditor({ initial, onCreated }: { initial: Stack | null; onCreated:
             />
           )}
         </form.Field>
+        <form.Field name="category">
+          {(field) => (
+            <SelectField
+              label="カテゴリ"
+              name={field.name}
+              options={STACK_CATEGORIES.map((category) => ({ value: category, label: STACK_GROUP_NAMES[category] }))}
+              value={field.state.value}
+              onChange={(value) => {
+                const category = STACK_CATEGORIES.find((candidate) => candidate === value)
+                if (category) field.handleChange(category)
+              }}
+              {...save.fieldState(field.name)}
+            />
+          )}
+        </form.Field>
+        <form.Field name="isCore">
+          {(field) => (
+            <SwitchField
+              label={STACK_GROUP_NAMES.core}
+              name={field.name}
+              checked={field.state.value}
+              onChange={(checked) => {
+                const next = withCore(form.state.values, checked)
+                field.handleChange(next.isCore)
+                form.setFieldValue('showOnTop', next.showOnTop)
+              }}
+              hint={field.state.value ? CORE_REQUIRES_TOP_MESSAGE : undefined}
+              descriptionId={coreHintId}
+              {...save.fieldState(field.name)}
+            />
+          )}
+        </form.Field>
         <form.Field name="showOnTop">
           {(field) => (
             <SwitchField
@@ -329,6 +336,9 @@ function StackEditor({ initial, onCreated }: { initial: Stack | null; onCreated:
               name={field.name}
               checked={field.state.value}
               onChange={field.handleChange}
+              disabled={showOnTopLocked(values)}
+              alsoDescribedBy={showOnTopLocked(values) ? coreHintId : undefined}
+              {...save.fieldState(field.name)}
             />
           )}
         </form.Field>

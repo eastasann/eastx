@@ -479,7 +479,7 @@ const stackItem = css({
   color: 'text.default',
 })
 const stackRemove = button({ variant: 'ghost', shape: 'compact' })
-const stackIcon = css({ w: 'icon-sm', h: 'icon-sm', flexShrink: 0, objectFit: 'contain' })
+const stackIcon = css({ w: 'icon-sm', h: 'icon-sm', flexShrink: 0 })
 
 /**
  * 使用技術の小さなアイコン。表示名が隣にあるので飾り（代替テキストは空）。検索の候補では、アイコンの無い技術も
@@ -487,7 +487,7 @@ const stackIcon = css({ w: 'icon-sm', h: 'icon-sm', flexShrink: 0, objectFit: 'c
  */
 function StackIcon({ iconUrl }: { iconUrl: string | null }) {
   if (iconUrl === null) return <span aria-hidden="true" className={stackIcon} />
-  return <FallbackImage src={iconUrl} alt="" className={stackIcon} />
+  return <FallbackImage src={iconUrl} alt="" className={stackIcon} fit="contain" />
 }
 
 /**

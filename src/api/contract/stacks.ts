@@ -13,28 +13,46 @@ import {
   orderOutOfDateError,
   reorderInput,
   slugString,
+  stackCategorySchema,
   stackKeyConflictError,
 } from './common'
 
 const displayName = z.string().trim().min(1, '表示名を入力してください').max(LIMITS.shortText)
 
-/** A7 の新規作成と、A5・A6 の「新しい技術として追加」（表示名だけ）の両方を受ける（SDD 5.8） */
-export const stackCreateInput = z.object({
-  /** 省くと表示名から作る（design-spec 6.7.1） */
-  key: optionalSlug,
-  displayName,
-  iconUrl: optionalMediaUrl,
-  linkUrl: optionalHttpsUrl,
-  showOnTop: z.boolean().default(true),
-})
+export const CORE_REQUIRES_TOP_MESSAGE = 'Core の技術はトップに表示します'
 
-export const stackUpdateInput = z.object({
-  key: slugString,
-  displayName,
-  iconUrl: optionalMediaUrl,
-  linkUrl: optionalHttpsUrl,
-  showOnTop: z.boolean(),
-})
+/** Core の技術はトップに表示する（design-spec 6.7.3）。DB では縛らない（SDD 6.4 の stack の注記）ので、ここが守る */
+const coreRefinement = <T extends { isCore: boolean; showOnTop: boolean }>(value: T, ctx: z.RefinementCtx) => {
+  if (value.isCore && !value.showOnTop) {
+    ctx.addIssue({ code: 'custom', path: ['showOnTop'], message: CORE_REQUIRES_TOP_MESSAGE })
+  }
+}
+
+/** A7 の新規作成と、A5・A6 の「新しい技術として追加」（表示名と showOnTop だけ）の両方を受ける（SDD 5.8） */
+export const stackCreateInput = z
+  .object({
+    /** 省くと表示名から作る（design-spec 6.7.1） */
+    key: optionalSlug,
+    displayName,
+    iconUrl: optionalMediaUrl,
+    linkUrl: optionalHttpsUrl,
+    category: stackCategorySchema.default('tools'),
+    isCore: z.boolean().default(false),
+    showOnTop: z.boolean().default(true),
+  })
+  .superRefine(coreRefinement)
+
+export const stackUpdateInput = z
+  .object({
+    key: slugString,
+    displayName,
+    iconUrl: optionalMediaUrl,
+    linkUrl: optionalHttpsUrl,
+    category: stackCategorySchema,
+    isCore: z.boolean(),
+    showOnTop: z.boolean(),
+  })
+  .superRefine(coreRefinement)
 
 const listItemFields = {
   id: z.string(),
@@ -42,6 +60,8 @@ const listItemFields = {
   displayName: z.string(),
   iconUrl: z.string().nullable(),
   linkUrl: z.string().nullable(),
+  category: stackCategorySchema,
+  isCore: z.boolean(),
   showOnTop: z.boolean(),
   sortOrder: z.number().int(),
   /** 使っている作品とプロジェクトの数の合計 */

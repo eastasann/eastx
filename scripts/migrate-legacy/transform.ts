@@ -5,6 +5,7 @@
 import { LIMITS } from '../../src/api/contract/common'
 import type { career, profile, project, projectStack, socialLink, stack, work, workStack } from '../../src/db/schema'
 import { firstAvailable, slugify, stackKeyBase } from '../../src/domain/slug'
+import type { StackCategory } from '../../src/domain/stack-groups'
 import type { LegacyResume, LegacyStack } from './legacy'
 
 export type MigrationData = {
@@ -45,6 +46,42 @@ export function toYearMonth(iso: string | null): string | null {
 export function imageSources(resume: LegacyResume): string[] {
   const urls = [resume.profileImage, ...allStacks(resume).map((s) => s.stackImage)]
   return [...new Set(urls.map(clean).filter((u): u is string => u !== null))]
+}
+
+/**
+ * 識別名ごとのカテゴリ（design-spec 9章）。表に無い識別名は Tools。マイグレーション（drizzle/migrations/0002）にも
+ * 同じ表を書いている。マイグレーションの SQL は書いた時点の値で固定されるので共有せず、ずれは transform.test.ts が見る
+ */
+export const LEGACY_STACK_CATEGORIES: Record<Exclude<StackCategory, 'tools'>, readonly string[]> = {
+  languages: ['typescript', 'javascript', 'python', 'html', 'css', 'sass', 'graphql'],
+  frameworks: [
+    'react',
+    'vue',
+    'svelte',
+    'next',
+    'jquery',
+    'redux',
+    'apollo',
+    'socketio',
+    'styled-components',
+    'emotion',
+    'tailwind',
+    'materialui',
+    'mantine',
+    'electron',
+    'capacitor',
+    'express',
+    'prisma',
+  ],
+  infrastructure: ['node', 'firebase', 'gcp', 'aws', 'docker', 'supabase', 'railway', 'vercel', 'auth0'],
+}
+
+/** 識別名のカテゴリ。表に無い識別名は Tools */
+export function legacyStackCategory(key: string): StackCategory {
+  for (const [category, keys] of Object.entries(LEGACY_STACK_CATEGORIES)) {
+    if (keys.includes(key)) return category as Exclude<StackCategory, 'tools'>
+  }
+  return 'tools'
 }
 
 /**
@@ -179,6 +216,9 @@ export function transform(resume: LegacyResume, mediaPathOf: MediaPathOf): Migra
       linkUrl: httpsOrNull(s.link, `使用技術（${s.name}）のリンク`),
       sortOrder: i,
       showOnTop: onTop.has(s.id),
+      category: legacyStackCategory(key),
+      // Core はデプロイの後に持ち主が A7 で選ぶ（design-spec 9章）
+      isCore: false,
       createdAt: new Date(s.createdAt),
       updatedAt: new Date(s.updatedAt),
     }

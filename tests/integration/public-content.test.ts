@@ -12,6 +12,7 @@ import type { ContentContext } from '../../src/content/shared'
 import { loadTopPage } from '../../src/content/top-page'
 import { getDb } from '../../src/db/client'
 import { blogPost, career, codingLog, profile, project, socialLink, stack, work, workStack } from '../../src/db/schema'
+import { cacheKey, stacksVersion } from '../../src/markdown/cache'
 
 const db = getDb(env)
 const SITE_URL = 'https://x.eastasian.dev'
@@ -44,7 +45,7 @@ describe('loadTopPage', () => {
   it('中身が何もなければ、プロフィールなしと空の配列', async () => {
     const view = await loadTopPage(context, 'ja')
     expect(view.profile).toBeNull()
-    expect([view.careers, view.projects, view.works, view.stacks, view.blogPosts, view.codingLogs]).toEqual([
+    expect([view.careers, view.projects, view.works, view.stackGroups, view.blogPosts, view.codingLogs]).toEqual([
       [],
       [],
       [],
@@ -140,9 +141,60 @@ describe('loadTopPage', () => {
       db.insert(workStack).values({ workId, stackId: react, sortOrder: 1 }),
     ])
     const view = await loadTopPage(context, 'ja')
-    expect(view.stacks.map((s) => s.key)).toEqual(['go', 'react'])
-    expect(view.stacks[0]).toEqual({ key: 'go', displayName: 'Go', iconUrl: '/media/go.svg', linkUrl: null })
+    expect(view.stackGroups).toEqual([
+      {
+        key: 'tools',
+        stacks: [
+          { key: 'go', displayName: 'Go', iconUrl: '/media/go.svg', linkUrl: null },
+          { key: 'react', displayName: 'React', iconUrl: null, linkUrl: null },
+        ],
+      },
+    ])
     expect(view.works[0]?.stacks.map((s) => s.key)).toEqual(['perl', 'react'])
+  })
+
+  it('Tech Stack を Core とカテゴリの群に分ける。トップに出さない技術は Core でも出さない', async () => {
+    await db.batch([
+      db.insert(stack).values({ key: 'git', displayName: 'Git', sortOrder: 0, category: 'tools' }),
+      db
+        .insert(stack)
+        .values({ key: 'react', displayName: 'React', sortOrder: 1, category: 'frameworks', isCore: true }),
+      db.insert(stack).values({ key: 'go', displayName: 'Go', sortOrder: 2, category: 'languages' }),
+      db
+        .insert(stack)
+        .values({ key: 'ts', displayName: 'TypeScript', sortOrder: 3, category: 'languages', isCore: true }),
+      // 古いコードが作りうる「Core かつ非表示」の行
+      db.insert(stack).values({
+        key: 'perl',
+        displayName: 'Perl',
+        sortOrder: 4,
+        category: 'languages',
+        isCore: true,
+        showOnTop: false,
+      }),
+    ])
+    const view = await loadTopPage(context, 'en')
+    expect(view.stackGroups.map((group) => [group.key, group.stacks.map((s) => s.key)])).toEqual([
+      ['core', ['react', 'ts']],
+      ['languages', ['go']],
+      ['tools', ['git']],
+    ])
+  })
+
+  it('自己紹介の Markdown のキャッシュのキーは、使用技術のカテゴリと Core を変えても変わらない', async () => {
+    const profileId = crypto.randomUUID()
+    const updatedAt = new Date('2026-10-01T00:00:00.000Z')
+    await db.batch([
+      db.insert(profile).values({ id: profileId, nameJa: '東', bioJa: '**React** を使う', updatedAt }),
+      db.insert(stack).values({ key: 'react', displayName: 'React', sortOrder: 0, iconUrl: '/media/react.svg' }),
+    ])
+    const version = await stacksVersion([{ key: 'react', displayName: 'React', iconUrl: '/media/react.svg' }])
+    const key = cacheKey({ kind: 'profile', id: profileId, lang: 'ja', updatedAt: updatedAt.getTime() }, version)
+    // 同じキーに目印を置き、カテゴリと Core を変えたあとの描画がそれを返す（同じキーを引く）ことを見る
+    const cache = (caches as unknown as { default: Cache }).default
+    await cache.put(key, new Response('<p>cached</p>', { headers: { 'cache-control': 'max-age=60' } }))
+    await db.update(stack).set({ category: 'frameworks', isCore: true })
+    expect((await loadTopPage(context, 'ja')).profile?.bio?.html).toBe('<p>cached</p>')
   })
 
   it('詳細本文の有無を行に返す', async () => {

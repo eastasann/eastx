@@ -25,7 +25,7 @@ describe('insertSeed', () => {
       profile: 1,
       social_link: 4,
       career: 8,
-      stack: 15,
+      stack: 16,
       work: 12,
       work_stack: data.workStacks.length,
       project: 7,

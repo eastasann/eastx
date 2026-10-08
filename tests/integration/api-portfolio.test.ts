@@ -303,7 +303,64 @@ describe('使用技術', () => {
     })
   })
 
-  it('更新は key・displayName・showOnTop が必須。usageCount は作品とプロジェクトの合計', async () => {
+  it('カテゴリと Core は省くと Tools・false。「新しい技術として追加」の本文も今どおり通る', async () => {
+    const plain = await client.stacks.create({ displayName: 'Hono', showOnTop: false })
+    expect(plain).toMatchObject({ category: 'tools', isCore: false, showOnTop: false })
+    const core = await client.stacks.create({ displayName: 'Rust', category: 'languages', isCore: true })
+    expect(core).toMatchObject({ category: 'languages', isCore: true, showOnTop: true })
+    expect(await client.stacks.get(byId(core.id))).toMatchObject({ category: 'languages', isCore: true })
+    expect((await client.stacks.list()).items.find((item) => item.id === core.id)).toMatchObject({
+      category: 'languages',
+      isCore: true,
+    })
+  })
+
+  it('Core でトップに表示しない組み合わせと、4つ以外のカテゴリは INPUT_VALIDATION_FAILED', async () => {
+    await expect(client.stacks.create({ displayName: 'Zig', isCore: true, showOnTop: false })).rejects.toMatchObject({
+      code: 'INPUT_VALIDATION_FAILED',
+      data: { fieldErrors: { showOnTop: ['Core の技術はトップに表示します'] } },
+    })
+    const stack = await client.stacks.create({ displayName: 'Elixir' })
+    const body = {
+      key: 'elixir',
+      displayName: 'Elixir',
+      iconUrl: null,
+      linkUrl: null,
+      category: 'languages' as const,
+      isCore: true,
+      showOnTop: false,
+    }
+    await expect(client.stacks.update(byId(stack.id, body))).rejects.toMatchObject({
+      code: 'INPUT_VALIDATION_FAILED',
+      data: { fieldErrors: { showOnTop: ['Core の技術はトップに表示します'] } },
+    })
+    const res = await call(`/stacks/${stack.id}`, {
+      method: 'PUT',
+      cookie,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...body, isCore: false, category: 'databases' }),
+    })
+    expect(res.status).toBe(422)
+    expect(await res.json()).toMatchObject({ data: { fieldErrors: { category: expect.any(Array) } } })
+  })
+
+  it('更新でカテゴリ・Core を省くと INPUT_VALIDATION_FAILED（古い管理画面のタブの PUT）', async () => {
+    const stack = await client.stacks.create({ displayName: 'Deno', category: 'infrastructure' })
+    const res = await call(`/stacks/${stack.id}`, {
+      method: 'PUT',
+      cookie,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key: 'deno', displayName: 'Deno', iconUrl: null, linkUrl: null, showOnTop: true }),
+    })
+    expect(res.status).toBe(422)
+    expect(await res.json()).toMatchObject({
+      code: 'INPUT_VALIDATION_FAILED',
+      data: { fieldErrors: { category: expect.any(Array), isCore: expect.any(Array) } },
+    })
+    expect(await client.stacks.get(byId(stack.id))).toMatchObject({ category: 'infrastructure', isCore: false })
+  })
+
+  it('更新は key・displayName・category・isCore・showOnTop が必須。usageCount は作品とプロジェクトの合計', async () => {
     const stack = await client.stacks.create({ displayName: 'Svelte' })
     await client.works.create({ ...draftWork('uses-svelte'), stackIds: [stack.id] })
     await client.projects.create({
@@ -323,10 +380,19 @@ describe('使用技術', () => {
         displayName: 'SvelteKit',
         iconUrl: '/media/uploads/2026/10/s.svg',
         linkUrl: 'https://svelte.dev',
+        category: 'frameworks',
+        isCore: false,
         showOnTop: false,
       }),
     )
-    expect(updated).toMatchObject({ key: 'sveltekit', displayName: 'SvelteKit', showOnTop: false, usageCount: 2 })
+    expect(updated).toMatchObject({
+      key: 'sveltekit',
+      displayName: 'SvelteKit',
+      category: 'frameworks',
+      isCore: false,
+      showOnTop: false,
+      usageCount: 2,
+    })
 
     const res = await call(`/stacks/${stack.id}`, {
       method: 'PUT',
@@ -461,6 +527,6 @@ describe('/{id} の手続きの入力（detailed）', () => {
     })
     expect(res.status).toBe(422)
     const { data } = (await res.json()) as { data: { fieldErrors: Record<string, string[]> } }
-    expect(Object.keys(data.fieldErrors).sort()).toEqual(['key', 'linkUrl', 'showOnTop'])
+    expect(Object.keys(data.fieldErrors).sort()).toEqual(['category', 'isCore', 'key', 'linkUrl', 'showOnTop'])
   })
 })

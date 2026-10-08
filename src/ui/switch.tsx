@@ -11,6 +11,9 @@ export interface SwitchProps {
   onCheckedChange: (checked: boolean) => void
   name?: string
   disabled?: boolean
+  invalid?: boolean
+  /** スイッチの下の説明・誤りの要素の ID。隠した checkbox がフォーカスを持つので、そこに結びつける */
+  describedBy?: string
 }
 
 const control = css({
@@ -31,6 +34,7 @@ const control = css({
   transitionTimingFunction: 'motion.hover',
   _checked: { bg: 'action.default', borderColor: 'action.default', justifyContent: 'flex-end' },
   _disabled: { opacity: 'disabled', cursor: 'not-allowed' },
+  _invalid: { borderColor: 'danger.default' },
   // 隠した checkbox がフォーカスを持つので、見た目の輪はこちらに出す
   _focusVisible: { outlineWidth: 'focus-ring', outlineStyle: 'solid', outlineColor: 'focus-ring' },
 })
@@ -42,20 +46,21 @@ const thumb = css({
   borderRadius: 'chip',
 })
 
-export function Switch({ label, checked, onCheckedChange, name, disabled }: SwitchProps) {
+export function Switch({ label, checked, onCheckedChange, name, disabled, invalid, describedBy }: SwitchProps) {
   return (
     <ArkSwitch.Root
       checked={checked}
       onCheckedChange={(details) => onCheckedChange(details.checked)}
       name={name}
       disabled={disabled}
+      invalid={invalid}
       className={css({ display: 'inline-flex', alignItems: 'center', gap: 'inline', cursor: 'pointer' })}
     >
       <ArkSwitch.Control className={control}>
         <ArkSwitch.Thumb className={thumb} />
       </ArkSwitch.Control>
       <ArkSwitch.Label className={css({ textStyle: 'ui' })}>{label}</ArkSwitch.Label>
-      <ArkSwitch.HiddenInput />
+      <ArkSwitch.HiddenInput aria-describedby={describedBy} />
     </ArkSwitch.Root>
   )
 }
