@@ -1,11 +1,10 @@
 /**
  * 公開側の中身の部品（design-spec 6.1.4・6.2.2）。トップの行と詳細ページで共通
  */
-import { type ReactNode, useId } from 'react'
+import { useId } from 'react'
 import { css, cx } from 'styled-system/css'
 import type { Availability, LocalizedText } from '~/content/localize'
 import type { StackChip, TopPageView } from '~/content/types'
-import { initialOf } from '~/domain/initial'
 import type { Lang } from '~/i18n/detect'
 import type { Messages } from '~/i18n/messages'
 import { SECTION_NAME_LANG, STACK_GROUP_NAMES } from '~/i18n/section-names'
@@ -54,7 +53,8 @@ export function ExternalMark({ messages }: { messages: Messages }) {
   )
 }
 
-const stackIcon = css({ w: 'icon', h: 'icon', aspectRatio: 'avatar' })
+/** 縦横比・余白・色がまちまちな画像を、切らずに収めてグレースケールでそろえる（design-spec 4.4。ADR-014 の例外） */
+const stackIcon = css({ w: 'icon', h: 'icon', aspectRatio: 'avatar', filter: 'auto', grayscale: '100%' })
 
 /**
  * 技術のアイコン。アイコンがない・読み込めない技術は、表示名の頭文字の丸（design-spec 6.1.4）。
@@ -147,10 +147,10 @@ export function StackIconRow({
 const chipList = css({ display: 'flex', flexWrap: 'wrap', columnGap: 'inset', rowGap: 'inline' })
 
 /** チップ1つ（アイコンと表示名。枠線なし）。リンクがあれば公式サイトなどを別タブで開く */
-function StackChipItem({ stack, icon, messages }: { stack: StackChip; icon: ReactNode; messages: Messages }) {
+function StackChipItem({ stack, messages }: { stack: StackChip; messages: Messages }) {
   const content = (
     <>
-      {icon}
+      <StackIcon stack={stack} />
       <span>{stack.displayName}</span>
     </>
   )
@@ -190,59 +190,10 @@ export function StackChipList({
       <StackListName id={labelId} messages={messages} />
       <ul aria-labelledby={labelId} className={cx(chipList, className)}>
         {stacks.map((stack) => (
-          <StackChipItem key={stack.key} stack={stack} icon={<StackIcon stack={stack} />} messages={messages} />
+          <StackChipItem key={stack.key} stack={stack} messages={messages} />
         ))}
       </ul>
     </>
-  )
-}
-
-/** Tech Stack のアイコンの地つきの正方形の枠。アイコンでも頭文字でも同じ大きさにする（design-spec 6.1.4） */
-const framedIcon = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  flexShrink: 0,
-  p: 'inset-dense',
-  bg: 'bg.subtle',
-  borderRadius: 'control',
-})
-
-/** 枠の中身。縦横比・余白・色がまちまちな画像を、同じ大きさのグレースケールにそろえる（ADR-014 の例外） */
-const framedImage = css({
-  display: 'block',
-  w: 'icon',
-  h: 'icon',
-  filter: 'auto',
-  grayscale: '100%',
-})
-
-const framedInitial = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  w: 'icon',
-  h: 'icon',
-  textStyle: 'label',
-  color: 'text.muted',
-  userSelect: 'none',
-})
-
-/** Tech Stack のアイコン。アイコンが無い・読み込めない技術は、同じ枠の中に頭文字を出す。表示名が隣にあるので読み上げない */
-function FramedStackIcon({ stack }: { stack: StackChip }) {
-  const initial = (
-    <span aria-hidden="true" className={framedInitial}>
-      {initialOf(stack.displayName)}
-    </span>
-  )
-  return (
-    <span data-tech-stack-icon="" className={framedIcon}>
-      {stack.iconUrl === null ? (
-        initial
-      ) : (
-        <FallbackImage src={stack.iconUrl} alt="" className={framedImage} fit="contain" fallback={initial} />
-      )}
-    </span>
   )
 }
 
@@ -263,12 +214,7 @@ export function TechStackGroups({ groups, messages }: { groups: TopPageView['sta
             </h3>
             <ul aria-labelledby={headingId} className={chipList}>
               {group.stacks.map((stack) => (
-                <StackChipItem
-                  key={stack.key}
-                  stack={stack}
-                  icon={<FramedStackIcon stack={stack} />}
-                  messages={messages}
-                />
+                <StackChipItem key={stack.key} stack={stack} messages={messages} />
               ))}
             </ul>
           </div>

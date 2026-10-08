@@ -629,38 +629,37 @@ test.describe('Tech Stack の群（design-spec 6.1.4）', () => {
     })
   }
 
-  test('アイコンは地つきの正方形の枠でグレースケール。行のアイコンは元の色のまま', async ({ page }) => {
+  test('使用技術の並びのアイコンは枠を付けずにグレースケールで、切らずに収める。アイコンの無い技術は頭文字の丸', async ({
+    page,
+  }) => {
     await gotoHydrated(page, '/ja')
-    const frames = page.locator('#stack [data-tech-stack-icon]')
-    const image = frames.locator('img').first()
-    await expect(image).toHaveCSS('filter', 'grayscale(1)')
-    const rowIcon = page.locator('#works ul:not([inert]) img').first()
-    await expect(rowIcon).toHaveCSS('filter', 'none')
-    // 縦横比の違うアイコンを切らずに収める（行のアイコンも同じ）
-    await expect(image).toHaveCSS('object-fit', 'contain')
-    await expect(rowIcon).toHaveCSS('object-fit', 'contain')
-    const withIcon = await frames
-      .filter({ has: page.locator('img') })
-      .first()
-      .boundingBox()
-    // Git はアイコンが無いので頭文字
-    const initial = group(page, 'Tools').locator('[data-tech-stack-icon]').first()
-    await expect(initial).toHaveText('G')
-    const withInitial = await initial.boundingBox()
-    if (!withIcon || !withInitial) throw new Error('アイコンの枠が見えない')
-    expect(withIcon.width).toBeCloseTo(withIcon.height, 0)
-    expect(withInitial.width).toBeCloseTo(withIcon.width, 0)
-    expect(withInitial.height).toBeCloseTo(withIcon.height, 0)
+    const icons = [page.locator('#stack img').first(), page.locator('#works ul:not([inert]) img').first()]
+    for (const icon of icons) {
+      await expect(icon).toHaveCSS('filter', 'grayscale(1)')
+      await expect(icon).toHaveCSS('object-fit', 'contain')
+    }
+    // 自己紹介の太字の前のアイコンは元の色
+    await expect(page.locator('img[data-stack-icon]').first()).toHaveCSS('filter', 'none')
+    // Git はアイコンが無いので頭文字の丸
+    const git = group(page, 'Tools').getByRole('listitem').filter({ hasText: 'Git' })
+    await expect(git.locator('span[aria-hidden="true"]').first()).toHaveText('G')
+    await expect(group(page, 'Tools').locator('img')).toHaveCount(0)
+
+    await gotoHydrated(page, '/ja/works/portfolio-cms')
+    await expect(page.locator('main').getByRole('list', { name: 'Tech Stack' }).locator('img').first()).toHaveCSS(
+      'filter',
+      'grayscale(1)',
+    )
   })
 
-  test('読み込めないアイコンは、SSR の後でも枠の中の頭文字に替える', async ({ page, local }) => {
+  test('読み込めないアイコンは、SSR の後でも頭文字の丸に替える', async ({ page, local }) => {
     await local.db
       .update(schema.stack)
       .set({ iconUrl: '/media/uploads/missing/go.svg' })
       .where(eq(schema.stack.key, 'go'))
     await gotoHydrated(page, '/ja')
     const go = group(page, 'Languages').getByRole('listitem').filter({ hasText: 'Go' })
-    await expect(go.locator('[data-tech-stack-icon]')).toHaveText('G')
+    await expect(go.locator('span[aria-hidden="true"]').first()).toHaveText('G')
     await expect(go.locator('img')).toHaveCount(0)
   })
 

@@ -174,6 +174,8 @@ test('A7: カテゴリと Core の列、カテゴリと Core を変えて保存�
     const typescript = table.getByRole('row').filter({ hasText: 'TypeScript' })
     await expect(typescript.getByRole('cell', { name: 'Languages' })).toBeVisible()
     await expect(typescript.getByRole('cell', { name: 'Core', exact: true })).toBeVisible()
+    // 管理画面の技術アイコンは元の色のまま（design-spec 4.4）
+    await expect(typescript.locator('img')).toHaveCSS('filter', 'none')
 
     // カテゴリを変えると、P1 の群が移る
     await table.getByRole('link', { name: 'Go', exact: true }).click()

@@ -819,7 +819,7 @@
           },
           "subtle": {
             "$value": "{primitive.color.neutral.50}",
-            "$description": "管理画面のサイドメニュー・テーブルの見出し行、P1 の Tech Stack のアイコンの地など、地から一段分ける面"
+            "$description": "管理画面のサイドメニュー・テーブルの見出し行など、地から一段分ける面"
           },
           "muted": {
             "$value": "{primitive.color.neutral.100}",
@@ -935,7 +935,7 @@
           },
           "subtle": {
             "$value": "{primitive.color.neutral.900}",
-            "$description": "管理画面のサイドメニュー・テーブルの見出し行、P1 の Tech Stack のアイコンの地など、地から一段分ける面"
+            "$description": "管理画面のサイドメニュー・テーブルの見出し行など、地から一段分ける面"
           },
           "muted": {
             "$value": "{primitive.color.neutral.800}",
@@ -1272,7 +1272,7 @@
       },
       "control": {
         "$value": "{primitive.radius.sm}",
-        "$description": "ボタン・入力欄・P1 の Tech Stack のアイコンの地"
+        "$description": "ボタン・入力欄"
       },
       "card": {
         "$value": "{primitive.radius.md}",
