@@ -35,7 +35,7 @@ describe('値の整え方', () => {
 })
 
 describe('transform', () => {
-  it('プロフィール: 名前・自己紹介を日英に分け、写真を置き直し先のパスにする。肩書きは空', () => {
+  it('プロフィール: 名前・自己紹介を日英に分け、写真を置き直し先のパスにする。肩書き・一言は空', () => {
     const [p] = data().profile
     expect(p).toMatchObject({
       nameJa: '會田 純',
@@ -43,6 +43,8 @@ describe('transform', () => {
       bioEn: 'Web developer from Tokyo.',
       headlineJa: null,
       headlineEn: null,
+      taglineJa: null,
+      taglineEn: null,
       avatarUrl: '/media/uploads/legacy/profile.jpg',
     })
   })

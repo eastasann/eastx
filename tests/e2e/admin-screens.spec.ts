@@ -213,6 +213,31 @@ test('A3: 自己紹介のプレビュー、SNSリンクの追加・並べ替え�
   await expect(links.getByRole('listitem')).toHaveCount(before)
 })
 
+test('A3: 一言を入力して保存すると、P1 のプロフィールの上に出る', async ({ page, login }) => {
+  await login({ admin: true })
+  await page.goto('/admin/profile')
+  const name = await page.getByLabel('名前').first().inputValue()
+  const tagline = page.getByLabel('一言').first()
+  const original = await tagline.inputValue()
+  const value = `${original} E2E の一言`
+  await tagline.fill(value)
+  await page.getByRole('button', { name: '保存' }).click()
+  await expect(page.getByText('保存しました')).toBeVisible()
+
+  await page.goto('/ja')
+  const shown = page.locator('#profile').getByText(value, { exact: true })
+  await expect(shown).toBeVisible()
+  const shownBox = await shown.boundingBox()
+  const nameBox = await page.getByRole('heading', { level: 1, name }).boundingBox()
+  if (!shownBox || !nameBox) throw new Error('一言か名前が見えない')
+  expect(shownBox.y + shownBox.height).toBeLessThanOrEqual(nameBox.y)
+
+  await page.goto('/admin/profile')
+  await page.getByLabel('一言').first().fill(original)
+  await page.getByRole('button', { name: '保存' }).click()
+  await expect(page.getByText('保存しました')).toBeVisible()
+})
+
 test('失敗の表示: 一覧の取得・並べ替えの保存・保存（design-spec 6.6・6.7.4）', async ({ page, login }) => {
   await login({ admin: true })
 

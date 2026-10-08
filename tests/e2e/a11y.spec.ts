@@ -1,5 +1,5 @@
 /**
- * アクセシビリティ（P1〜P5・A1・A2 と、A4・A5・A8 の編集ビューで axe の serious 以上の違反 0件。SDD 10章）と、
+ * アクセシビリティ（P1〜P5・A1・A2 と、A3・A4・A5・A8 の編集ビューで axe の serious 以上の違反 0件。SDD 10章）と、
  * セキュリティヘッダー・X-Robots-Tag（SDD 7章・ADR-019）。どの画面でもブラウザに CSP の違反が出ないことも確かめる。
  * make e2e のデモデータ（make db-seed）を前提にする
  */
@@ -113,6 +113,17 @@ test.describe('管理画面', () => {
         expect(await seriousViolations(page)).toEqual([])
       })
     }
+  }
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(`A3 プロフィール編集（${theme}）: axe の重大な違反がない`, async ({ page, login }) => {
+      await page.emulateMedia({ colorScheme: theme })
+      await login({ admin: true })
+      await page.goto('/admin/profile')
+      await expect(page.getByRole('radiogroup', { name: '表示' })).toBeVisible()
+      await expect(page.getByRole('status').filter({ hasText: /^保存済み/ })).toBeVisible()
+      expect(await seriousViolations(page)).toEqual([])
+    })
   }
 
   test('表示の切り替え・設定の引き出し・画像を挿入はキーボードだけで操作できる', async ({ page, login }) => {

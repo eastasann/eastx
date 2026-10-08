@@ -42,6 +42,7 @@ export interface SocialLinkView {
 export interface ProfileView {
   name: LocalizedText | null
   headline: LocalizedText | null
+  tagline: LocalizedText | null
   /** 太字と一致した使用技術のアイコン入り（ADR-012） */
   bio: LocalizedHtml | null
   avatarUrl: string | null

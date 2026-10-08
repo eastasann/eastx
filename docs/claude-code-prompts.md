@@ -206,7 +206,7 @@ docs/design-spec.md の「4. デザインシステム」と 6.1.2 に従って�
    - L5 サイドメニュー＋2ペイン編集
    - L6 サイドメニュー＋フォーム
    - 管理画面のサイドメニュー（並びは design-spec 3.3。下部に GitHub のユーザー名・テーマ切り替え・ログアウト）
-4. 公開側のヘッダーとフッター（design-spec 6.1.2）: サイト名、セクションメニュー（出すセクションは引数で受ける）、
+4. 公開側のヘッダーとフッター（design-spec 6.1.2）: ドメイン名（辞書の `siteDomain`）、セクションメニュー（出すセクションは引数で受ける）、
    JA｜EN の切り替え（Cookie eastx-lang と history state。SDD 4.1・9章）、テーマの切り替え
    （Cookie eastx-theme と <head> のスクリプト。ADR-014）
 5. i18n（SDD 9章）: src/i18n/messages/ja.ts・en.ts（design-spec 1.4 の対訳と、各画面の固定文言）、src/i18n/format.ts

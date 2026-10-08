@@ -170,7 +170,7 @@ const careerFormSchema = z.object({
 })
 type CareerForm = z.infer<typeof careerFormSchema>
 
-const isCareerForm = (value: unknown): value is CareerForm => careerFormSchema.safeParse(value).success
+const parseCareerForm = (value: unknown): CareerForm | null => careerFormSchema.safeParse(value).data ?? null
 
 const emptyLocalized = { title: '', organization: '', location: '', body: '' }
 
@@ -246,7 +246,7 @@ function CareerEditor({ initial, onCreated }: { initial: Career | null; onCreate
     initial,
     toForm,
     backupType: 'career',
-    isValues: isCareerForm,
+    parseValues: parseCareerForm,
     idOf: (item) => item.id,
     updatedAtOf: (item) => item.updatedAt,
     saveKind: 'publishable',

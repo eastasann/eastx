@@ -1054,7 +1054,7 @@
           "letterSpacing": "{primitive.font.letter-spacing.normal}",
           "lineHeight": 1.25
         },
-        "$description": "最も大きい見出し。既定の OGP 画像（scripts/og）が書体をここから読む"
+        "$description": "最も大きい見出し・P1 の一言。既定の OGP 画像（scripts/og）が書体をここから読む"
       },
       "heading-1": {
         "$value": {
@@ -1084,7 +1084,7 @@
           "letterSpacing": "{primitive.font.letter-spacing.normal}",
           "lineHeight": 1.5
         },
-        "$description": "本文の h3 以下（Markdown の ## 以下）・公開側のサイト名・ダイアログの題・管理画面の小見出し"
+        "$description": "本文の h3 以下（Markdown の ## 以下）・ダイアログの題・管理画面の小見出し"
       },
       "body": {
         "$value": {
@@ -1154,7 +1154,7 @@
           "letterSpacing": "{primitive.font.letter-spacing.normal}",
           "lineHeight": 1.5
         },
-        "$description": "日付・期間・件数・ページ表示（1 / 3）"
+        "$description": "日付・期間・件数・ページ表示（1 / 3）・公開側のヘッダーのドメイン名"
       },
       "code": {
         "$value": {

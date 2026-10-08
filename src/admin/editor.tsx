@@ -103,8 +103,8 @@ interface EditSessionOptions<V> {
   /** 最後に保存した（読み込んだ）値。これと違えば「保存していない変更」 */
   baseline: V
   backupKey: string
-  /** 退避の中身がこのフォームの形か */
-  isValues: (value: unknown) => value is V
+  /** 退避の中身をこのフォームの形に読み直す。形が合わなければ null */
+  parseValues: (value: unknown) => V | null
   /** 比べるときの形（比較に関係ない値を外す）。省くと値そのもの */
   comparable?: (values: V) => unknown
   /** サーバーの最終保存（新規作成は null）。退避より新しければ復元の提案に添える */
@@ -118,13 +118,13 @@ function useEditSession<V>({
   getValues,
   baseline,
   backupKey: key,
-  isValues,
+  parseValues,
   comparable,
   serverUpdatedAt,
   restore,
 }: EditSessionOptions<V>) {
   const [backup] = useState(() => new AutoBackup<V>({ storage: browserStorage(), key, baseline, comparable }))
-  const [offer, setOffer] = useState<BackupOffer<V> | null>(() => backup.takeOffer(isValues, serverUpdatedAt))
+  const [offer, setOffer] = useState<BackupOffer<V> | null>(() => backup.takeOffer(parseValues, serverUpdatedAt))
   const getValuesRef = useRef(getValues)
   getValuesRef.current = getValues
   /** 自分で画面を移すとき（保存後の URL の置き換え・削除・期限切れ）は確認しない */
@@ -342,7 +342,7 @@ export interface EditorOptions<V, Item> {
   initial: Item | null
   toForm: (item: Item | null) => V
   backupType: BackupType
-  isValues: (value: unknown) => value is V
+  parseValues: (value: unknown) => V | null
   comparable?: (values: V) => unknown
   idOf: (item: Item) => string
   updatedAtOf: (item: Item) => string
@@ -365,7 +365,7 @@ export function useEditor<V, Item>({
   initial,
   toForm,
   backupType,
-  isValues,
+  parseValues,
   comparable,
   idOf,
   updatedAtOf,
@@ -400,7 +400,7 @@ export function useEditor<V, Item>({
     getValues: () => form.state.values,
     baseline,
     backupKey: backupKey(backupType, saved === null ? null : idOf(saved)),
-    isValues,
+    parseValues,
     comparable,
     serverUpdatedAt: saved === null ? null : updatedAtOf(saved),
     restore: (restored) => form.reset(restored, { keepDefaultValues: true }),

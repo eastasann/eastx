@@ -1,7 +1,7 @@
 /**
  * 公開側のヘッダー・フッター・C1・C2（design-spec 3.1・6.1.2・1.4、SDD 4.1）。
  * make e2e のデモデータ（make db-seed）で、全セクションと SNS リンクがある状態を前提にする。
- * ヘッダーはサイト名・言語・テーマだけで、固定しない（design-spec 6.1.2）
+ * ヘッダーはドメイン名・言語・テーマだけで、固定しない（design-spec 6.1.2）
  */
 import { expect, test } from '@playwright/test'
 import { gotoHydrated } from './hydration'
@@ -14,7 +14,7 @@ test.describe('C1 見つからないページ', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'ja')
 
     const header = page.getByRole('banner')
-    await expect(header.getByRole('link', { name: 'eastasian' })).toBeVisible()
+    await expect(header.getByRole('link', { name: 'x.eastasian.dev', exact: true })).toBeVisible()
 
     const footer = page.getByRole('contentinfo')
     await expect(footer).toContainText('© eastasian')
@@ -58,7 +58,7 @@ test.describe('C2 エラー', () => {
     await page.getByRole('group', { name: '言語' }).getByRole('link', { name: 'EN' }).click()
     await expect(page.getByRole('heading', { level: 1, name: "This page can't be displayed right now" })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible()
-    await expect(page.getByRole('banner').getByRole('link', { name: 'eastasian' })).toBeVisible()
+    await expect(page.getByRole('banner').getByRole('link', { name: 'x.eastasian.dev', exact: true })).toBeVisible()
 
     await page.unroute('**/_serverFn/**')
     await page.getByRole('button', { name: 'Reload' }).click()
@@ -120,17 +120,26 @@ test.describe('言語の切り替え', () => {
 })
 
 test.describe('ヘッダーの形', () => {
-  test('サイト名・言語・テーマだけを置き、セクションメニューは無く、スクロールしても固定しない', async ({ page }) => {
+  test('ドメイン名・言語・テーマだけを置き、セクションメニューは無く、スクロールしても固定しない', async ({ page }) => {
     await gotoHydrated(page, '/ja')
     const header = page.getByRole('banner')
     await expect(header.getByRole('navigation')).toHaveCount(0)
     await expect(header.getByRole('button', { name: 'メニュー' })).toHaveCount(0)
-    await expect(header.getByRole('link', { name: 'eastasian' })).toBeVisible()
+    await expect(header.getByRole('link', { name: 'x.eastasian.dev', exact: true })).toBeVisible()
     await expect(header.getByRole('group', { name: '言語' })).toBeVisible()
     await expect(header.getByRole('button', { name: /^テーマ/ })).toBeVisible()
 
     await page.locator('#blog').evaluate((element) => element.scrollIntoView())
     await expect(header).not.toBeInViewport()
+  })
+
+  test('ドメイン名は詳細ページで押すとトップを開き、サイト名はタイトルとフッターに残る', async ({ page }) => {
+    await gotoHydrated(page, '/en/works/portfolio-cms')
+    await page.getByRole('banner').getByRole('link', { name: 'x.eastasian.dev', exact: true }).click()
+    await expect(page).toHaveURL('/en')
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    await expect(page).toHaveTitle(/^eastasian/)
+    await expect(page.getByRole('contentinfo')).toContainText('© eastasian')
   })
 
   test.describe('モバイル幅', () => {
@@ -139,10 +148,10 @@ test.describe('ヘッダーの形', () => {
     test('ヘッダーは1行で、ページの横にはみ出さない', async ({ page }) => {
       await gotoHydrated(page, '/ja/no-such')
       const header = page.getByRole('banner')
-      const name = await header.getByRole('link', { name: 'eastasian' }).boundingBox()
+      const domain = await header.getByRole('link', { name: 'x.eastasian.dev', exact: true }).boundingBox()
       const theme = await header.getByRole('button', { name: /^テーマ/ }).boundingBox()
-      if (!name || !theme) throw new Error('ヘッダーの部品が見えない')
-      expect(Math.abs(name.y + name.height / 2 - (theme.y + theme.height / 2))).toBeLessThanOrEqual(2)
+      if (!domain || !theme) throw new Error('ヘッダーの部品が見えない')
+      expect(Math.abs(domain.y + domain.height / 2 - (theme.y + theme.height / 2))).toBeLessThanOrEqual(2)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
     })
   })

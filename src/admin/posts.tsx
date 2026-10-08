@@ -208,7 +208,7 @@ const postFormSchema = z.object({
 })
 type PostForm = z.infer<typeof postFormSchema>
 
-const isPostForm = (value: unknown): value is PostForm => postFormSchema.safeParse(value).success
+const parsePostForm = (value: unknown): PostForm | null => postFormSchema.safeParse(value).data ?? null
 
 const emptyLocalized = { title: '', body: '' }
 
@@ -306,7 +306,7 @@ function PostEditor({
     initial,
     toForm,
     backupType: kind,
-    isValues: isPostForm,
+    parseValues: parsePostForm,
     idOf: (item) => item.id,
     updatedAtOf: (item) => item.updatedAt,
     saveKind: 'publishable',

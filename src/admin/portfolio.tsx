@@ -219,7 +219,7 @@ const portfolioFormSchema = z.object({
 })
 type PortfolioForm = z.infer<typeof portfolioFormSchema>
 
-const isPortfolioForm = (value: unknown): value is PortfolioForm => portfolioFormSchema.safeParse(value).success
+const parsePortfolioForm = (value: unknown): PortfolioForm | null => portfolioFormSchema.safeParse(value).data ?? null
 
 const emptyLocalized = { title: '', summary: '', body: '' }
 
@@ -325,7 +325,7 @@ function PortfolioEditor({
     initial,
     toForm,
     backupType: kind,
-    isValues: isPortfolioForm,
+    parseValues: parsePortfolioForm,
     idOf: (item) => item.id,
     updatedAtOf: (item) => item.updatedAt,
     saveKind: 'publishable',

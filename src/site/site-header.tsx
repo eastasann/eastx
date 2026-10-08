@@ -1,5 +1,5 @@
 /**
- * 公開側のヘッダー（design-spec 6.1.2）。サイト名と、言語・テーマの切り替えだけを置き、固定しない
+ * 公開側のヘッダー（design-spec 6.1.2）。ドメイン名と、言語・テーマの切り替えだけを置き、固定しない
  */
 import { Link, useLocation, useRouter } from '@tanstack/react-router'
 import { css, cva } from 'styled-system/css'
@@ -59,9 +59,15 @@ export function SiteHeader({ lang, messages }: SiteHeaderProps) {
           // トップの中ではページを移らず先頭へ戻す（design-spec 6.1.2）
           if (isTop) window.scrollTo({ top: 0 })
         }}
-        className={css({ textStyle: 'heading-3', color: 'text.default', textDecoration: 'none', flexShrink: 0 })}
+        className={css({
+          textStyle: 'meta',
+          color: 'text.muted',
+          textDecoration: 'none',
+          flexShrink: 0,
+          _hover: { color: 'text.default' },
+        })}
       >
-        {messages.siteName}
+        {messages.siteDomain}
       </Link>
       <div className={css({ display: 'flex', alignItems: 'center', gap: 'inline', ml: 'auto' })}>
         <LanguageSwitch lang={lang} messages={messages} />
