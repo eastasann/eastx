@@ -1,9 +1,10 @@
 /**
  * P1 トップと P2・P3 の詳細（design-spec 6.1・6.2）。コアフロー「何者かつかみ、作品で確かめる」（design-spec 2.2）の
- * トップ → 作品をページング → 作品詳細 → 戻るで元のページ、経歴・作品の行の展開、
+ * トップ → 作品をページング → 作品詳細 → 戻るで元のページ、経歴・作品・プロジェクトの行の展開と広げた中の入口、
  * 言語の切り替え（ページの一番上から開き、ページングは1ページ目）、0件のセクションが消えること。
  * make e2e のデモデータ（make db-seed）を前提にする。作品は公開11件（1ページ10件）で、2ページ目に詳細ページを持つ
- * 「レシピノート」がある。経歴（公開7）・プロジェクト（公開6）は10件以下でページングが出ない
+ * 「レシピノート」がある。経歴（公開7）・プロジェクト（公開6）は10件以下でページングが出ない。
+ * 1ページ目の「ターミナルで天気予報を…」は、モバイル幅の閉じた行で「…」で切れる長さのタイトルにしてある
  */
 import type { Locator, Page } from '@playwright/test'
 import { buildSeed } from '../../scripts/seed/data'
@@ -11,6 +12,7 @@ import { insertSeed } from '../../scripts/seed/insert'
 import * as schema from '../../src/db/schema'
 import { expect, test } from './fixtures'
 import { gotoHydrated } from './hydration'
+import { expandRow, rowButton, rowContent } from './top-rows'
 
 const COPY = {
   ja: {
@@ -20,6 +22,7 @@ const COPY = {
     recipe: 'レシピノート',
     budget: '家計簿アプリ',
     back: 'Lab へ戻る',
+    viewDetails: '詳細を見る',
   },
   en: {
     next: 'Next page',
@@ -28,6 +31,7 @@ const COPY = {
     recipe: 'Recipe Notes',
     budget: 'Budget App',
     back: 'Back to Lab',
+    viewDetails: 'View details',
   },
 } as const
 
@@ -58,9 +62,10 @@ async function sectionAtTop(page: Page, id: string): Promise<boolean> {
   }, id)
 }
 
-/** 作品の行の ▸（読み上げ名は行の名前） */
-function workToggle(page: Page, name: RegExp): Locator {
-  return page.locator('#works').getByRole('button', { name })
+/** 作品の行を広げ、広げた中の「詳細を見る」で作品詳細へ移る */
+async function openWorkDetail(page: Page, lang: keyof typeof COPY, name: string): Promise<void> {
+  const content = await expandRow(page, 'works', name)
+  await content.getByRole('link', { name: COPY[lang].viewDetails }).click()
 }
 
 for (const lang of ['ja', 'en'] as const) {
@@ -76,14 +81,14 @@ for (const lang of ['ja', 'en'] as const) {
       await expect(paging).toContainText('2 / 2')
       await expect(paging.getByRole('button', { name: copy.next })).toBeDisabled()
 
-      await page.locator('#works').getByRole('link', { name: copy.recipe }).click()
+      await openWorkDetail(page, lang, copy.recipe)
       await expect(page).toHaveURL(`/${lang}/works/recipe-notes`)
       await expect(page.getByRole('heading', { level: 1, name: copy.recipe })).toBeVisible()
 
       await page.getByRole('link', { name: copy.back }).click()
       await expect(page).toHaveURL(`/${lang}#works`)
       await expect(paging).toContainText('2 / 2')
-      await expect(page.locator('#works').getByRole('link', { name: copy.recipe })).toBeVisible()
+      await expect(rowButton(page, 'works', copy.recipe)).toBeVisible()
     })
 
     test('前後のナビで別の作品に移ったら、戻るリンクはその作品を含むページを開く', async ({ page }) => {
@@ -97,7 +102,7 @@ for (const lang of ['ja', 'en'] as const) {
       await expect(page.getByRole('heading', { level: 1, name: copy.budget })).toBeVisible()
       await page.getByRole('link', { name: copy.back }).click()
       await expect(worksPaging(page, lang)).toContainText('1 / 2')
-      await expect(page.locator('#works').getByRole('link', { name: copy.budget })).toBeVisible()
+      await expect(rowButton(page, 'works', copy.budget)).toBeVisible()
     })
   })
 }
@@ -109,9 +114,9 @@ test.describe('ブラウザの「戻る」', () => {
     await paging.getByRole('button', { name: '次のページ' }).click()
     await expect(paging).toContainText('2 / 2')
     await page.locator('#works').scrollIntoViewIfNeeded()
+    const content = await expandRow(page, 'works', 'レシピノート')
     const clickedScrollY = await scrollYAtNextClick(page)
-
-    await page.locator('#works').getByRole('link', { name: 'レシピノート' }).click()
+    await content.getByRole('link', { name: '詳細を見る' }).click()
     await expect(page).toHaveURL('/ja/works/recipe-notes')
     const scrollY = await clickedScrollY()
     expect(scrollY).toBeGreaterThan(0)
@@ -129,7 +134,7 @@ test.describe('戻るリンクで来たあとのページング', () => {
     const paging = worksPaging(page, 'ja')
     await expect(paging).toContainText('1 / 2')
     await paging.getByRole('button', { name: '次のページ' }).click()
-    await page.locator('#works').getByRole('link', { name: 'レシピノート' }).click()
+    await openWorkDetail(page, 'ja', 'レシピノート')
     await expect(page).toHaveURL('/ja/works/recipe-notes')
     await page.goBack()
     await expect(paging).toContainText('2 / 2')
@@ -152,8 +157,9 @@ test.describe('言語の切り替え', () => {
     expect(await page.evaluate(() => window.scrollY)).toBe(0)
 
     await page.locator('#works').scrollIntoViewIfNeeded()
+    const content = await expandRow(page, 'works', 'Task Board')
     const clickedScrollY = await scrollYAtNextClick(page)
-    await page.locator('#works').getByRole('link', { name: 'Task Board' }).click()
+    await content.getByRole('link', { name: 'View details' }).click()
     await expect(page).toHaveURL('/en/works/task-board')
     const scrollY = await clickedScrollY()
     expect(scrollY).toBeGreaterThan(0)
@@ -212,25 +218,39 @@ test.describe('セクション内ページングの操作', () => {
   })
 })
 
+/** 行の名前が「…」で切れているか。名前（ボタンの読み上げ名の要素）が、その親の幅からはみ出しているかで見る */
+async function nameTruncated(button: Locator): Promise<boolean> {
+  return button.evaluate((element) => {
+    const name = document.getElementById(element.getAttribute('aria-labelledby') ?? '')
+    const box = name?.parentElement
+    if (!box) throw new Error('行の名前が無い')
+    return box.scrollWidth > box.clientWidth
+  })
+}
+
 test.describe('経歴の行', () => {
   test.afterEach(async ({ local }) => {
     await insertSeed(local.db, buildSeed({ empty: false }))
   })
 
-  test('▸ を押すとその場で種類・場所・内容を広げ、もう一度押すと閉じる。複数の行を同時に開ける', async ({ page }) => {
+  test('名前の部分を押すとその場で種類・場所・内容を広げ、もう一度押すと閉じる。複数の行を同時に開ける', async ({
+    page,
+  }) => {
     await gotoHydrated(page, '/ja')
     const career = page.locator('#career')
-    const current = career.getByRole('button', { name: /株式会社サンプル ~ シニアエンジニア/ })
-    const previous = career.getByRole('button', { name: /株式会社テスト/ })
+    const current = rowButton(page, 'career', /株式会社サンプル ~ シニアエンジニア/)
+    const previous = rowButton(page, 'career', /株式会社テスト/)
     await expect(current).toHaveAttribute('aria-expanded', 'false')
-    await current.click()
+    await career.getByText('株式会社サンプル', { exact: true }).click()
     await expect(current).toHaveAttribute('aria-expanded', 'true')
-    const content = page.locator(`[id="${await current.getAttribute('aria-controls')}"]`)
+    await expect(page).toHaveURL('/ja')
+    const content = await rowContent(page, current)
     await expect(content).toContainText('職歴')
     await previous.click()
     await expect(current).toHaveAttribute('aria-expanded', 'true')
     await expect(previous).toHaveAttribute('aria-expanded', 'true')
-    await current.click()
+    // 右の期間を押しても閉じる（行全体が1つのボタン）
+    await current.getByText('2024年4月 – 現在').click()
     await expect(current).toHaveAttribute('aria-expanded', 'false')
     await expect(content).toBeEmpty()
   })
@@ -247,7 +267,7 @@ test.describe('経歴の行', () => {
     )
     await gotoHydrated(page, '/ja')
     const career = page.locator('#career')
-    const row = career.getByRole('button', { name: /株式会社サンプル/ })
+    const row = rowButton(page, 'career', /株式会社サンプル/)
     await row.focus()
     await page.keyboard.press('Enter')
     await expect(row).toHaveAttribute('aria-expanded', 'true')
@@ -255,7 +275,7 @@ test.describe('経歴の行', () => {
     const paging = career.getByRole('group', { name: 'Career のページ' })
     await paging.getByRole('button', { name: '次のページ' }).click()
     await paging.getByRole('button', { name: '前のページ' }).click()
-    await expect(career.getByRole('button', { name: /株式会社サンプル/ })).toHaveAttribute('aria-expanded', 'false')
+    await expect(rowButton(page, 'career', /株式会社サンプル/)).toHaveAttribute('aria-expanded', 'false')
   })
 })
 
@@ -264,50 +284,104 @@ test.describe('作品・プロジェクトの行を広げる', () => {
     await insertSeed(local.db, buildSeed({ empty: false }))
   })
 
-  test('▸ で広げるとサムネイル・概要・使用技術が出て、▸ のほかの部分は行き先へ移る', async ({ page }) => {
+  test('閉じた行はタイトルと使用技術だけで、行の中にリンクが無い', async ({ page }) => {
+    await gotoHydrated(page, '/ja')
+    for (const id of ['works', 'projects']) {
+      const rows = page.locator(`#${id} ul:not([inert])`)
+      await expect(rows.getByRole('link')).toHaveCount(0)
+    }
+    // 概要は閉じた行に出さない（デスクトップ幅でも）
+    await expect(page.locator('#works').getByText(/日英2言語のポートフォリオ/)).toHaveCount(0)
+    await expect(page.locator('#projects').getByText(/決済まわりを新しい基盤/)).toHaveCount(0)
+    // 使用技術は最大3個と「+N」（技術が8個の作品）
+    await expect(rowButton(page, 'works', 'ポートフォリオと CMS').getByText('+5')).toBeVisible()
+  })
+
+  test('行のどこを押しても広げ・閉じ、広げると右の使用技術を隠して、概要の全文と全部の使用技術が出る', async ({
+    page,
+  }) => {
     await gotoHydrated(page, '/ja')
     const works = page.locator('#works')
-    const toggle = workToggle(page, /ポートフォリオと CMS/)
-    const thumbnail = works.locator('img[alt="ポートフォリオと CMS"]')
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    await expect(thumbnail).toHaveCount(0)
-    await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    await expect(thumbnail).toBeVisible()
-    // 使用技術は、行には3個と「+5」、広げた中には6個と「+2」（技術が8個の作品）
-    await expect(works.getByText('+5')).toBeVisible()
-    await expect(works.getByText('+2')).toBeVisible()
-    // 広げても URL は変わらない
+    const row = rowButton(page, 'works', 'ポートフォリオと CMS')
+    await works.getByText('ポートフォリオと CMS', { exact: true }).click()
+    await expect(row).toHaveAttribute('aria-expanded', 'true')
     await expect(page).toHaveURL('/ja')
-    await toggle.click()
-    await expect(thumbnail).toHaveCount(0)
+    const content = await rowContent(page, row)
+    await expect(content.getByRole('img', { name: 'ポートフォリオと CMS' })).toBeVisible()
+    await expect(content.getByText('日英2言語のポートフォリオと、自作の管理画面。')).toBeVisible()
+    await expect(row.getByText('+5')).toHaveCount(0)
+    await expect(row.locator('img')).toHaveCount(0)
+    // 広げた中の使用技術は上限なしで全部（8個）。「+N」は無い
+    await expect(content.getByRole('list', { name: 'Tech Stack' }).getByRole('listitem')).toHaveCount(8)
+    await expect(content.getByText(/^\+\d+$/)).toHaveCount(0)
+    // 概要や使用技術を押しても何も起きない
+    await content.getByText('日英2言語のポートフォリオと、自作の管理画面。').click()
+    await expect(row).toHaveAttribute('aria-expanded', 'true')
+    await expect(page).toHaveURL('/ja')
 
-    // タイトルの文字でなく概要の文字の位置を押しても、行の行き先（詳細ページ）へ移る（リンクの ::after が覆っている）
-    const summary = await works.getByText(/日英2言語のポートフォリオ/).boundingBox()
-    if (!summary) throw new Error('概要が見えない')
-    await page.mouse.click(summary.x + summary.width / 2, summary.y + summary.height / 2)
+    // 行の右端の余白を押しても閉じる
+    const box = await row.boundingBox()
+    if (!box) throw new Error('行が見えない')
+    await page.mouse.click(box.x + box.width - 4, box.y + box.height / 2)
+    await expect(row).toHaveAttribute('aria-expanded', 'false')
+    await expect(content).toBeEmpty()
+  })
+
+  test('広げた中の入口: 「詳細を見る」は詳細ページへ、「サイトを見る」「GitHub」は別タブで開く', async ({
+    page,
+    context,
+  }) => {
+    await context.route('https://example.com/**', (route) => route.fulfill({ body: 'example' }))
+    await context.route('https://github.com/**', (route) => route.fulfill({ body: 'github' }))
+    await gotoHydrated(page, '/ja')
+
+    // 詳細本文の無い作品は、外部リンク・GitHub の入口だけ
+    const landing = await expandRow(page, 'works', 'ランディングページ')
+    await expect(landing.getByRole('link', { name: '詳細を見る' })).toHaveCount(0)
+    const [site] = await Promise.all([
+      page.waitForEvent('popup'),
+      landing.getByRole('link', { name: /^サイトを見る/ }).click(),
+    ])
+    await site.waitForURL('https://example.com/landing')
+    await site.close()
+    const dotfiles = await expandRow(page, 'works', 'dotfiles')
+    const [github] = await Promise.all([
+      page.waitForEvent('popup'),
+      dotfiles.getByRole('link', { name: /^GitHub/ }).click(),
+    ])
+    await github.waitForURL('https://github.com/example/dotfiles')
+    await github.close()
+    await expect(page).toHaveURL('/ja')
+
+    // 詳細本文のある作品は、詳細を見る・サイトを見る・GitHub をこの順に並べる
+    const portfolio = await expandRow(page, 'works', 'ポートフォリオと CMS')
+    await expect(portfolio.getByRole('link')).toHaveText([
+      '詳細を見る',
+      'サイトを見る別タブで開く',
+      'GitHub別タブで開く',
+    ])
+    await portfolio.getByRole('link', { name: '詳細を見る' }).click()
     await expect(page).toHaveURL('/ja/works/portfolio-cms')
   })
 
-  test('詳細ページを持つ行でも、GitHub のアイコンはその先を別タブで開く', async ({ page, context }) => {
-    await context.route('https://github.com/**', (route) => route.fulfill({ body: 'github' }))
+  test('行のボタンはキーボード（Enter・Space）で広げ・閉じ、広げた中のリンクへ Tab で移れる', async ({ page }) => {
     await gotoHydrated(page, '/ja')
-    const row = page.locator('#works').getByRole('article').filter({ hasText: 'ポートフォリオと CMS' })
-    const [popup] = await Promise.all([page.waitForEvent('popup'), row.getByRole('link', { name: 'GitHub' }).click()])
-    await popup.waitForURL('https://github.com/example/portfolio')
-    await expect(page).toHaveURL('/ja')
-  })
-
-  test('作品の ▸ はキーボード（Space）で広げられる', async ({ page }) => {
-    await gotoHydrated(page, '/ja')
-    const toggle = workToggle(page, /タスクボード/)
-    await toggle.focus()
+    const row = rowButton(page, 'works', 'タスクボード')
+    await row.focus()
     await page.keyboard.press('Space')
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await expect(row).toHaveAttribute('aria-expanded', 'true')
     await expect(page.locator('#works img[alt="タスクボード"]')).toBeVisible()
+    await page.keyboard.press('Enter')
+    await expect(row).toHaveAttribute('aria-expanded', 'false')
+    await page.keyboard.press('Enter')
+    await expect(row).toHaveAttribute('aria-expanded', 'true')
+    await page.keyboard.press('Tab')
+    await expect(page.locator('#works').getByRole('link', { name: '詳細を見る' })).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(page.locator('#works').getByRole('link', { name: /GitHub/ })).toBeFocused()
   })
 
-  test('プロジェクトは広げると期間も出す。広げるものが無い作品には ▸ を出さない', async ({ page, local }) => {
+  test('プロジェクトは広げると期間も出す。広げるものが無い作品には ▸ を出さず、押せない', async ({ page, local }) => {
     await local.db.insert(schema.work).values({
       titleJa: '中身のない作品',
       slug: 'empty-work',
@@ -315,11 +389,12 @@ test.describe('作品・プロジェクトの行を広げる', () => {
       status: 'published',
     })
     await gotoHydrated(page, '/ja')
-    const projects = page.locator('#projects')
-    await projects.getByRole('button', { name: /決済基盤の刷新/ }).click()
-    await expect(projects.getByText('2024年4月 – 現在')).toBeVisible()
-    await expect(page.locator('#works').getByText('中身のない作品')).toBeVisible()
-    await expect(workToggle(page, /中身のない作品/)).toHaveCount(0)
+    const project = await expandRow(page, 'projects', '決済基盤の刷新')
+    await expect(project.getByText('2024年4月 – 現在')).toBeVisible()
+    const empty = page.locator('#works').getByRole('article').filter({ hasText: '中身のない作品' })
+    await expect(empty).toBeVisible()
+    await expect(empty.getByRole('button')).toHaveCount(0)
+    await expect(empty.getByRole('link')).toHaveCount(0)
   })
 
   test('広げた行は、ページを切り替えても、詳細から戻っても、言語を切り替えても閉じる', async ({ page }) => {
@@ -327,11 +402,9 @@ test.describe('作品・プロジェクトの行を広げる', () => {
     const paging = worksPaging(page, 'ja')
     await paging.getByRole('button', { name: '次のページ' }).click()
     await expect(paging).toContainText('2 / 2')
-    const recipe = workToggle(page, /レシピノート/)
-    await recipe.click()
-    await expect(recipe).toHaveAttribute('aria-expanded', 'true')
+    const recipe = rowButton(page, 'works', 'レシピノート')
 
-    await page.locator('#works').getByRole('link', { name: 'レシピノート' }).click()
+    await openWorkDetail(page, 'ja', 'レシピノート')
     await page.getByRole('link', { name: 'Lab へ戻る' }).click()
     await expect(paging).toContainText('2 / 2')
     await expect(recipe).toHaveAttribute('aria-expanded', 'false')
@@ -371,21 +444,50 @@ test.describe('件数とページング', () => {
 test.describe('モバイル幅の行', () => {
   test.use({ viewport: { width: 375, height: 740 } })
 
-  test('作品の行は概要を出さず、ページの横にはみ出さない', async ({ page }) => {
+  test('長い名前は閉じた行で「…」で切り、広げると折り返して全文を出す。ページの横にはみ出さない', async ({ page }) => {
     await gotoHydrated(page, '/ja')
-    const row = page.locator('#works').getByRole('article').first()
-    await expect(row.getByText('ポートフォリオと CMS')).toBeVisible()
-    await expect(row.getByText(/日英2言語のポートフォリオ/)).toBeHidden()
+    const work = rowButton(page, 'works', /ターミナルで天気予報/)
+    expect(await nameTruncated(work)).toBe(true)
+    await work.click()
+    await expect(work).toHaveAttribute('aria-expanded', 'true')
+    expect(await nameTruncated(work)).toBe(false)
+    await expect(work.getByText('ターミナルで天気予報をすばやく確かめるコマンドラインツール')).toBeVisible()
+
+    const career = rowButton(page, 'career', /Example Labs/)
+    expect(await nameTruncated(career)).toBe(true)
+    await career.click()
+    await expect(career).toHaveAttribute('aria-expanded', 'true')
+    expect(await nameTruncated(career)).toBe(false)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  })
+
+  test('経歴の2行目と、広げた中の左端は ▸ の左端に揃う', async ({ page }) => {
+    await gotoHydrated(page, '/ja')
+    const left = async (locator: Locator) => {
+      const box = await locator.boundingBox()
+      if (!box) throw new Error('見えない')
+      return Math.round(box.x)
+    }
+    const career = rowButton(page, 'career', /株式会社サンプル/)
+    const careerContent = await expandRow(page, 'career', /株式会社サンプル/)
+    const chevron = await left(career.locator('svg'))
+    expect(await left(career.getByText('2024年4月 – 現在'))).toBe(chevron)
+    expect(await left(careerContent.getByText('職歴'))).toBe(chevron)
+
+    const work = rowButton(page, 'works', 'ポートフォリオと CMS')
+    const workContent = await expandRow(page, 'works', 'ポートフォリオと CMS')
+    expect(await left(workContent.getByRole('img', { name: 'ポートフォリオと CMS' }))).toBe(
+      await left(work.locator('svg')),
+    )
   })
 })
 
 test.describe('トップの行', () => {
-  test('行き先ごとの押し方・言語ラベル', async ({ page }) => {
+  test('外部へ移る入口・言語ラベル', async ({ page }) => {
     await gotoHydrated(page, '/ja')
-    const works = page.locator('#works')
-    // 詳細本文なしで外部リンクだけの作品は、外部リンクを別タブで開く
-    await expect(works.getByRole('link', { name: /ランディングページ/ })).toHaveAttribute('target', '_blank')
+    // 詳細本文なしで外部リンクだけの作品は、広げた中の外部リンクを別タブで開く
+    const landing = await expandRow(page, 'works', 'ランディングページ')
+    await expect(landing.getByRole('link', { name: /サイトを見る/ })).toHaveAttribute('target', '_blank')
     // 英語だけの経歴には /ja で言語ラベル
     await expect(page.locator('#career').getByText('英語のみ')).toBeVisible()
   })

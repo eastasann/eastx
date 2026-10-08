@@ -12,8 +12,8 @@ import { ExternalLinkIcon } from '~/ui/icons'
 import { FallbackImage, InitialBadge } from '~/ui/image'
 import { chip, label } from '~/ui/recipes'
 
-/** 行のアイコンの列に出す使用技術の数（design-spec 6.1.4）。行には3個、行を広げた中には6個。超えた分は「+N」 */
-export const MAX_ROW_STACKS = { row: 3, expanded: 6 } as const
+/** 閉じた行の右のアイコンの列に出す使用技術の数（design-spec 6.1.4）。超えた分は「+N」。広げた中には全部を出す */
+export const MAX_ROW_STACKS = 3
 
 /**
  * 代替した文字列。表示中の言語と違う言語の値には、その部分の言語を付ける（design-spec 1.4・SDD 9章）。
@@ -90,29 +90,54 @@ function StackListName({ id, messages }: { id: string; messages: Messages }) {
   )
 }
 
-/** 行の使用技術のアイコンの列。その中身の中での並び順で最大 max 個、超えた分は「+N」 */
-export function StackIconRow({ stacks, max, messages }: { stacks: StackChip[]; max: number; messages: Messages }) {
+/**
+ * 使用技術のアイコンの列。その中身の中での並び順で、`max` を渡したときは最大 max 個まで出して超えた分を「+N」、
+ * 渡さないときは全部を折り返して出す。`inButton` は行のボタンの中に置くときに付け、`ul` の代わりに `span` で組む
+ * （`button` の中身はフレージング内容だけ）
+ */
+export function StackIconRow({
+  stacks,
+  max,
+  inButton = false,
+  messages,
+}: {
+  stacks: StackChip[]
+  max?: number
+  inButton?: boolean
+  messages: Messages
+}) {
   const labelId = useId()
   if (stacks.length === 0) return null
-  const shown = stacks.slice(0, max)
+  const shown = max === undefined ? stacks : stacks.slice(0, max)
   const rest = stacks.length - shown.length
+  const List = inButton ? 'span' : 'ul'
+  const Item = inButton ? 'span' : 'li'
   return (
     <>
       <StackListName id={labelId} messages={messages} />
-      <ul aria-labelledby={labelId} className={css({ display: 'flex', alignItems: 'center', gap: 'inline' })}>
+      <List
+        role={inButton ? 'group' : undefined}
+        aria-labelledby={labelId}
+        className={css({
+          display: 'flex',
+          flexWrap: max === undefined ? 'wrap' : 'nowrap',
+          alignItems: 'center',
+          gap: 'inline',
+        })}
+      >
         {shown.map((stack) => (
           // 表示名はポインターを重ねたときにも出す
-          <li key={stack.key} title={stack.displayName} className={css({ display: 'inline-flex' })}>
+          <Item key={stack.key} title={stack.displayName} className={css({ display: 'inline-flex' })}>
             <StackIcon stack={stack} labelled />
-          </li>
+          </Item>
         ))}
         {rest > 0 && (
-          <li className={css({ textStyle: 'label', color: 'text.muted' })}>
+          <Item className={css({ textStyle: 'label', color: 'text.muted' })}>
             <span aria-hidden="true">+{rest}</span>
             <span className={css({ srOnly: true })}>{messages.label.moreStacks(rest)}</span>
-          </li>
+          </Item>
         )}
-      </ul>
+      </List>
     </>
   )
 }

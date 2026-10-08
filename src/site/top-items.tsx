@@ -1,6 +1,7 @@
 /**
- * トップのセクションの1件の表示（design-spec 6.1.4）。どの項目も1行の行で、経歴・作品・プロジェクトは左の ▸ で
- * その場に中身を広げる。行は左に名前（はみ出したら「…」で切る）、右にメタ（切らない）
+ * トップのセクションの1件の表示（design-spec 6.1.3・6.1.4）。どの項目も1行の行で、経歴・作品・プロジェクトは
+ * 行全体のボタンでその場に中身を広げ、行き先への入口は広げた中に置く。行は左に名前（閉じているあいだは
+ * はみ出したら「…」で切る）、右にメタ（切らない）
  */
 import { Link } from '@tanstack/react-router'
 import { type ReactNode, useId, useState } from 'react'
@@ -10,11 +11,11 @@ import type { BlogPostItem, CareerItem, CodingLogItem, ProjectItem, StackChip, W
 import type { Lang } from '~/i18n/detect'
 import { formatDate, formatPeriod } from '~/i18n/format'
 import type { Messages } from '~/i18n/messages'
-import { SocialIcon } from '~/ui/brand-icons'
-import { ChevronDownIcon, ChevronRightIcon, ExternalLinkIcon } from '~/ui/icons'
+import { ArrowRightIcon, ChevronDownIcon, ChevronRightIcon } from '~/ui/icons'
 import { FallbackImage } from '~/ui/image'
 import { MarkdownBody } from '~/ui/markdown-body'
-import { LanguageLabel, MAX_ROW_STACKS, StackIconRow, Text } from './content-parts'
+import { ExternalMark, LanguageLabel, MAX_ROW_STACKS, StackIconRow, Text } from './content-parts'
+import { isExpandable } from './row-rules'
 
 interface ItemProps<T> {
   item: T
@@ -23,32 +24,22 @@ interface ItemProps<T> {
 }
 
 /**
- * 行。左右の余白（inset-dense）は、行を並べる枠（section-pager）が左右に広げた分で、文字の位置はセクション見出しと揃う。
- * 押せる行はホバーで地を変える。押せない行（経歴、行き先のない作品・プロジェクト）は変えない
+ * ブログ・コーディング記録の行。左右の余白（inset-dense）は、行を並べる枠（section-pager）が左右に広げた分で、
+ * 文字の位置はセクション見出しと揃う。行全体が詳細へのリンクなので、ホバーで地を変える
  */
-const row = cva({
-  base: {
-    position: 'relative',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'inline',
-    px: 'inset-dense',
-    py: 'inset-dense',
-    textStyle: 'body',
-    borderRadius: 'control',
-  },
-  variants: {
-    interactive: {
-      false: {},
-      true: {
-        transitionProperty: 'background-color',
-        transitionDuration: 'motion.hover',
-        transitionTimingFunction: 'motion.hover',
-        _hover: { bg: 'bg.subtle' },
-      },
-    },
-  },
-  defaultVariants: { interactive: false },
+const postRow = css({
+  position: 'relative',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'inline',
+  px: 'inset-dense',
+  py: 'inset-dense',
+  textStyle: 'body',
+  borderRadius: 'control',
+  transitionProperty: 'background-color',
+  transitionDuration: 'motion.hover',
+  transitionTimingFunction: 'motion.hover',
+  _hover: { bg: 'bg.subtle' },
 })
 
 /** 左右を1行に並べ、モバイルでは右のメタを2行目に回す */
@@ -64,107 +55,175 @@ const twoLineOnMobile = css({
 const metaText = css({ textStyle: 'meta', color: 'text.muted', whiteSpace: 'nowrap' })
 const mutedText = css({ color: 'text.muted' })
 
-/**
- * 行全体を押せるようにするリンク。タイトルのリンクの ::after を、位置を持つ一番近い祖先いっぱいに広げる。
- * 後ろに置いた別のリンク（外部リンク・GitHub のアイコン）は、位置を持たせてこの上に重ねる
- */
+/** 行全体を押せるようにするリンク（ブログ・コーディング記録）。タイトルのリンクの ::after を行いっぱいに広げる */
 const stretchedLink = css({
   color: 'text.default',
   textDecoration: 'none',
   _after: { content: '""', position: 'absolute', inset: 'none' },
 })
 
-/** 行の右の小さなアイコンのリンク。行のリンクより上に重ねる */
-const rowIconLink = css({
-  position: 'relative',
-  display: 'inline-flex',
-  p: 'inline-tight',
-  color: 'text.muted',
-  borderRadius: 'control',
-  _hover: { color: 'text.default' },
+/**
+ * 経歴・作品・プロジェクトの行の頭。▸・名前・右のメタを格子に置く。モバイルの経歴は右のメタ（期間）を2行目に回し、
+ * ▸ の左端から始める。▸ の左端・2行目・広げた中（expandedArea）の左端は、どれも行の左の余白（inset-dense）の位置で揃う
+ */
+const rowHead = cva({
+  base: {
+    display: 'grid',
+    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+    gridTemplateAreas: '"toggle main meta"',
+    alignItems: 'start',
+    columnGap: 'inline',
+    w: '[100%]',
+    px: 'inset-dense',
+    py: 'inset-dense',
+    textStyle: 'body',
+    textAlign: 'start',
+    color: 'text.default',
+    borderRadius: 'control',
+    // 行を並べる枠（section-pager）が横にはみ出しを切るので、フォーカスの枠は行の内側に描く
+    outlineOffset: '-inline-tight',
+  },
+  variants: {
+    metaBelowOnMobile: {
+      false: {},
+      true: {
+        gridTemplateColumns: { base: 'auto minmax(0, 1fr)', tablet: 'auto minmax(0, 1fr) auto' },
+        gridTemplateAreas: { base: '"toggle main" "meta meta"', tablet: '"toggle main meta"' },
+      },
+    },
+    interactive: {
+      false: {},
+      true: {
+        cursor: 'pointer',
+        transitionProperty: 'background-color',
+        transitionDuration: 'motion.hover',
+        transitionTimingFunction: 'motion.hover',
+        _hover: { bg: 'bg.subtle' },
+      },
+    },
+  },
+  defaultVariants: { metaBelowOnMobile: false, interactive: false },
 })
 
 /**
- * ▸ のボタン。行の左の余白と、名前との間もボタンに含め、行のどこを押しても「広げる」か「行き先へ移る」の
- * どちらかになるようにする（行の左右の余白と隙間は、ボタンと linkArea が持つ）
+ * 本文の1行の高さを持ち、中身をその上下の中央に置く箱。▸ と右のメタをこれに入れ、名前が折り返しても先頭の行に揃える。
+ * 高さは中の幅0の文字（ゼロ幅スペース）の行の高さで決まる
  */
-const toggle = css({
-  position: 'relative',
+const firstLineBox = css({
   display: 'inline-flex',
-  flexShrink: 0,
-  py: 'inline-tight',
-  pl: 'inset-dense',
-  pr: 'inline',
-  color: 'text.muted',
-  borderRadius: 'control',
-  cursor: 'pointer',
-  _hover: { color: 'text.default' },
-})
-/**
- * 広げるものが無い行の、▸ の代わりの空き。linkArea の中に置いて押せる範囲に含めるので、右は linkArea の gap が受け持つ。
- * 合わせた幅は ▸ のボタンと同じで、名前の位置が揃う
- */
-const toggleSpacer = css({
-  display: 'inline-flex',
-  flexShrink: 0,
-  py: 'inline-tight',
-  pl: 'inset-dense',
-  visibility: 'hidden',
-})
-
-/**
- * 作品・プロジェクトの行の、▸ を除いた部分。タイトルのリンクの ::after はここいっぱいに広がる。
- * ▸ は DOM でリンクより前にあり、行いっぱいに広げると ::after の下になって押せないため、範囲をここに限る。
- * 行の上下と右の余白もここに持たせ、▸ のほかはどこを押しても行き先へ移るようにする
- */
-const linkArea = css({
-  position: 'relative',
-  display: 'flex',
   alignItems: 'center',
-  gap: 'inline',
-  flex: '1',
-  minW: '[0]',
-  py: 'inset-dense',
-  pr: 'inset-dense',
+  textStyle: 'body',
+  _before: { content: '"\\200B"' },
 })
 
 /** 広げた中。左右の余白は行と同じ */
 const expandedArea = css({ display: 'flex', flexDirection: 'column', gap: 'inline', px: 'inset-dense', pb: 'inset' })
 
-/** 行を広げる・閉じる状態と、▸ のボタン。ボタンの読み上げ名は行の名前（nameId の要素） */
-function useExpander() {
+/** 広げた中の入口のリンク。本文中のリンクと同じく、濃い色と下線（design-spec 4.4） */
+const entryLink = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 'inline-tight',
+  textStyle: 'body-sm',
+  color: 'link.default',
+  textDecoration: 'underline',
+  textDecorationColor: 'link.underline',
+  _hover: { textDecorationColor: 'link.default' },
+})
+
+/**
+ * 経歴・作品・プロジェクトの行。広げるものがあれば頭の部分を丸ごと1つのボタンにし、押すと広げる・閉じる。
+ * ボタンの読み上げ名は名前（nameId の要素）だけ。広げた中の包み（contentId）は閉じているあいだも残し、
+ * aria-controls が無い id を指さないようにする
+ */
+function DisclosureRow({
+  expandable,
+  metaBelowOnMobile = false,
+  name,
+  label,
+  meta,
+  children,
+}: {
+  expandable: boolean
+  metaBelowOnMobile?: boolean
+  /** 行の名前。ボタンの読み上げ名になる */
+  name: ReactNode
+  label: ReactNode
+  /** 右のメタ。広げたときに出さないものは、呼び出し側が expanded を見て外す */
+  meta: (expanded: boolean) => ReactNode
+  /** 広げた中 */
+  children: ReactNode
+}) {
   const contentId = useId()
   const nameId = useId()
   const [expanded, setExpanded] = useState(false)
   const Chevron = expanded ? ChevronDownIcon : ChevronRightIcon
-  const button = (
-    <button
-      type="button"
-      aria-expanded={expanded}
-      aria-controls={contentId}
-      aria-labelledby={nameId}
-      onClick={() => setExpanded((value) => !value)}
-      className={toggle}
-    >
-      <Chevron size="sm" />
-    </button>
+  const rowMeta = meta(expanded)
+  const content = (
+    <>
+      <span
+        aria-hidden="true"
+        className={cx(
+          firstLineBox,
+          css({ gridArea: 'toggle', color: 'text.muted', visibility: expandable ? 'visible' : 'hidden' }),
+        )}
+      >
+        <Chevron size="sm" />
+      </span>
+      <RowMain expanded={expanded} label={label}>
+        <span id={nameId}>{name}</span>
+      </RowMain>
+      {rowMeta !== null && <span className={cx(firstLineBox, css({ gridArea: 'meta' }))}>{rowMeta}</span>}
+    </>
   )
-  return { expanded, contentId, nameId, button }
-}
-
-function ToggleSpacer() {
+  if (!expandable) {
+    return (
+      <article>
+        <div className={rowHead({ metaBelowOnMobile })}>{content}</div>
+      </article>
+    )
+  }
   return (
-    <span aria-hidden="true" className={toggleSpacer}>
-      <ChevronRightIcon size="sm" />
-    </span>
+    <article>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={contentId}
+        aria-labelledby={nameId}
+        onClick={() => setExpanded((value) => !value)}
+        className={rowHead({ metaBelowOnMobile, interactive: true })}
+      >
+        {content}
+      </button>
+      <div id={contentId}>{expanded && <div className={expandedArea}>{children}</div>}</div>
+    </article>
   )
 }
 
 /**
- * 行の左。名前（はみ出したら「…」で切る）と、その後ろの言語ラベル。
- * モバイルで2行に分ける行でも、幅いっぱいを使って切る
+ * 行の左。名前と、その後ろの言語ラベル。閉じているあいだは名前がはみ出したら「…」で切り、
+ * 広げると切らずに折り返して全文を出す（言語ラベルは名前の続きに置く）
  */
-function RowMain({ children, label }: { children: ReactNode; label?: ReactNode }) {
+function RowMain({ expanded, children, label }: { expanded: boolean; children: ReactNode; label?: ReactNode }) {
+  if (expanded) {
+    return (
+      <span className={css({ gridArea: 'main', minW: '[0]', overflowWrap: 'anywhere' })}>
+        {children} {label}
+      </span>
+    )
+  }
+  return (
+    <span className={css({ gridArea: 'main', display: 'flex', alignItems: 'center', gap: 'inline', minW: '[0]' })}>
+      <span className={css({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minW: '[0]' })}>
+        {children}
+      </span>
+      {label}
+    </span>
+  )
+}
+
+/** ブログ・コーディング記録の行の左。名前（はみ出したら「…」で切る）と、その後ろの言語ラベル */
+function PostRowMain({ children, label }: { children: ReactNode; label?: ReactNode }) {
   return (
     <div
       className={css({
@@ -190,9 +249,9 @@ function RowMeta({ children }: { children: ReactNode }) {
 }
 
 /** 「名前 ~ 説明」の「~ 説明」。説明はグレー */
-function Tilde({ children, className }: { children: ReactNode; className?: string }) {
+function Tilde({ children }: { children: ReactNode }) {
   return (
-    <span className={cx(mutedText, className)}>
+    <span className={mutedText}>
       {' ~ '}
       {children}
     </span>
@@ -200,106 +259,46 @@ function Tilde({ children, className }: { children: ReactNode; className?: strin
 }
 
 export function CareerRow({ item, lang, messages }: ItemProps<CareerItem>) {
-  const { expanded, contentId, nameId, button } = useExpander()
   return (
-    <article>
-      {/* モバイルでは期間が2行目に回るので、▸ は1行目に揃える。左右の余白と隙間は ▸ と右の要素が持つ */}
-      <div
-        className={css(row.raw(), {
-          px: 'none',
-          gap: 'none',
-          alignItems: { base: 'flex-start', tablet: 'center' },
-        })}
-      >
-        {button}
-        <div className={cx(twoLineOnMobile, css({ pr: 'inset-dense' }))}>
-          <RowMain label={<LanguageLabel availability={item.availability} messages={messages} />}>
-            <span id={nameId}>
-              {item.organization ? (
-                <>
-                  <Text text={item.organization} pageLang={lang} />
-                  <Tilde>
-                    <Text text={item.title} pageLang={lang} />
-                  </Tilde>
-                </>
-              ) : (
-                <Text text={item.title} pageLang={lang} />
-              )}
-            </span>
-          </RowMain>
-          <span className={metaText}>{formatPeriod(lang, item.period.start, item.period.end)}</span>
-        </div>
-      </div>
-      <div id={contentId}>
-        {expanded && (
-          <div className={expandedArea}>
-            <p className={css({ textStyle: 'body-sm', color: 'text.muted' })}>
-              {messages.careerKind[item.kind]}
-              {item.location && (
-                <>
-                  {' · '}
-                  <Text text={item.location} pageLang={lang} />
-                </>
-              )}
-            </p>
-            {item.body && (
-              <MarkdownBody
-                html={item.body.html}
-                copyLabels={messages.code}
-                lang={item.body.lang === lang ? undefined : item.body.lang}
-              />
-            )}
-          </div>
+    <DisclosureRow
+      expandable={isExpandable({ section: 'careers', item })}
+      metaBelowOnMobile
+      name={
+        item.organization ? (
+          <>
+            <Text text={item.organization} pageLang={lang} />
+            <Tilde>
+              <Text text={item.title} pageLang={lang} />
+            </Tilde>
+          </>
+        ) : (
+          <Text text={item.title} pageLang={lang} />
+        )
+      }
+      label={<LanguageLabel availability={item.availability} messages={messages} />}
+      meta={() => <span className={metaText}>{formatPeriod(lang, item.period.start, item.period.end)}</span>}
+    >
+      <p className={css({ textStyle: 'body-sm', color: 'text.muted' })}>
+        {messages.careerKind[item.kind]}
+        {item.location && (
+          <>
+            {' · '}
+            <Text text={item.location} pageLang={lang} />
+          </>
         )}
-      </div>
-    </article>
+      </p>
+      {item.body && (
+        <MarkdownBody
+          html={item.body.html}
+          copyLabels={messages.code}
+          lang={item.body.lang === lang ? undefined : item.body.lang}
+        />
+      )}
+    </DisclosureRow>
   )
 }
 
-type RowTarget =
-  | { kind: 'detail'; to: '/$lang/works/$slug' | '/$lang/projects/$slug'; slug: string }
-  | { kind: 'external'; href: string }
-  | { kind: 'none' }
-
-/** 行の行き先を持つタイトル。外部へ移るものは「別タブで開く」を読み上げる（見た目の印は行の右に置く） */
-function RowTitle({
-  title,
-  lang,
-  messages,
-  target,
-  nameId,
-}: {
-  title: LocalizedText
-  lang: Lang
-  messages: Messages
-  target: RowTarget
-  /** ▸ の読み上げ名にする、タイトルの文字だけの要素の id */
-  nameId: string
-}) {
-  const text = (
-    <span id={nameId}>
-      <Text text={title} pageLang={lang} />
-    </span>
-  )
-  if (target.kind === 'detail') {
-    return (
-      <Link to={target.to} params={{ lang, slug: target.slug }} className={stretchedLink}>
-        {text}
-      </Link>
-    )
-  }
-  if (target.kind === 'external') {
-    return (
-      <a href={target.href} target="_blank" rel="noopener noreferrer" className={stretchedLink}>
-        {text}
-        <span className={css({ srOnly: true })}>{messages.label.opensInNewTab}</span>
-      </a>
-    )
-  }
-  return text
-}
-
-/** 作品・プロジェクトを広げた中に出すもの。サムネイル・概要・使用技術の無いものは、その場所を空けずに詰める */
+/** 作品・プロジェクトの広げた中に出すもの。サムネイル・概要・使用技術の無いものは、その場所を空けずに詰める */
 interface PortfolioDetail {
   title: LocalizedText
   thumbnailUrl: string | null
@@ -307,25 +306,70 @@ interface PortfolioDetail {
   stacks: StackChip[]
 }
 
-function hasDetailToShow(detail: PortfolioDetail): boolean {
-  return detail.thumbnailUrl !== null || detail.summary !== null || detail.stacks.length > 0
+/** 広げた中の最後の入口のリンク（design-spec 6.1.4）。この順に並べ、無いものは詰める */
+interface PortfolioEntries {
+  detail: { to: '/$lang/works/$slug' | '/$lang/projects/$slug'; slug: string } | null
+  linkUrl: string | null
+  githubUrl: string | null
 }
 
-function PortfolioDetailBody({
+function EntryLinks({ entries, lang, messages }: { entries: PortfolioEntries; lang: Lang; messages: Messages }) {
+  const external = [
+    { href: entries.linkUrl, label: messages.action.visitSite },
+    { href: entries.githubUrl, label: messages.action.github },
+  ].filter((link): link is { href: string; label: string } => link.href !== null)
+  if (entries.detail === null && external.length === 0) return null
+  return (
+    <div className={css({ display: 'flex', flexWrap: 'wrap', columnGap: 'inset', rowGap: 'inline' })}>
+      {entries.detail !== null && (
+        <Link to={entries.detail.to} params={{ lang, slug: entries.detail.slug }} className={entryLink}>
+          {messages.action.viewDetails}
+          <ArrowRightIcon size="sm" />
+        </Link>
+      )}
+      {external.map((link) => (
+        <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer" className={entryLink}>
+          {link.label}
+          <ExternalMark messages={messages} />
+        </a>
+      ))}
+    </div>
+  )
+}
+
+/** 作品・プロジェクトの行。閉じた行は左にタイトルと言語ラベル、右に使用技術。広げると右の使用技術を隠す */
+function PortfolioRow({
   detail,
-  period,
+  entries,
+  expandable,
+  availability,
   lang,
   messages,
+  period,
 }: {
   detail: PortfolioDetail
-  period?: string
+  entries: PortfolioEntries
+  expandable: boolean
+  availability: ProjectItem['availability']
   lang: Lang
   messages: Messages
+  /** プロジェクトの期間。広げた中の先頭に出す */
+  period?: string
 }) {
+  const hasMedia = detail.thumbnailUrl !== null || detail.summary !== null || detail.stacks.length > 0
   return (
-    <div className={expandedArea}>
+    <DisclosureRow
+      expandable={expandable}
+      name={<Text text={detail.title} pageLang={lang} />}
+      label={<LanguageLabel availability={availability} messages={messages} />}
+      meta={(expanded) =>
+        expanded || detail.stacks.length === 0 ? null : (
+          <StackIconRow stacks={detail.stacks} max={MAX_ROW_STACKS} inButton messages={messages} />
+        )
+      }
+    >
       {period !== undefined && <p className={metaText}>{period}</p>}
-      {hasDetailToShow(detail) && (
+      {hasMedia && (
         <div className={css({ display: 'flex', alignItems: 'flex-start', gap: 'inset' })}>
           {detail.thumbnailUrl !== null && (
             <FallbackImage
@@ -343,138 +387,46 @@ function PortfolioDetailBody({
                 className={css({ textStyle: 'body-sm', color: 'text.muted' })}
               />
             )}
-            <StackIconRow stacks={detail.stacks} max={MAX_ROW_STACKS.expanded} messages={messages} />
+            <StackIconRow stacks={detail.stacks} messages={messages} />
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-/**
- * 作品・プロジェクトの行。▸ で広げ、ほかの部分は行き先へ移る。モバイルでは「~ 概要」を出さずに幅を空ける。
- * `period` を渡したもの（プロジェクト）は、広げるものがいつもあるので必ず ▸ を出す
- */
-function PortfolioRow({
-  detail,
-  target,
-  availability,
-  lang,
-  messages,
-  meta,
-  period,
-}: {
-  detail: PortfolioDetail
-  target: RowTarget
-  availability: ProjectItem['availability']
-  lang: Lang
-  messages: Messages
-  meta: ReactNode
-  period?: string
-}) {
-  const { expanded, contentId, nameId, button } = useExpander()
-  const expandable = period !== undefined || hasDetailToShow(detail)
-  return (
-    <article>
-      <div className={css(row.raw({ interactive: target.kind !== 'none' }), { py: 'none', px: 'none', gap: 'none' })}>
-        {expandable && button}
-        <div className={linkArea}>
-          {!expandable && <ToggleSpacer />}
-          <RowMain label={<LanguageLabel availability={availability} messages={messages} />}>
-            <RowTitle title={detail.title} lang={lang} messages={messages} target={target} nameId={nameId} />
-            {detail.summary && (
-              <Tilde className={css({ hideBelow: 'tablet' })}>
-                <Text text={detail.summary} pageLang={lang} />
-              </Tilde>
-            )}
-          </RowMain>
-          <RowMeta>
-            <StackIconRow stacks={detail.stacks} max={MAX_ROW_STACKS.row} messages={messages} />
-            {meta}
-          </RowMeta>
-        </div>
-      </div>
-      <div id={expandable ? contentId : undefined}>
-        {expandable && expanded && (
-          <PortfolioDetailBody detail={detail} period={period} lang={lang} messages={messages} />
-        )}
-      </div>
-    </article>
+      <EntryLinks entries={entries} lang={lang} messages={messages} />
+    </DisclosureRow>
   )
 }
 
 export function ProjectRow({ item, lang, messages }: ItemProps<ProjectItem>) {
-  const target: RowTarget = item.hasDetail
-    ? { kind: 'detail', to: '/$lang/projects/$slug', slug: item.slug }
-    : item.linkUrl !== null
-      ? { kind: 'external', href: item.linkUrl }
-      : { kind: 'none' }
   return (
     <PortfolioRow
       detail={item}
-      target={target}
+      entries={{
+        detail: item.hasDetail ? { to: '/$lang/projects/$slug', slug: item.slug } : null,
+        linkUrl: item.linkUrl,
+        githubUrl: null,
+      }}
+      expandable={isExpandable({ section: 'projects', item })}
       availability={item.availability}
       lang={lang}
       messages={messages}
       period={formatPeriod(lang, item.period.start, item.period.end)}
-      meta={
-        target.kind === 'external' && (
-          <span className={css({ display: 'inline-flex', color: 'text.muted' })}>
-            <ExternalLinkIcon size="sm" />
-          </span>
-        )
-      }
     />
   )
 }
 
-/** 外部リンク・GitHub のアイコン。行の行き先に関わらず、いつでも直接その先を別タブで開く */
-function WorkLinks({ item, messages }: { item: WorkItem; messages: Messages }) {
-  return (
-    <>
-      {item.linkUrl !== null && (
-        <a
-          href={item.linkUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={messages.action.visitSite}
-          title={messages.action.visitSite}
-          className={rowIconLink}
-        >
-          <ExternalLinkIcon size="sm" />
-        </a>
-      )}
-      {item.githubUrl !== null && (
-        <a
-          href={item.githubUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={messages.action.github}
-          title={messages.action.github}
-          className={rowIconLink}
-        >
-          <SocialIcon service="github" size="sm" />
-        </a>
-      )}
-    </>
-  )
-}
-
 export function WorkRow({ item, lang, messages }: ItemProps<WorkItem>) {
-  const external = item.linkUrl ?? item.githubUrl
-  const target: RowTarget = item.hasDetail
-    ? { kind: 'detail', to: '/$lang/works/$slug', slug: item.slug }
-    : external !== null
-      ? { kind: 'external', href: external }
-      : { kind: 'none' }
   return (
     <PortfolioRow
       detail={item}
-      target={target}
+      entries={{
+        detail: item.hasDetail ? { to: '/$lang/works/$slug', slug: item.slug } : null,
+        linkUrl: item.linkUrl,
+        githubUrl: item.githubUrl,
+      }}
+      expandable={isExpandable({ section: 'works', item })}
       availability={item.availability}
       lang={lang}
       messages={messages}
-      meta={<WorkLinks item={item} messages={messages} />}
     />
   )
 }
@@ -489,9 +441,9 @@ function PostRow({
 }: ItemProps<BlogPostItem> & { to: '/$lang/blog/$slug' | '/$lang/coding/$slug'; kindLabel?: string }) {
   const label = <LanguageLabel availability={item.availability} messages={messages} />
   return (
-    <article className={row({ interactive: true })}>
+    <article className={postRow}>
       <div className={twoLineOnMobile}>
-        <RowMain label={<span className={css({ hideBelow: 'tablet', display: 'inline-flex' })}>{label}</span>}>
+        <PostRowMain label={<span className={css({ hideBelow: 'tablet', display: 'inline-flex' })}>{label}</span>}>
           {kindLabel && (
             <>
               <span className={mutedText}>{kindLabel}</span>{' '}
@@ -500,7 +452,7 @@ function PostRow({
           <Link to={to} params={{ lang, slug: item.slug }} className={stretchedLink}>
             <Text text={item.title} pageLang={lang} />
           </Link>
-        </RowMain>
+        </PostRowMain>
         <RowMeta>
           <time dateTime={item.publishedAt} className={metaText}>
             {formatDate(lang, item.publishedAt)}
