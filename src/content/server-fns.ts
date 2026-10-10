@@ -16,6 +16,7 @@ import { captureServerError, requestIdOf } from '~/monitoring/server'
 import { loadSiteChrome } from './load-site-chrome'
 import { type DetailInput, loadProjectDetail, loadWorkDetail } from './portfolio-detail'
 import { loadBlogPost, loadCodingLog } from './post-detail'
+import { loadPrivacyPage } from './privacy-page'
 import type { ContentContext } from './shared'
 import { loadTopPage } from './top-page'
 
@@ -45,7 +46,7 @@ function validateLang(input: unknown): Lang {
   return input
 }
 
-function validateTopInput(input: unknown): { lang: Lang } {
+function validateLangInput(input: unknown): { lang: Lang } {
   if (typeof input !== 'object' || input === null) throw new Error('入力は { lang }')
   return { lang: validateLang((input as Record<string, unknown>).lang) }
 }
@@ -63,7 +64,7 @@ export const getSiteChrome = createServerFn({ method: 'GET' }).handler(() =>
 )
 
 export const getTopPage = createServerFn({ method: 'GET' })
-  .validator(validateTopInput)
+  .validator(validateLangInput)
   .handler(({ data }) => guarded('getTopPage', () => loadTopPage(contentContext(), data.lang)))
 
 export const getWorkDetail = createServerFn({ method: 'GET' })
@@ -81,3 +82,7 @@ export const getBlogPost = createServerFn({ method: 'GET' })
 export const getCodingLog = createServerFn({ method: 'GET' })
   .validator(validateDetailInput)
   .handler(({ data }) => guarded('getCodingLog', () => loadCodingLog(contentContext(), data)))
+
+export const getPrivacyPage = createServerFn({ method: 'GET' })
+  .validator(validateLangInput)
+  .handler(({ data }) => guarded('getPrivacyPage', () => loadPrivacyPage(contentContext(), data.lang)))

@@ -65,6 +65,8 @@ describe('全手続きの認証・認可・CSRF', () => {
         'GET /slugs/suggest',
         'GET /slugs/availability',
         'POST /uploads',
+        'GET /privacy',
+        'PUT /privacy',
         'GET /openapi.json',
       ].sort(),
     )

@@ -7,7 +7,7 @@ import type { Lang } from '../i18n/detect'
 import { byStackKey, type MarkdownStack, RENDER_VERSION, type RenderOptions, renderMarkdown } from './render'
 
 /** 本文を持つ中身の種類 */
-export type MarkdownKind = 'profile' | 'career' | 'work' | 'project' | 'blog-post' | 'coding-log'
+export type MarkdownKind = 'profile' | 'career' | 'work' | 'project' | 'blog-post' | 'coding-log' | 'privacy'
 
 export interface MarkdownSource {
   kind: MarkdownKind

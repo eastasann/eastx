@@ -173,6 +173,14 @@ export function PenIcon(props: IconProps) {
   )
 }
 
+export function ShieldIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z" />
+    </Svg>
+  )
+}
+
 export function CodeIcon(props: IconProps) {
   return (
     <Svg {...props}>

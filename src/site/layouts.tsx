@@ -21,7 +21,7 @@ export interface SiteChromeProps {
 
 const InsideChrome = createContext(false)
 
-/** 公開側の全画面（P1〜P5・C1・C2）で共通のヘッダーとフッター。どれも列の幅（size.site-column）に揃える */
+/** 公開側の全画面（P1〜P6・C1・C2）で共通のヘッダーとフッター。どれも列の幅（size.site-column）に揃える */
 export function SiteChrome({ lang, chrome, messages, children }: SiteChromeProps) {
   // C1・C2 は、ルーターが `$lang` のレイアウトの中（Outlet）に描くとき（子のルートが当たらない・子が失敗した）と、
   // レイアウトの代わりに描くとき（`$lang` 自身が notFound・失敗した）がある。中に描かれたときは二重にしない
@@ -33,7 +33,7 @@ export function SiteChrome({ lang, chrome, messages, children }: SiteChromeProps
         <StackIconToneFilter />
         <SiteHeader lang={lang} messages={messages} />
         <main className={css({ flex: '1' })}>{children}</main>
-        <SiteFooter socialLinks={chrome.socialLinks} messages={messages} />
+        <SiteFooter lang={lang} chrome={chrome} messages={messages} />
       </div>
     </InsideChrome.Provider>
   )

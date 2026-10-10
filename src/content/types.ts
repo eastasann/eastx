@@ -156,3 +156,12 @@ export interface BlogPostView {
 }
 
 export type CodingLogView = BlogPostView & { kind: CodingLogKind; referenceUrl: string | null }
+
+export interface PrivacyPageView {
+  lang: Lang
+  meta: PageMeta
+  /** body.lang が lang と違えば、本文の上に注記を出す（design-spec 6.2.4） */
+  body: LocalizedHtml
+  /** 最終更新日（行の updated_at。ISO 8601）。日英で同じ日付 */
+  updatedAt: string
+}

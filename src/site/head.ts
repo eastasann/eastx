@@ -23,7 +23,7 @@ function localeMeta(lang: Lang): Tag[] {
   ]
 }
 
-/** P1〜P5 */
+/** P1〜P6 */
 export function pageHead(lang: Lang, meta: PageMeta): Head {
   const url = meta.alternates[lang]
   const description: Tag[] = meta.description

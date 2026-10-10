@@ -3,16 +3,26 @@
  */
 import { asc } from 'drizzle-orm'
 import type { Db } from '~/db/client'
-import { profile, socialLink } from '~/db/schema'
+import { privacyPage, profile, socialLink } from '~/db/schema'
+import { hasPrivacyPage } from '~/domain/languages'
+import { bodyPresence } from './shared'
 import type { SiteChromeView } from './site-chrome'
 
 export async function loadSiteChrome(db: Db): Promise<SiteChromeView> {
-  const [profiles, links] = await db.batch([
+  const [profiles, links, privacy] = await db.batch([
     db.select({ id: profile.id }).from(profile).limit(1),
     db
       .select({ service: socialLink.service, url: socialLink.url, label: socialLink.label })
       .from(socialLink)
       .orderBy(asc(socialLink.sortOrder)),
+    db
+      .select({ bodyJa: bodyPresence(privacyPage.bodyJa), bodyEn: bodyPresence(privacyPage.bodyEn) })
+      .from(privacyPage)
+      .limit(1),
   ])
-  return { socialLinks: profiles.length > 0 ? links : [] }
+  const page = privacy[0]
+  return {
+    socialLinks: profiles.length > 0 ? links : [],
+    hasPrivacyPage: hasPrivacyPage(page ? { ja: { body: page.bodyJa }, en: { body: page.bodyEn } } : null),
+  }
 }

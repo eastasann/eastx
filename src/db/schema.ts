@@ -32,6 +32,17 @@ const yearMonthFormat = (col: unknown) =>
 // LIKE は ASCII の大文字小文字を区別しない（'/MEDIA/...' が通る）ので、前方一致は GLOB で見る
 const httpsOrNull = (col: unknown) => sql`${col} is null or ${col} glob 'https://*'`
 const mediaOrNull = (col: unknown) => sql`${col} is null or ${col} glob '/media/*'`
+/**
+ * JS の trim（API の入力の検査と公開側の「言語あり」の判定）が除く文字。ECMAScript の WhiteSpace と LineTerminator
+ */
+export const JS_TRIM_CODE_POINTS = [
+  0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007,
+  0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff,
+] as const
+// SQLite の trim() は既定で半角スペースしか除かないので、JS の trim と同じ文字を渡す。API を通さない書き込みでも、
+// 空白だけの本文を「NULL でないので本文がある」と読ませない
+const notBlankOrNull = (col: unknown) =>
+  sql`${col} is null or trim(${col}, char(${sql.raw(JS_TRIM_CODE_POINTS.join(', '))})) <> ''`
 
 // ---- profile ----------------------------------------------------------
 export const profile = sqliteTable(
@@ -317,6 +328,27 @@ export const codingLog = sqliteTable(
     check('coding_log_reference_url', httpsOrNull(t.referenceUrl)),
     check('coding_log_thumbnail_url', mediaOrNull(t.thumbnailUrl)),
     index('coding_log_status_published_idx').on(t.status, t.publishedAt),
+  ],
+)
+
+// ---- privacy_page -----------------------------------------------------
+/** プライバシーのページ。1件だけ。本文が日英とも空なら、公開側にページもリンクも出さない */
+export const privacyPage = sqliteTable(
+  'privacy_page',
+  {
+    id: id(),
+    /** 常に1。一意制約で2件目を防ぐ */
+    singleton: integer('singleton').notNull().default(1).unique(),
+    bodyJa: text('body_ja'), // Markdown
+    bodyEn: text('body_en'), // Markdown
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check('privacy_page_singleton', sql`${t.singleton} = 1`),
+    // 空白だけの本文は API が NULL にする。「ページがある」の判定（is not null）の最後の守り
+    check('privacy_page_body_ja', notBlankOrNull(t.bodyJa)),
+    check('privacy_page_body_en', notBlankOrNull(t.bodyEn)),
   ],
 )
 
