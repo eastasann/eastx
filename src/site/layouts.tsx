@@ -7,6 +7,7 @@ import { css, cx } from 'styled-system/css'
 import type { SiteChromeView } from '~/content/site-chrome'
 import type { Lang } from '~/i18n/detect'
 import type { Messages } from '~/i18n/messages'
+import { StackIconToneFilter } from './content-parts'
 import { useScrollToStateSection } from './section-scroll'
 import { SiteFooter } from './site-footer'
 import { SiteHeader } from './site-header'
@@ -29,6 +30,7 @@ export function SiteChrome({ lang, chrome, messages, children }: SiteChromeProps
   return (
     <InsideChrome.Provider value={true}>
       <div className={css({ display: 'flex', flexDirection: 'column', minH: 'dvh' })}>
+        <StackIconToneFilter />
         <SiteHeader lang={lang} messages={messages} />
         <main className={css({ flex: '1' })}>{children}</main>
         <SiteFooter socialLinks={chrome.socialLinks} messages={messages} />
