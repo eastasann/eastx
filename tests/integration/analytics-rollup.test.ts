@@ -11,6 +11,7 @@ import type { SqlApiConfig } from '../../src/api/analytics/sql'
 import { getDb } from '../../src/db/client'
 import { analyticsDaily, analyticsRollup } from '../../src/db/schema'
 import { saltKey } from '../../src/domain/analytics/visitor'
+import { eventRow, pageViewRows, type SqlApiRow } from './sql-api'
 
 const config: SqlApiConfig = { accountId: 'acc-1', token: 'token-1' }
 /** 2026-10-11 00:15 JST（Cron の時刻） */
@@ -20,18 +21,11 @@ const db = () => getDb(env)
 /** 日本時間の日 → その日の 00:00 JST の UNIX 秒（SQL の toDateTime の引数） */
 const dayStartSec = (date: string) => Date.parse(`${date}T00:00:00+09:00`) / 1000
 
-interface FakeDay {
-  pageViews: number
-  visitors: number
-  /** page の次元で返すパスの数（101 以上で (other) ができる） */
-  pages?: number
-}
-
 /**
- * SQL API の偽物。問い合わせの期間の始まりから日を決め、`days` の値で応答を作る。数は本物と同じく文字列で返す。
+ * SQL API の偽物。問い合わせの期間の始まりから日を決め、`days` のその日の組を返す（無い日は0件）。
  * `failing` の日の問い合わせは 500 を返す
  */
-function fakeSqlApi(input: { days: Record<string, FakeDay>; oldest: string | null; failing?: string[] }) {
+function fakeSqlApi(input: { days: Record<string, SqlApiRow[]>; oldest: string | null; failing?: string[] }) {
   const sent: { url: string; sql: string; auth: string | null }[] = []
   const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (resource, init) => {
     const request = new Request(resource, init)
@@ -43,26 +37,11 @@ function fakeSqlApi(input: { days: Record<string, FakeDay>; oldest: string | nul
       return Response.json({ meta: [], data, rows: data.length })
     }
     const start = Number(/timestamp >= toDateTime\((\d+)\)/.exec(sql)?.[1])
-    const date = [...Object.keys(input.days), ...(input.failing ?? [])].find((d) => dayStartSec(d) === start)
-    if (date !== undefined && input.failing?.includes(date)) return new Response('internal error', { status: 500 })
-    const day = date === undefined ? undefined : input.days[date]
-    if (day === undefined || day.pageViews === 0) {
-      // 0件の日。合計の問い合わせ（GROUP BY なし）は0の1行、それ以外は行なし
-      const data = sql.includes('GROUP BY') ? [] : [{ n: '0', v: '0' }]
-      return Response.json({ meta: [], data, rows: data.length })
+    if (input.failing?.some((date) => dayStartSec(date) === start)) {
+      return new Response('internal error', { status: 500 })
     }
-    let data: Record<string, unknown>[] = []
-    if (sql.includes("blob1 = 'page_view'") && !sql.includes('GROUP BY')) {
-      data = [{ n: String(day.pageViews), v: String(day.visitors) }]
-    } else if (sql.includes("blob1 = 'page_view'") && sql.includes('GROUP BY blob2')) {
-      const pages = day.pages ?? 1
-      data = Array.from({ length: pages }, (_, i) => ({ k0: `/ja/blog/p${i}`, n: pages - i, v: 1 }))
-    } else if (sql.includes('GROUP BY blob8')) {
-      // ブラウザの言語が無い送信
-      data = [{ k0: '', n: '2', v: '1' }]
-    } else if (sql.includes('GROUP BY blob11, blob12')) {
-      data = [{ k0: 'github', k1: 'github.com', n: '3', v: '2' }]
-    }
+    const date = Object.keys(input.days).find((d) => dayStartSec(d) === start)
+    const data = date === undefined ? [] : (input.days[date] ?? [])
     return Response.json({ meta: [], data, rows: data.length })
   })
   return { spy, sent }
@@ -89,30 +68,101 @@ afterEach(() => {
 describe('rollUp', () => {
   it('集計が空なら最も古いイベントの日から始め、昨日と一昨日を D1 に入れる', async () => {
     const { sent } = fakeSqlApi({
-      days: { '2026-10-09': { pageViews: 10, visitors: 4 }, '2026-10-10': { pageViews: 7, visitors: 3 } },
+      days: { '2026-10-09': pageViewRows(10, 4), '2026-10-10': pageViewRows(7, 3) },
       oldest: '2026-10-08 16:00:00',
     })
     const result = await rollUp({ db: db(), config, now: NOW, requestId: 'cron:test' })
     expect(result).toEqual({ rolledUp: ['2026-10-10', '2026-10-09'], failed: [] })
     expect(await rolledUpDates()).toEqual(['2026-10-09', '2026-10-10'])
-    const rows = await dailyRows('2026-10-10')
-    expect(rows).toEqual([
-      { date: '2026-10-10', dimension: 'browser_lang', key: '(unknown)', count: 2, visitors: 1 },
-      { date: '2026-10-10', dimension: 'outbound', key: 'github:github.com', count: 3, visitors: 2 },
-      { date: '2026-10-10', dimension: 'page', key: '/ja/blog/p0', count: 1, visitors: 1 },
-      { date: '2026-10-10', dimension: 'top_view', key: '', count: 7, visitors: 3 },
+    expect((await dailyRows('2026-10-10')).filter((row) => row.dimension === 'total')).toEqual([
       { date: '2026-10-10', dimension: 'total', key: '', count: 7, visitors: 3 },
     ])
-    // 問い合わせの形（認証のヘッダー、アカウントの URL、件数と訪問者数の数え方、日本時間の日の境目）
-    const totalQuery = sent.find((s) => s.sql.includes(`toDateTime(${dayStartSec('2026-10-10')})`))
-    expect(totalQuery?.url).toBe('https://api.cloudflare.com/client/v4/accounts/acc-1/analytics_engine/sql')
-    expect(totalQuery?.auth).toBe('Bearer token-1')
-    expect(totalQuery?.sql).toContain('SUM(_sample_interval) AS n, COUNT(DISTINCT blob14) AS v')
-    expect(totalQuery?.sql).toContain(`timestamp < toDateTime(${dayStartSec('2026-10-11')})`)
+    // 1日ぶんは1本（最も古いイベントの1本と、2日の2本）。認証のヘッダー、アカウントの URL、日本時間の日の境目
+    expect(sent).toHaveLength(3)
+    const dayQuery = sent.find((s) => s.sql.includes(`toDateTime(${dayStartSec('2026-10-10')})`))
+    expect(dayQuery?.url).toBe('https://api.cloudflare.com/client/v4/accounts/acc-1/analytics_engine/sql')
+    expect(dayQuery?.auth).toBe('Bearer token-1')
+    const blobs =
+      'blob1, blob2, blob3, blob4, blob5, blob6, blob7, blob8, blob9, blob10, blob11, blob12, blob13, blob14'
+    expect(dayQuery?.sql).toBe(
+      `SELECT ${blobs}, SUM(_sample_interval) AS n FROM eastx_analytics` +
+        ` WHERE timestamp >= toDateTime(${dayStartSec('2026-10-10')}) AND timestamp < toDateTime(${dayStartSec('2026-10-11')})` +
+        ` GROUP BY ${blobs} FORMAT JSON`,
+    )
+  })
+
+  it('組の行から次元ごとに数える（件数は組の合計、訪問者数はキーごとのハッシュの種類）', async () => {
+    fakeSqlApi({
+      days: {
+        '2026-10-10': [
+          eventRow({ type: 'page_view', visitor: 'v1', n: 2, referrer: 'www.linkedin.com' }),
+          // 流入元の無い閲覧は referrer に数えない。P1 でない閲覧は top_view に数えない
+          eventRow({ type: 'page_view', visitor: 'v1', path: '/ja/works/my-app' }),
+          // ブラウザの言語が無い送信は (unknown)
+          eventRow({ type: 'page_view', visitor: 'v2', referrer: 'www.linkedin.com', browserLang: '' }),
+          eventRow({
+            type: 'page_view',
+            visitor: 'v3',
+            path: '/en',
+            lang: 'en',
+            utm: 'linkedin|social|',
+            country: 'US',
+            device: 'mobile',
+            browserLang: 'en',
+          }),
+          eventRow({ type: 'outbound', visitor: 'v1', n: 2, linkKind: 'github', host: 'github.com' }),
+          eventRow({ type: 'outbound', visitor: 'v2', linkKind: 'github', host: 'github.com' }),
+          eventRow({ type: 'row_expand', visitor: 'v1', section: 'works', itemId: 'id-1' }),
+          eventRow({ type: 'section_view', visitor: 'v1', section: 'career' }),
+          eventRow({ type: 'section_view', visitor: 'v2', section: 'career' }),
+          eventRow({ type: 'paging', visitor: 'v1', section: 'blog' }),
+          eventRow({ type: 'read_complete', visitor: 'v1', path: '/ja/works/my-app' }),
+          eventRow({ type: 'lang_switch', visitor: 'v2', to: 'en' }),
+          eventRow({ type: 'theme_switch', visitor: 'v3', path: '/en', lang: 'en', to: 'dark' }),
+          eventRow({ type: 'code_copy', visitor: 'v1', path: '/ja/blog/hello' }),
+        ],
+      },
+      oldest: '2026-10-09 16:00:00',
+    })
+    await rollUp({ db: db(), config, now: NOW, requestId: 'cron:test' })
+    const row = (dimension: string, key: string, count: number, visitors: number) => ({
+      date: '2026-10-10',
+      dimension,
+      key,
+      count,
+      visitors,
+    })
+    expect(await dailyRows('2026-10-10')).toEqual([
+      row('browser_lang', '(unknown)', 1, 1),
+      row('browser_lang', 'en', 1, 1),
+      row('browser_lang', 'ja', 3, 1),
+      row('code_copy', '/ja/blog/hello', 1, 1),
+      row('country', 'JP', 4, 2),
+      row('country', 'US', 1, 1),
+      row('device', 'desktop', 4, 2),
+      row('device', 'mobile', 1, 1),
+      row('lang_switch', 'en', 1, 1),
+      row('outbound', 'github:github.com', 3, 2),
+      row('outbound_total', '', 3, 2),
+      row('page', '/en', 1, 1),
+      row('page', '/ja', 3, 2),
+      row('page', '/ja/works/my-app', 1, 1),
+      row('paging', 'blog', 1, 1),
+      row('read_complete', '/ja/works/my-app', 1, 1),
+      row('referrer', 'www.linkedin.com', 3, 2),
+      row('row_expand', 'works:id-1', 1, 1),
+      row('section_view', 'career', 2, 2),
+      row('site_lang', 'en', 1, 1),
+      row('site_lang', 'ja', 4, 2),
+      row('theme_switch', 'dark', 1, 1),
+      row('top_view', '', 4, 3),
+      row('total', '', 5, 3),
+      row('utm', 'linkedin|social|', 1, 1),
+    ])
   })
 
   it('同じ日をもう一度集計しても行は同じ（昨日・一昨日は毎回やり直す）', async () => {
-    const days = { '2026-10-09': { pageViews: 10, visitors: 4 }, '2026-10-10': { pageViews: 7, visitors: 3 } }
+    const days = { '2026-10-09': pageViewRows(10, 4), '2026-10-10': pageViewRows(7, 3) }
     fakeSqlApi({ days, oldest: '2026-10-08 16:00:00' })
     await rollUp({ db: db(), config, now: NOW, requestId: 'cron:test' })
     const first = await dailyRows('2026-10-10')
@@ -126,7 +176,7 @@ describe('rollUp', () => {
   })
 
   it('開始日より前の日は集計しない', async () => {
-    fakeSqlApi({ days: { '2026-10-10': { pageViews: 1, visitors: 1 } }, oldest: '2026-10-10 03:00:00' })
+    fakeSqlApi({ days: { '2026-10-10': pageViewRows(1, 1) }, oldest: '2026-10-10 03:00:00' })
     await rollUp({ db: db(), config, now: NOW, requestId: 'cron:test' })
     expect(await rolledUpDates()).toEqual(['2026-10-10'])
   })
@@ -138,14 +188,18 @@ describe('rollUp', () => {
   })
 
   it('イベントが0件の日も analytics_rollup に入れる（集計した結果0件）', async () => {
-    fakeSqlApi({ days: { '2026-10-10': { pageViews: 3, visitors: 1 } }, oldest: '2026-10-08 16:00:00' })
+    fakeSqlApi({ days: { '2026-10-10': pageViewRows(3, 1) }, oldest: '2026-10-08 16:00:00' })
     await rollUp({ db: db(), config, now: NOW, requestId: 'cron:test' })
     expect(await rolledUpDates()).toEqual(['2026-10-09', '2026-10-10'])
     expect(await dailyRows('2026-10-09')).toEqual([])
   })
 
   it('上位100件を超えるキーは (other) にまとめる', async () => {
-    fakeSqlApi({ days: { '2026-10-10': { pageViews: 200, visitors: 50, pages: 103 } }, oldest: '2026-10-09 16:00:00' })
+    // 103のパスを1人ずつ。件数は 103, 102, …, 1
+    const rows = Array.from({ length: 103 }, (_, i) =>
+      eventRow({ type: 'page_view', visitor: `v${i}`, path: `/ja/blog/p${i}`, n: 103 - i }),
+    )
+    fakeSqlApi({ days: { '2026-10-10': rows }, oldest: '2026-10-09 16:00:00' })
     await rollUp({ db: db(), config, now: NOW, requestId: 'cron:test' })
     const pages = (await dailyRows('2026-10-10')).filter((row) => row.dimension === 'page')
     expect(pages).toHaveLength(101)
@@ -173,7 +227,7 @@ describe('rollUp', () => {
 
   it('SQL API の失敗した日は analytics_rollup に入らず、ほかの日は入る', async () => {
     fakeSqlApi({
-      days: { '2026-10-10': { pageViews: 3, visitors: 1 } },
+      days: { '2026-10-10': pageViewRows(3, 1) },
       oldest: '2026-10-08 16:00:00',
       failing: ['2026-10-09'],
     })
@@ -183,25 +237,29 @@ describe('rollUp', () => {
   })
   it('最初の日の集計が失敗して翌日が先に確定しても、次の実行で最初の日を埋める', async () => {
     const oldest = '2026-10-08 16:00:00'
-    fakeSqlApi({ days: { '2026-10-10': { pageViews: 2, visitors: 1 } }, oldest, failing: ['2026-10-09'] })
+    fakeSqlApi({ days: { '2026-10-10': pageViewRows(2, 1) }, oldest, failing: ['2026-10-09'] })
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     expect((await rollUp({ db: db(), config, now: NOW, requestId: 'cron:test' })).failed).toEqual(['2026-10-09'])
     vi.restoreAllMocks()
     // 3日後。昨日・一昨日の外に落ちた最初の日も、Analytics Engine の最も古いイベントの日から埋める
-    fakeSqlApi({ days: { '2026-10-09': { pageViews: 1, visitors: 1 } }, oldest })
+    fakeSqlApi({ days: { '2026-10-09': pageViewRows(1, 1) }, oldest })
     const later = await rollUp({ db: db(), config, now: NOW + 3 * 24 * 60 * 60 * 1000, requestId: 'cron:test' })
     expect(later.rolledUp).toContain('2026-10-09')
     expect(await rolledUpDates()).toContain('2026-10-09')
   })
 
-  it('応答の数・キーが読めない日は確定させない（0件として集計済みにしない）', async () => {
+  it.each([
+    ['列の名前が違う（count・visitors）', { count: '3', visitors: '1' }],
+    ['blob が欠けている', { ...eventRow({ type: 'page_view', visitor: 'v1' }), blob14: undefined }],
+    ['件数が数でない', { ...eventRow({ type: 'page_view', visitor: 'v1' }), n: 'many' }],
+    ['件数が空白', { ...eventRow({ type: 'page_view', visitor: 'v1' }), n: ' ' }],
+  ])('応答が読めない日は確定させない（0件として集計済みにしない）: %s', async (_, body) => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (resource, init) => {
       const sql = await new Request(resource, init).text()
       if (sql.startsWith('SELECT COUNT() AS n, MIN(timestamp)')) {
         return Response.json({ meta: [], data: [{ n: '1', first: '2026-10-09 16:00:00' }], rows: 1 })
       }
-      // 列の名前が違う応答（count・visitors）
-      return Response.json({ meta: [], data: [{ count: '3', visitors: '1' }], rows: 1 })
+      return Response.json({ meta: [], data: [body], rows: 1 })
     })
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const result = await rollUp({ db: db(), config, now: NOW, requestId: 'cron:test' })
@@ -212,7 +270,7 @@ describe('rollUp', () => {
 
 describe('runAnalyticsCron', () => {
   it('集計のあとに明日の日ごとの値を KV に作る', async () => {
-    fakeSqlApi({ days: { '2026-10-10': { pageViews: 1, visitors: 1 } }, oldest: '2026-10-09 16:00:00' })
+    fakeSqlApi({ days: { '2026-10-10': pageViewRows(1, 1) }, oldest: '2026-10-09 16:00:00' })
     await runAnalyticsCron({ db: db(), config, salts: env.ANALYTICS_SALTS, now: NOW })
     expect(await rolledUpDates()).toEqual(['2026-10-10'])
     expect(await env.ANALYTICS_SALTS?.get(saltKey('2026-10-12'))).toMatch(/^[0-9a-f]{64}$/)

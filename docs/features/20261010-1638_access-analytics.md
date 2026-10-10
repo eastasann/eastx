@@ -579,9 +579,9 @@ const dateFormat = (col: unknown) =>
 - E2E: Playwright の `Desktop Chrome` の User-Agent は `HeadlessChrome` を含まず、ボットの判定に当たらない（どちらにしてもローカルはバインディングが無いので書かない）。`sendBeacon` の要求は Playwright から本文が読めない（ping の `postData` が null）ので、テストは初期化のスクリプトで `sendBeacon` を包んで本文を受け取り、要求そのものは送って受け口の 204 を確かめる。
 - E2E のローカルの D1 は、テストの終わりにフィクスチャ（別のプロセス）がセッションを消すのと、プレビューがまだ読んでいる A10 の要求が重なると、miniflare が `internal error` を返す（SQLite のロック。`playwright.config.ts` の注記と同じ原因で、本番の D1 では起きない）。A10 を開くテストは、読み込みを終えて（推移のグラフが出て）からテストを終える。
 
-## 本番に出した後に見つかった不具合（未解決）
+## 本番に出した後に見つかった不具合
 
-- 症状: 本番の A10 で、今日の分が毎回読めない（`today.included: false`）。Workers Logs の `analytics today unavailable` の `error` は `TimeoutError: The operation was aborted due to timeout`（2026-10-10 23:00 に確認）。受け口の書き込みと、確定した日（D1）の表示は動いている。
-- 分かっている原因: 今日の分は、次元ごとに18本の SQL を同時に SQL API へ送り、全部がそろうのを3秒まで待つ。この3秒を超えている。1本ずつが遅いのか、18本を同時に送って詰まるのかは切り分けていない（トレースが無効で、実装のセッションは SQL API のトークンを持たない）。
-- 閉じられない理由: 直し方を決めるには、SQL API の1本あたりの時間が要る。2026-10-11 00:15 の Cron の1日ぶんの集計（同じ18本。時間の上限なし）の実行時間と結果を Workers Logs で見て決める（持ち主の決定）。
-- 直し方の候補: 1日ぶんを1本の SQL（訪問者と記録の値の組ごとの件数）で読み、18の次元を Worker で数える（詳細設計の「（キー, ハッシュ）の組を GROUP BY で読み、Worker で数える」）。A10 の待ちと Cron の呼び出しの回数が18分の1になる。1本でも3秒を超えるなら、3秒の上限を見直す。
+- 症状: 本番の A10 で、今日の分がときどき読めない（`today.included: false`）。Workers Logs の `analytics today unavailable` の `error` は `TimeoutError: The operation was aborted due to timeout`。2026-10-10 23:00 台の3回のうち2回（所要 3.3 秒）が打ち切られ、1回（1.5 秒）は読めた。2026-10-11 00:22〜00:23 の3回は約 1.1 秒で読めた。受け口の書き込みと、確定した日（D1）の表示は動いている。
+- 原因: 今日の分は、次元ごとに18本の SQL を並べて SQL API へ送り、全部がそろうのを3秒まで待つ。Worker は1回の呼び出しで応答を待つ接続を6本までしか同時に持てず、7本目からは前の応答を待つ（Cloudflare の Workers の制限）。18本は6本ずつ3回に分かれて順に流れ、1回分の約3倍かかる。SQL API の1本が普段の約 0.35 秒なら約 1.1 秒で、1本が1秒を超える遅さのときに3秒を超える。2026-10-11 00:15 の Cron（同じ18本に、最も古いイベントの1本と D1 の読み書きを足したもの）は 2.5 秒で終わり、2026-10-10 を集計した。
+- 直し方: 1日ぶんを1本の SQL で読む。記録の値（`blob1`〜`blob13`）と訪問者のハッシュ（`blob14`）の組ごとの `SUM(_sample_interval)` を返させ、18の次元の件数と訪問者数は Worker で数える。件数・訪問者数の値は次元ごとの `SUM(_sample_interval)`・`COUNT(DISTINCT blob14)` と同じになる。「スパイクの結果」の「SQL API の訪問者の種類の数」の行の取った形を置き換え、「日時の条件・空の blob」の行の `blob4 != ''` も Worker の条件になる。A10 の待ちは1回分になり、Cron の SQL API の呼び出しは1日18本から1本になる。3秒の上限は変えない。1回の応答で返す行数のデータセットごとの上限は、`LIMIT` を書かない問い合わせには足されない（Cloudflare の SQL API の Limits の文書）。
+- 本番で確かめること: デプロイの後に A10 を5回開き、Workers Logs に `analytics today unavailable` が1件も出ず、`GET /api/admin/analytics` の所要時間（Workers Logs の `$workers.wallTimeMs`）がどれも 1.5 秒以下であること。失敗はときどきしか起きないので、1回開いて読めただけでは確かめたことにしない。

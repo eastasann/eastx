@@ -9,6 +9,7 @@ import { analyticsDaily, analyticsRollup, blogPost, work } from '../../src/db/sc
 import { addDays, jstDateOf } from '../../src/domain/analytics/dates'
 import { chunk } from '../../src/domain/analytics/rollup'
 import { type AdminClient, call, createClient, createSession } from './helpers'
+import { pageViewRows } from './sql-api'
 
 let client: AdminClient
 let cookie: string
@@ -43,12 +44,10 @@ function setEnv(values: Record<string, unknown>): () => void {
   }
 }
 
-/** 今日の分の SQL API。page_view の合計の問い合わせにだけ行を返す */
+/** 今日の分の SQL API。P1 の閲覧を `pageViews` 件、`visitors` 人で返す */
 function fakeToday(pageViews: number, visitors: number) {
-  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (resource, init) => {
-    const sql = await new Request(resource, init).text()
-    const total = sql.includes("blob1 = 'page_view'") && !sql.includes('GROUP BY') && !sql.includes('blob2 IN')
-    const data = total ? [{ n: String(pageViews), v: String(visitors) }] : []
+  return vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+    const data = pageViewRows(pageViews, visitors)
     return Response.json({ meta: [], data, rows: data.length })
   })
 }
@@ -234,11 +233,14 @@ describe('GET /api/admin/analytics', () => {
       const restore = setEnv({ CF_ACCOUNT_ID: 'acc-1', ANALYTICS_API_TOKEN: 'token-1' })
       try {
         await rollUpDay(daysAgo(1), [{ dimension: 'total', count: 2, visitors: 1 }])
-        fakeToday(5, 3)
+        const fetchSpy = fakeToday(5, 3)
         const report = await client.analytics.get({ range: '7d' })
         expect(report.today).toEqual({ included: true })
         expect(report.totals).toMatchObject({ pageViews: 7, visitors: 4 })
         expect(report.series.points.at(-1)).toEqual({ start: today(), pageViews: 5, visitors: 3 })
+        expect(report.pages).toEqual([{ path: '/ja', title: null, pageViews: 5, visitors: 3 }])
+        // 今日の分は1本で読む（Worker が応答を待つ接続は同時に6本まで。SDD 5.13）
+        expect(fetchSpy).toHaveBeenCalledTimes(1)
       } finally {
         restore()
       }

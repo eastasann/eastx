@@ -476,7 +476,7 @@
 | 本番だけに書いたバインディング・変数（Analytics Engine・KV・`CF_ACCOUNT_ID`）の `Env` の型（wrangler 4.147.0 の `wrangler types` で、省けるもの（`ANALYTICS?` など）になることを確認済み。使う側で有無を確かめる） | 023 | 有無を確かめる部品を1つ置き、ほかから直接読まない |
 | `withSentry` で包んだ `scheduled` が動き、例外が Sentry に送られる（@sentry/cloudflare 11.4.0 のソースで、`scheduled` も包み例外を送ることを確認済み。`src/server.ts` は TanStack Start の仮想モジュールに依存し結合テストから呼べないので、`scheduled` は集計の関数を呼ぶだけにし、集計の関数を結合テストで呼ぶ） | 018・023 | — |
 | `@cloudflare/vitest-pool-workers`（0.22.0）で Analytics Engine と KV のバインディングを使い、`writeDataPoint` を確かめる（テストの設定の `analyticsEngineDatasets`・`kvNamespaces` で足せ、`writeDataPoint` を spy できることを確認済み。0.22.0 は `fetchMock` を持たないので、SQL API は `fetch` の spy で返す） | 016・023 | 書き込みの部品にバインディングを渡す形にし、記録用の偽物を渡す |
-| Analytics Engine の SQL API: 訪問者のハッシュの種類の数（`count(DISTINCT blob14)`）、`_sample_interval`、日時の条件（`toDateTime(UNIX 秒)`）、最も古い `timestamp`（`min`）。公式の文書で、どれも使えることと、サンプリングは index ごとに均す（index に入れた訪問者の行は残る）ことを確認済み。件数は `sum(_sample_interval)`、訪問者数は `count(DISTINCT blob14)` で数える。値の無い blob は空文字で書いてそろえる。本番での実際の応答は、デプロイの後の確認（`docs/04_deployment-procedure.md` 6章）で確かめる | 023 | （キー, ハッシュ）の組を `GROUP BY` で読み、Worker で数える |
+| Analytics Engine の SQL API: `_sample_interval`、記録の値と訪問者のハッシュ（`blob14`）の組の `GROUP BY`、日時の条件（`toDateTime(UNIX 秒)`）、最も古い `timestamp`（`min`）。公式の文書で、どれも使えることと、サンプリングは index ごとに均す（index に入れた訪問者の行は残る）こと、1回の応答で返す行数のデータセットごとの上限は `LIMIT` を書かない問い合わせには足されないことを確認済み。数え方は 5.13。値の無い blob は空文字で書いてそろえる。本番での実際の応答は、デプロイの後の確認（`docs/04_deployment-procedure.md` 6章）で確かめる | 023 | 次元ごとに `count(DISTINCT blob14)` で数え、A10 が今日の分を待つ上限（3秒）を見直す |
 | Workers KV の期限切れ・消した値を利用者が戻す仕組みが無い（公式の文書で、期限が来た値は消え、読むと無いのと同じになり、戻す仕組みの記述が無いことを確認済み） | 023 | 置き場所を選び直す |
 | `wrangler deploy` で `triggers` を書かない設定をデプロイしたときに、既存の Cron が外れるか（wrangler 4.147.0 のソースで、`triggers.crons` が無ければ Cron の設定を送らず、既存の Cron が残ることを確認済み。`wrangler rollback` も前のバージョンへのデプロイを作るだけで、Cron の設定を送らない） | 017・023 | ロールバックの手順に Cron を外す操作を足す（`docs/04_deployment-procedure.md` 5章） |
 
@@ -1321,7 +1321,8 @@ type SiteChromeView = {
 | `theme_switch` | `theme_switch` | `to` | 件数 | 訪問者数 |
 | `code_copy` | `code_copy` | `path` | 件数 | 訪問者数 |
 
-- 件数は Analytics Engine の `SUM(_sample_interval)`、訪問者数はその日・そのキーの訪問者のハッシュ（`blob14`）の種類の数（`COUNT(DISTINCT blob14)`）。サンプリングは index（訪問者）ごとに均すので、種類の数は崩れない（ADR-022）。応答の数やキーが読めなければ、その日は確定させない（例外にして、次の実行でやり直す）。
+- 1日ぶんは1本の問い合わせで読む。記録の値（`blob1`〜`blob13`）と訪問者のハッシュ（`blob14`）の組ごとに `SUM(_sample_interval)` を返させ、次元ごとの数は Worker で数える。件数はその日・そのキーの組の `SUM(_sample_interval)` の合計、訪問者数はその日・そのキーの訪問者のハッシュの種類の数。サンプリングは index（訪問者）ごとに均すので、種類の数は崩れない（ADR-022）。応答の数や列（`blob1`〜`blob14`）が読めなければ、その日は確定させない（例外にして、次の実行でやり直す）。
+- 次元ごとに問い合わせを分けない。Worker は1回の呼び出しで応答を待つ接続を6本までしか同時に持てず、7本目からは前の応答を待つ。18本に分けると6本ずつ3回に分かれて順に流れるので、SQL API の1本が1秒を超えると、A10 が今日の分を待つ3秒を超える。
 - 1日・1次元の行は、件数の多い順（同じなら `key` の昇順）に上位100件と、残りをまとめた `(other)` の1行（残りがあるときだけ）。件数が0の行は作らない。
 
 ### 5.14 解析の受け口（`/api/collect`。CMS API の外）
@@ -1401,10 +1402,10 @@ Analytics Engine の1件（データセット `eastx_analytics`。`timestamp` �
 | `blob11` | `linkKind` |
 | `blob12` | `host` |
 | `blob13` | `to` |
-| `blob14` | 訪問者のハッシュ（`index1` と同じ値。SQL で種類の数を数えるために blob にも置く） |
+| `blob14` | 訪問者のハッシュ（`index1` と同じ値。1日ぶんの問い合わせで記録の値との組を `GROUP BY` で読むために blob にも置く。5.13） |
 | `double1` | `page`（無ければ 0） |
 
-- 値の無い blob も空文字で書き、14個をそろえる（SQL の条件 `blob4 != ''` が書いた値どおりに当たるようにする）。
+- 値の無い blob も空文字で書き、14個をそろえる（1日ぶんの問い合わせが14列とも文字列で読め、Worker の条件（`blob4` が空でない など）が書いた値どおりに当たるようにする）。
 - `x-request-id` を付ける。4xx はログに出さない（量が多く、ボットの送信で埋まるため）。`X-Robots-Tag` は ADR-019 の `/api/*` の決まりどおり付く。
 
 ---
