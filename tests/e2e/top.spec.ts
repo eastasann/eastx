@@ -629,13 +629,21 @@ test.describe('Tech Stack の群（design-spec 6.1.4）', () => {
     })
   }
 
-  test('使用技術の並びのアイコンは枠を付けずにグレースケールで、切らずに収める。アイコンの無い技術は頭文字の丸', async ({
+  // グレースケールとトーンカーブの SVG フィルター。ダークではさらに白黒反転する（design-spec 4.4）
+  const TONE = 'url("#stack-icon-tone")'
+  const TONE_DARK = `${TONE} invert(1)`
+  // チップは inline-flex で子がブロックになり、読み上げ名の計算でブロックの境目に空白が入る
+  const REACT_LINK = /^React\s*別タブで開く$/
+
+  test('使用技術の並びのアイコンは枠を付けずにグレースケールとトーンカーブで、切らずに収める。アイコンの無い技術は頭文字の丸', async ({
     page,
   }) => {
+    await page.emulateMedia({ colorScheme: 'light' })
     await gotoHydrated(page, '/ja')
+    await expect(page.locator('filter#stack-icon-tone')).toHaveCount(1)
     const icons = [page.locator('#stack img').first(), page.locator('#works ul:not([inert]) img').first()]
     for (const icon of icons) {
-      await expect(icon).toHaveCSS('filter', 'grayscale(1)')
+      await expect(icon).toHaveCSS('filter', TONE)
       await expect(icon).toHaveCSS('object-fit', 'contain')
     }
     // 自己紹介の太字の前のアイコンは元の色
@@ -646,10 +654,45 @@ test.describe('Tech Stack の群（design-spec 6.1.4）', () => {
     await expect(group(page, 'Tools').locator('img')).toHaveCount(0)
 
     await gotoHydrated(page, '/ja/works/portfolio-cms')
+    await expect(page.locator('filter#stack-icon-tone')).toHaveCount(1)
     await expect(page.locator('main').getByRole('list', { name: 'Tech Stack' }).locator('img').first()).toHaveCSS(
       'filter',
-      'grayscale(1)',
+      TONE,
     )
+  })
+
+  test('ダークモードでは、使用技術の並びのアイコンを白黒反転する。自己紹介の太字の前のアイコンは元の色のまま', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await gotoHydrated(page, '/ja')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    for (const icon of [page.locator('#stack img').first(), page.locator('#works ul:not([inert]) img').first()]) {
+      await expect(icon).toHaveCSS('filter', TONE_DARK)
+    }
+    await expect(page.locator('img[data-stack-icon]').first()).toHaveCSS('filter', 'none')
+
+    await gotoHydrated(page, '/ja/works/portfolio-cms')
+    await expect(page.locator('main').getByRole('list', { name: 'Tech Stack' }).locator('img').first()).toHaveCSS(
+      'filter',
+      TONE_DARK,
+    )
+  })
+
+  test('P1 の Tech Stack のリンクのチップは ↗ を見せず、読み上げにだけ「別タブで開く」を足す。P2 のチップは ↗ を見せる', async ({
+    page,
+  }) => {
+    await gotoHydrated(page, '/ja')
+    const react = group(page, 'Core').getByRole('link', { name: REACT_LINK })
+    await expect(react).toHaveAttribute('target', '_blank')
+    await expect(react.locator('svg')).toHaveCount(0)
+
+    await gotoHydrated(page, '/ja/works/portfolio-cms')
+    const detailReact = page
+      .locator('main')
+      .getByRole('list', { name: 'Tech Stack' })
+      .getByRole('link', { name: REACT_LINK })
+    await expect(detailReact.locator('svg')).toBeVisible()
   })
 
   test('読み込めないアイコンは、SSR の後でも頭文字の丸に替える', async ({ page, local }) => {

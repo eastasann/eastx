@@ -53,8 +53,39 @@ export function ExternalMark({ messages }: { messages: Messages }) {
   )
 }
 
-/** 縦横比・余白・色がまちまちな画像を、切らずに収めてグレースケールでそろえる（design-spec 4.4。ADR-014 の例外） */
-const stackIcon = css({ w: 'icon', h: 'icon', aspectRatio: 'avatar', filter: 'auto', grayscale: '100%' })
+const STACK_ICON_TONE_ID = 'stack-icon-tone'
+
+/**
+ * 使用技術のアイコンの SVG フィルター（グレースケール → トーンカーブ）。CSS の brightness・contrast では
+ * 黒と白を動かさずに中間だけを濃くできないので、gamma で 0 と 1 を残したまま薄い濃さを沈める。
+ * 公開側の全画面で SiteChrome が1つだけ置く（ID が重ならないように）
+ */
+export function StackIconToneFilter() {
+  return (
+    <svg aria-hidden="true" width="0" height="0" className={css({ position: 'absolute' })}>
+      <filter id={STACK_ICON_TONE_ID} colorInterpolationFilters="sRGB">
+        <feColorMatrix type="saturate" values="0" />
+        <feComponentTransfer>
+          <feFuncR type="gamma" exponent="2" />
+          <feFuncG type="gamma" exponent="2" />
+          <feFuncB type="gamma" exponent="2" />
+        </feComponentTransfer>
+      </filter>
+    </svg>
+  )
+}
+
+/**
+ * 縦横比・余白・色がまちまちな画像を、切らずに収めてグレースケールでそろえる。白い地を前提に作られたアイコンが
+ * 暗い地に溶けないよう、ダークモードでは白黒反転する（design-spec 4.4。ADR-014 の例外）
+ */
+const stackIcon = css({
+  w: 'icon',
+  h: 'icon',
+  aspectRatio: 'avatar',
+  filter: `[url(#${STACK_ICON_TONE_ID})]`,
+  _dark: { filter: `[url(#${STACK_ICON_TONE_ID}) invert(1)]` },
+})
 
 /**
  * 技術のアイコン。アイコンがない・読み込めない技術は、表示名の頭文字の丸（design-spec 6.1.4）。
@@ -146,8 +177,19 @@ export function StackIconRow({
 
 const chipList = css({ display: 'flex', flexWrap: 'wrap', columnGap: 'inset', rowGap: 'inline' })
 
-/** チップ1つ（アイコンと表示名。枠線なし）。リンクがあれば公式サイトなどを別タブで開く */
-function StackChipItem({ stack, messages }: { stack: StackChip; messages: Messages }) {
+/**
+ * チップ1つ（アイコンと表示名。枠線なし）。リンクがあれば公式サイトなどを別タブで開く。
+ * `hideExternalMark` は ↗ を見せず、読み上げの「別タブで開く」だけを残す（P1 の Tech Stack。design-spec 6.1.4）
+ */
+function StackChipItem({
+  stack,
+  messages,
+  hideExternalMark = false,
+}: {
+  stack: StackChip
+  messages: Messages
+  hideExternalMark?: boolean
+}) {
   const content = (
     <>
       <StackIcon stack={stack} />
@@ -166,7 +208,11 @@ function StackChipItem({ stack, messages }: { stack: StackChip; messages: Messag
           className={cx(chip({ interactive: true, plain: true }), css({ textDecoration: 'none' }))}
         >
           {content}
-          <ExternalMark messages={messages} />
+          {hideExternalMark ? (
+            <span className={css({ srOnly: true })}>{messages.label.opensInNewTab}</span>
+          ) : (
+            <ExternalMark messages={messages} />
+          )}
         </a>
       )}
     </li>
@@ -214,7 +260,7 @@ export function TechStackGroups({ groups, messages }: { groups: TopPageView['sta
             </h3>
             <ul aria-labelledby={headingId} className={chipList}>
               {group.stacks.map((stack) => (
-                <StackChipItem key={stack.key} stack={stack} messages={messages} />
+                <StackChipItem key={stack.key} stack={stack} messages={messages} hideExternalMark />
               ))}
             </ul>
           </div>
