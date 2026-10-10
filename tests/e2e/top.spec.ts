@@ -481,6 +481,76 @@ test.describe('モバイル幅の行', () => {
       await left(work.locator('svg')),
     )
   })
+
+  test('広げた作品の名前の続きは ▸ の左端から始まる', async ({ page }) => {
+    await gotoHydrated(page, '/ja')
+    const work = rowButton(page, 'works', /ターミナルで天気予報/)
+    await work.click()
+    await expect(work).toHaveAttribute('aria-expanded', 'true')
+    const { lines, nameLeft } = await work.evaluate((element) => {
+      const name = document.getElementById(element.getAttribute('aria-labelledby') ?? '')
+      if (!name) throw new Error('行の名前が無い')
+      const rects = [...name.getClientRects()]
+      return {
+        lines: new Set(rects.map((rect) => Math.round(rect.top))).size,
+        nameLeft: name.getBoundingClientRect().x,
+      }
+    })
+    const chevron = await work.locator('svg').boundingBox()
+    if (!chevron) throw new Error('見えない')
+    expect(lines).toBeGreaterThan(1)
+    expect(Math.round(nameLeft)).toBe(Math.round(chevron.x))
+  })
+})
+
+test.describe('狭いモバイル幅の行', () => {
+  // 所属とタイトルは1行に収まらず、それぞれなら収まる幅
+  test.use({ viewport: { width: 320, height: 740 } })
+  test.afterEach(async ({ local }) => {
+    await insertSeed(local.db, buildSeed({ empty: false }))
+  })
+
+  test('広げた経歴は「所属 ~」と「タイトル」の境で折り返し、名前の続きは ▸ の左端から始まる', async ({ page }) => {
+    await gotoHydrated(page, '/ja')
+    const career = rowButton(page, 'career', /Example Labs/)
+    const organization = career.getByText('Example Labs', { exact: true })
+    const title = career.getByText('Software Engineer Intern', { exact: true })
+    const organizationBefore = await organization.boundingBox()
+    await career.click()
+    await expect(career).toHaveAttribute('aria-expanded', 'true')
+    const [chevron, organizationAfter, titleBox] = await Promise.all(
+      [career.locator('svg'), organization, title].map((locator) => locator.boundingBox()),
+    )
+    if (!organizationBefore || !chevron || !organizationAfter || !titleBox) throw new Error('見えない')
+    // 1行目の名前は広げても横に動かない
+    expect(Math.round(organizationAfter.x)).toBe(Math.round(organizationBefore.x))
+    // タイトルは丸ごと次の行から、▸ の左端で始まる
+    expect(titleBox.y).toBeGreaterThanOrEqual(organizationAfter.y + organizationAfter.height)
+    expect(Math.round(titleBox.x)).toBe(Math.round(chevron.x))
+    await expect(career).toHaveAccessibleName('Example Labs ~ Software Engineer Intern')
+  })
+
+  test('広げた経歴の所属は、1行目の残りに収まらなくても ▸ と同じ1行目から始まる', async ({ page, local }) => {
+    // 幅に頼らず、どの画面幅でも1行に収まらない長い所属を入れる
+    const organization = Array.from({ length: 6 }, () => 'Long Organization Name').join(' ')
+    await local.db.insert(schema.career).values({
+      kind: 'work',
+      titleEn: 'Engineer',
+      organizationEn: organization,
+      startDate: '2026-01',
+      status: 'published',
+    })
+    await gotoHydrated(page, '/en')
+    const career = rowButton(page, 'career', /Long Organization Name/)
+    await career.click()
+    await expect(career).toHaveAttribute('aria-expanded', 'true')
+    const firstTop = await career
+      .getByText(organization, { exact: true })
+      .evaluate((element) => element.getClientRects()[0]?.top ?? Number.NaN)
+    const chevron = await career.locator('svg').boundingBox()
+    if (!chevron) throw new Error('見えない')
+    expect(firstTop).toBeLessThan(chevron.y + chevron.height)
+  })
 })
 
 test.describe('トップの行', () => {

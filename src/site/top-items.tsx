@@ -64,7 +64,8 @@ const stretchedLink = css({
 
 /**
  * 経歴・作品・プロジェクトの行の頭。▸・名前・右のメタを格子に置く。モバイルの経歴は右のメタ（期間）を2行目に回し、
- * ▸ の左端から始める。▸ の左端・2行目・広げた中（expandedArea）の左端は、どれも行の左の余白（inset-dense）の位置で揃う
+ * ▸ の左端から始める。▸ の左端・2行目・広げた中（expandedArea）の左端は、どれも行の左の余白（inset-dense）の位置で揃う。
+ * 広げると名前の領域を ▸ の列にまたがらせ、▸ を名前の前の行内に置く。折り返した名前の続きも ▸ の左端から始まる
  */
 const rowHead = cva({
   base: {
@@ -101,8 +102,19 @@ const rowHead = cva({
         _hover: { bg: 'bg.subtle' },
       },
     },
+    expanded: {
+      false: {},
+      true: { gridTemplateAreas: '"main main meta"' },
+    },
   },
-  defaultVariants: { metaBelowOnMobile: false, interactive: false },
+  compoundVariants: [
+    {
+      metaBelowOnMobile: true,
+      expanded: true,
+      css: { gridTemplateAreas: { base: '"main main" "meta meta"', tablet: '"main main meta"' } },
+    },
+  ],
+  defaultVariants: { metaBelowOnMobile: false, interactive: false, expanded: false },
 })
 
 /**
@@ -159,20 +171,34 @@ function DisclosureRow({
   const [expanded, setExpanded] = useState(false)
   const Chevron = expanded ? ChevronDownIcon : ChevronRightIcon
   const rowMeta = meta(expanded)
+  const nameElement = <span id={nameId}>{name}</span>
   const content = (
     <>
-      <span
-        aria-hidden="true"
-        className={cx(
-          firstLineBox,
-          css({ gridArea: 'toggle', color: 'text.muted', visibility: expandable ? 'visible' : 'hidden' }),
-        )}
-      >
-        <Chevron size="sm" />
-      </span>
-      <RowMain expanded={expanded} label={label}>
-        <span id={nameId}>{name}</span>
-      </RowMain>
+      {expanded ? (
+        <RowMainExpanded
+          toggle={
+            <span aria-hidden="true" className={cx(firstLineBox, css({ color: 'text.muted', me: 'inline' }))}>
+              <Chevron size="sm" />
+            </span>
+          }
+          label={label}
+        >
+          {nameElement}
+        </RowMainExpanded>
+      ) : (
+        <>
+          <span
+            aria-hidden="true"
+            className={cx(
+              firstLineBox,
+              css({ gridArea: 'toggle', color: 'text.muted', visibility: expandable ? 'visible' : 'hidden' }),
+            )}
+          >
+            <Chevron size="sm" />
+          </span>
+          <RowMainCollapsed label={label}>{nameElement}</RowMainCollapsed>
+        </>
+      )}
       {rowMeta !== null && <span className={cx(firstLineBox, css({ gridArea: 'meta' }))}>{rowMeta}</span>}
     </>
   )
@@ -191,7 +217,7 @@ function DisclosureRow({
         aria-controls={contentId}
         aria-labelledby={nameId}
         onClick={() => setExpanded((value) => !value)}
-        className={rowHead({ metaBelowOnMobile, interactive: true })}
+        className={rowHead({ metaBelowOnMobile, interactive: true, expanded })}
       >
         {content}
       </button>
@@ -201,17 +227,28 @@ function DisclosureRow({
 }
 
 /**
- * 行の左。名前と、その後ろの言語ラベル。閉じているあいだは名前がはみ出したら「…」で切り、
- * 広げると切らずに折り返して全文を出す（言語ラベルは名前の続きに置く）
+ * 広げた行の左。▸・名前・言語ラベルを1つの文の流れに置き、切らずに折り返して全文を出す。
+ * 名前の中の折り返しの塊（data-wrap-unit。経歴のタイトル）は inline-block にし、残りの幅に
+ * 収まらなければ丸ごと次の行へ送る。塊は閉じた行では inline のまま（inline-block は「…」で切れないため）
  */
-function RowMain({ expanded, children, label }: { expanded: boolean; children: ReactNode; label?: ReactNode }) {
-  if (expanded) {
-    return (
-      <span className={css({ gridArea: 'main', minW: '[0]', overflowWrap: 'anywhere' })}>
-        {children} {label}
-      </span>
-    )
-  }
+function RowMainExpanded({ toggle, children, label }: { toggle: ReactNode; children: ReactNode; label?: ReactNode }) {
+  return (
+    <span
+      className={css({
+        gridArea: 'main',
+        minW: '[0]',
+        overflowWrap: 'anywhere',
+        '& [data-wrap-unit]': { display: 'inline-block' },
+      })}
+    >
+      {toggle}
+      {children} {label}
+    </span>
+  )
+}
+
+/** 閉じた行の左。名前がはみ出したら「…」で切り、その後ろに言語ラベル */
+function RowMainCollapsed({ children, label }: { children: ReactNode; label?: ReactNode }) {
   return (
     <span className={css({ gridArea: 'main', display: 'flex', alignItems: 'center', gap: 'inline', minW: '[0]' })}>
       <span className={css({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minW: '[0]' })}>
@@ -248,28 +285,21 @@ function RowMeta({ children }: { children: ReactNode }) {
   return <div className={css({ display: 'flex', alignItems: 'center', gap: 'inline', flexShrink: 0 })}>{children}</div>
 }
 
-/** 「名前 ~ 説明」の「~ 説明」。説明はグレー */
-function Tilde({ children }: { children: ReactNode }) {
-  return (
-    <span className={mutedText}>
-      {' ~ '}
-      {children}
-    </span>
-  )
-}
-
 export function CareerRow({ item, lang, messages }: ItemProps<CareerItem>) {
   return (
     <DisclosureRow
       expandable={isExpandable({ section: 'careers', item })}
       metaBelowOnMobile
       name={
+        // タイトルだけを折り返しの塊にする。所属まで塊にすると、所属が1行目の残りに収まらないとき ▸ だけが1行目に残る
         item.organization ? (
           <>
             <Text text={item.organization} pageLang={lang} />
-            <Tilde>
+            {/* ~ の前は改行しない空白にし、~ が所属から離れて次の行の頭に来ないようにする */}
+            <span className={mutedText}>{'\u00a0~'}</span>{' '}
+            <span data-wrap-unit="" className={mutedText}>
               <Text text={item.title} pageLang={lang} />
-            </Tilde>
+            </span>
           </>
         ) : (
           <Text text={item.title} pageLang={lang} />
