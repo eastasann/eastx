@@ -92,7 +92,7 @@ bunx wrangler r2 bucket create eastx-media --location apac
 bunx wrangler kv namespace create eastx-analytics-salts
 ```
 
-出てきた D1 の `database_id` を、`wrangler.jsonc` の `env.staging` と `env.production` に書く（`docs/03_dev-setup.md` 5章）。R2 は公開アクセスを有効にしない（Worker の `/media/*` から配信する。SDD ADR-010）。KV の `id` は `env.production` の `kv_namespaces` に、Cloudflare のアカウント ID（ダッシュボードの Workers & Pages の右側、または `bunx wrangler whoami`）は `env.production` の `vars.CF_ACCOUNT_ID` に書く。Analytics Engine のデータセット（`eastx_analytics`）は作らなくてよい（最初の書き込みで作られる）。
+出てきた D1 の `database_id` を、`wrangler.jsonc` の `env.staging` と `env.production` に書く（`docs/03_dev-setup.md` 5章）。R2 は公開アクセスを有効にしない（Worker の `/media/*` から配信する。SDD ADR-010）。KV の `id` は `env.production` の `kv_namespaces` に、Cloudflare のアカウント ID（ダッシュボードの Workers & Pages の右側、または `bunx wrangler whoami`）は `env.production` の `vars.CF_ACCOUNT_ID` に書く。Analytics Engine は、アカウントで一度だけ有効にする。ダッシュボードの Storage & databases → Analytics Engine で Create Dataset → Create Blank Dataset を選び、Dataset Name を `eastx_analytics`、Dataset Binding を `ANALYTICS` にして作る（最初のデータセットを作ると有効になる。Worker へのつなぎは `wrangler.jsonc` が行う）。有効にする前に Analytics Engine のバインディングを持つ版をデプロイすると、Cloudflare の API がバージョンのアップロードを拒否し（`You need to enable Analytics Engine`、code 10089）、デプロイが止まる（前の版のまま動き続ける）。
 
 ### Step 3: GitHub の OAuth App（staging 用・本番用）
 

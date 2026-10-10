@@ -79,7 +79,7 @@
 | 対象 | 管理方法 |
 |---|---|
 | Worker・バインディング（D1・R2・Rate Limiting・本番だけの Analytics Engine と KV）・Cron のトリガー（本番だけ）・独自ドメイン・環境変数 | `wrangler.jsonc`（リポジトリで管理。トップレベル = ローカル、`env.staging`、`env.production`） |
-| D1・R2・KV の作成 | 初回だけ wrangler CLI で作る（`docs/04_deployment-procedure.md` 3章）。作った ID を `wrangler.jsonc` に書く。Analytics Engine のデータセットは最初の書き込みで作られる |
+| D1・R2・KV の作成、Analytics Engine の有効化 | 初回だけ wrangler CLI とダッシュボードで行う（`docs/04_deployment-procedure.md` 3章）。作った ID を `wrangler.jsonc` に書く。Analytics Engine は、最初のデータセット（`eastx_analytics`）をダッシュボードで作って有効にしてからデプロイする |
 | DB スキーマ | Drizzle のスキーマ（`src/db/schema.ts`）→ drizzle-kit で SQL のマイグレーションを生成 → wrangler で D1 に適用 |
 | シークレット | ローカルは `.dev.vars`（Git に入れない）、staging・本番は `wrangler secret put` |
 | DNS | `eastasian.dev` のゾーンを Cloudflare で管理する。Worker の Custom Domain を作ると DNS レコードと証明書が自動で用意される |
