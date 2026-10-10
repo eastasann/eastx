@@ -53,7 +53,7 @@ export interface DataPoint {
   doubles: [number]
 }
 
-/** 値の無い blob も空文字で書き、14個をそろえる（SQL の `blob4 != ''` が書いた値どおりに当たるように） */
+/** 値の無い blob も空文字で書き、14個をそろえる（1日ぶんの問い合わせ（src/api/analytics/queries.ts）が14列とも文字列で読めるように） */
 export function toDataPoint(event: AnalyticsEvent, facts: RequestFacts): DataPoint {
   const blobs = Array<string>(14).fill('')
   blobs[0] = event.type
