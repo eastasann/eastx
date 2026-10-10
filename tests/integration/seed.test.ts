@@ -9,7 +9,7 @@ import * as schema from '../../src/db/schema'
 
 async function counts(): Promise<Record<string, number>> {
   const tables = ['profile', 'social_link', 'career', 'stack', 'work', 'work_stack', 'project', 'project_stack']
-  const all = [...tables, 'blog_post', 'coding_log', 'admin_user']
+  const all = [...tables, 'blog_post', 'coding_log', 'privacy_page', 'admin_user']
   const rows = await env.DB.batch(all.map((t) => env.DB.prepare(`select count(*) as n from ${t}`)))
   return Object.fromEntries(all.map((t, i) => [t, (rows[i]?.results[0] as { n: number } | undefined)?.n ?? -1]))
 }
@@ -32,6 +32,7 @@ describe('insertSeed', () => {
       project_stack: data.projectStacks.length,
       blog_post: 13,
       coding_log: 12,
+      privacy_page: 1,
       admin_user: 0,
     })
   })
@@ -48,6 +49,7 @@ describe('insertSeed', () => {
     expect(c.blog_post).toBe(0)
     expect(c.coding_log).toBe(0)
     expect(c.work).toBe(12)
+    expect(c.privacy_page).toBe(1)
     expect(c.admin_user).toBe(1)
   })
 })

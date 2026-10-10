@@ -7,6 +7,7 @@ import { dashboardContract } from './dashboard'
 import { openapiContract, slugsContract, uploadsContract } from './misc'
 import { projectsContract, worksContract } from './portfolio'
 import { blogPostsContract, codingLogsContract } from './posts'
+import { privacyContract } from './privacy'
 import { profileContract } from './profile'
 import { stacksContract } from './stacks'
 
@@ -19,6 +20,7 @@ export const contract = {
   stacks: stacksContract,
   blogPosts: blogPostsContract,
   codingLogs: codingLogsContract,
+  privacy: privacyContract,
   slugs: slugsContract,
   uploads: uploadsContract,
   openapi: openapiContract,

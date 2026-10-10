@@ -214,7 +214,7 @@
 
 **決定:**
 - API の入出力は Zod（v4）で定義する。oRPC の OpenAPI の仕様は `@orpc/zod` の変換器で作る。
-- 管理画面のフォームは TanStack Form で作り、同じ Zod のスキーマで入力をチェックする（Standard Schema）。フィールドの名前は API の `fieldErrors` のキー（例: `ja.title`）と同じにして、サーバーのエラーをそのまま入力欄に対応させる。日英の両方の入力を1つのフォームの状態に持ち、言語タブと表示の切り替え（「日英」）は見せ方を変えるだけにする。編集ビューの一時保存（自動退避。design-spec 6.4）は、保存していない変更があるあいだ、このフォームの状態を `{ savedAt, values }`（`savedAt` はブラウザの時計の ISO 8601）の形で localStorage の `eastx:backup:{種類}:{id か new}` に置く。書く・消す時は `src/admin/backup.ts` の `AutoBackup` が design-spec 6.4 の表のとおりに決める。比べる元（最後に読んだ・保存した内容）との比較はフォームの状態を JSON にして行い、比較に関係ない値（SNS リンクの並べ替えの目印の ID）は外してから比べる。
+- 管理画面のフォームは TanStack Form で作り、同じ Zod のスキーマで入力をチェックする（Standard Schema）。フィールドの名前は API の `fieldErrors` のキー（例: `ja.title`）と同じにして、サーバーのエラーをそのまま入力欄に対応させる。日英の両方の入力を1つのフォームの状態に持ち、言語タブと表示の切り替え（「日英」）は見せ方を変えるだけにする。編集ビューの一時保存（自動退避。design-spec 6.4）は、保存していない変更があるあいだ、このフォームの状態を `{ savedAt, values }`（`savedAt` はブラウザの時計の ISO 8601）の形で localStorage の `eastx:backup:{種類}:{id か new}` に置く。1件だけの画面（A3 プロフィール・A11 プライバシー）も行の `id` を使い、行がまだ無ければ `new` にする。書く・消す時は `src/admin/backup.ts` の `AutoBackup` が design-spec 6.4 の表のとおりに決める。比べる元（最後に読んだ・保存した内容）との比較はフォームの状態を JSON にして行い、比較に関係ない値（SNS リンクの並べ替えの目印の ID）は外してから比べる。
 
 **理由:** oRPC が Standard Schema に対応していて、Zod のスキーマがそのままコントラクトと OpenAPI の仕様になり、サーバーとフォームでルールが食い違わない。TanStack Form は Standard Schema をそのまま使え、入れ子の項目（`ja`・`en`）と配列（SNS リンク・使用技術）を扱える。
 
@@ -267,7 +267,7 @@
 
 **決定:**
 - 公開側のページは、リクエストのたびに D1 から読んで SSR する。HTML にはエッジのキャッシュをかけない（`Cache-Control: private, no-cache`）。
-- 重い処理である Markdown の描画の結果だけを、Workers の Cache API に保存する。キーは URL の形で `https://md-cache.internal/{RENDER_VERSION}/{種類}/{id}/{言語}/{updated_at}`。使用技術を渡した描画（自己紹介。ADR-012）だけ、末尾に使用技術の版のセグメント `/s-{版}` を足す（`.../{updated_at}/s-3f9a1c0b`）。版は、使用技術を識別名の昇順に並べ、各項目を `{key}\u0000{displayName}\u0000{iconUrl ?? ''}`、項目どうしを改行で連ねた文字列の SHA-256 の先頭8桁（16進）。描画結果に効く3つだけで作るので、並べ替えと「トップに表示する」の変更では変わらず、追加・削除・表示名・識別名・アイコンの変更で変わる。プロフィールの `updated_at` は使用技術を変えても変わらないため、版がないと古いアイコンの結果が出続ける。`RENDER_VERSION` は `src/markdown/` の定数で、描画の処理（プラグイン・サニタイズのスキーマ・Shiki の設定）を変えたら上げる。保存するレスポンスには `Cache-Control: max-age=604800`（7日）を付ける。
+- 重い処理である Markdown の描画の結果だけを、Workers の Cache API に保存する。キーは URL の形で `https://md-cache.internal/{RENDER_VERSION}/{種類}/{id}/{言語}/{updated_at}`。`{種類}` は本文を持つ中身の種類（`profile`・`career`・`work`・`project`・`blog-post`・`coding-log`・`privacy`）で、1件だけの中身（プロフィール・プライバシーのページ）の `{id}` は行の `id`。使用技術を渡した描画（自己紹介。ADR-012）だけ、末尾に使用技術の版のセグメント `/s-{版}` を足す（`.../{updated_at}/s-3f9a1c0b`）。版は、使用技術を識別名の昇順に並べ、各項目を `{key}\u0000{displayName}\u0000{iconUrl ?? ''}`、項目どうしを改行で連ねた文字列の SHA-256 の先頭8桁（16進）。描画結果に効く3つだけで作るので、並べ替えと「トップに表示する」の変更では変わらず、追加・削除・表示名・識別名・アイコンの変更で変わる。プロフィールの `updated_at` は使用技術を変えても変わらないため、版がないと古いアイコンの結果が出続ける。`RENDER_VERSION` は `src/markdown/` の定数で、描画の処理（プラグイン・サニタイズのスキーマ・Shiki の設定）を変えたら上げる。保存するレスポンスには `Cache-Control: max-age=604800`（7日）を付ける。
 
 **理由:** design-spec 9章の「公開サイトに変更を反映するタイミング」を「保存した瞬間」に決める。個人サイトのアクセス量なら毎回の D1 の読み取りで足り、キャッシュの無効化を考えずに済む。Markdown のキャッシュは、キーに `updated_at` と `RENDER_VERSION` を含むので、中身を保存しても描画の処理を変えても別のキーになり、古い結果が出ない。
 
@@ -409,11 +409,12 @@
 | P1 トップ | `{サイト名} — {プロフィールの名前}`。プロフィールがなければ `{サイト名}` | プロフィールの肩書き。なければ自己紹介の抜粋。プロフィールがなければなし | 言語ごとの既定の画像 `/og/default-{lang}.png` |
 | P2・P3 | `{タイトル} — {サイト名}` | 概要。なければ詳細本文の抜粋 | サムネイル。なければ既定の画像 |
 | P4・P5 | `{タイトル} — {サイト名}` | 本文の抜粋 | サムネイル。なければ既定の画像 |
+| P6 | `{プライバシーの辞書の文言} — {サイト名}` | 出している本文（片方の言語しかなければ、その言語の本文）の抜粋 | 既定の画像 |
 | C1・C2 | `{C1・C2 の見出し（辞書の文言）} — {サイト名}` | なし | 既定の画像 |
 
 - テキストは表示中の言語のもの（項目単位の代替表示は design-spec 1.4 に従う）。抜粋の作り方は design-spec 6.1.4。
 - `og:image` などの絶対 URL は `SITE_URL` から作る。`og:locale` は `ja_JP` ／ `en_US`、`og:locale:alternate` にもう一方を入れる。
-- P1〜P5 に `<link rel="canonical">` と、`hreflang` の `ja`・`en`・`x-default`（`x-default` はルート `/`）を出す。C1・C2 は存在しない・表示できない URL なので出さない。
+- P1〜P6 に `<link rel="canonical">` と、`hreflang` の `ja`・`en`・`x-default`（`x-default` はルート `/`）を出す。P6 は片方の言語しか本文が無くても3つとも出す（両方の URL が、もう片方の言語の本文と注記で表示できる）。C1・C2 は存在しない・表示できない URL なので出さない。
 - 検索エンジンへの指示: 管理画面は `<meta name="robots" content="noindex">`。Worker が返すレスポンスのうち、`/admin/*`・`/api/*` と staging のすべてに `X-Robots-Tag: noindex, nofollow` を付ける。`/robots.txt` は静的ファイルにせず Worker が環境ごとに返す（本番は `/admin` と `/api` を拒否、staging とローカルはすべてを拒否）。静的アセット（JS・CSS・フォント）には付かないが、検索の対象になるページはすべて Worker を通る。
 - sitemap.xml は作らない。RSS はスコープ外（design-spec 9章）。
 
@@ -485,6 +486,7 @@
 | `/{lang}/projects/{slug}` | `$lang/projects.$slug.tsx` | P3 プロジェクト詳細 |
 | `/{lang}/blog/{slug}` | `$lang/blog.$slug.tsx` | P4 ブログ記事 |
 | `/{lang}/coding/{slug}` | `$lang/coding.$slug.tsx` | P5 コーディング記録詳細 |
+| `/{lang}/privacy` | `$lang/privacy.tsx` | P6 プライバシー |
 | 公開側で一致しないパス、`$lang` が `ja`・`en` 以外、中身が見つからない | `$lang/route.tsx` の `notFoundComponent`（`__root.tsx` の `notFoundComponent` は、どのルートにも当たらないパスの受け皿） | C1（HTTP 404） |
 | 公開側で中身の取得に失敗 | `$lang/route.tsx` の `errorComponent` と、ルーターの `defaultErrorComponent`（公開側の各画面のルート） | C2（HTTP 500） |
 | `/admin/login` | `admin/login.tsx` | A1 |
@@ -496,6 +498,7 @@
 | `/admin/stacks`、`/admin/stacks/{id}` | `admin/_authed/stacks.index.tsx`、`stacks.$id.tsx` | A7 |
 | `/admin/blog`、`/admin/blog/{id}` | `admin/_authed/blog.index.tsx`、`blog.$id.tsx` | A8 |
 | `/admin/coding`、`/admin/coding/{id}` | `admin/_authed/coding.index.tsx`、`coding.$id.tsx` | A9 |
+| `/admin/privacy` | `admin/_authed/privacy.tsx` | A11 |
 | 管理画面で一致しないパス | `admin/_authed/$.tsx`（スプラット。`beforeLoad` で `/admin` へ移す） | 画面なし。design-spec 6.6 の「存在しない管理画面の URL」の扱い |
 
 - 管理画面の一覧は、絞り込みをクエリで持つ: `?status=draft|published`（A4〜A6・A8・A9）、`?kind=work|education`（A4）、`?kind=learning_log|snippet|problem|memo`（A9）。ダッシュボードの下書き件数からは `?status=draft` 付きで移る。
@@ -512,7 +515,7 @@
 | パス | 処理 | 説明 |
 |---|---|---|
 | `/api/auth/*` | Elysia → Better Auth | ログイン・コールバック・ログアウト・セッション取得（5.2） |
-| `/api/admin/*` | Elysia → oRPC `OpenAPIHandler` | CMS API（5.3〜5.9） |
+| `/api/admin/*` | Elysia → oRPC `OpenAPIHandler` | CMS API（5章のうち、ベースパス `/api/admin` の節） |
 | `/media/*` | Elysia → R2 | 画像の配信（5.10） |
 | TanStack Start のサーバー関数 | TanStack Start | 公開側の読み取り（5.11）。URL は TanStack Start が決める（`/_serverFn/...`） |
 | `/robots.txt` | TanStack Start のサーバールート（`src/routes/robots[.]txt.ts`） | 環境ごとに中身を変える（ADR-019） |
@@ -562,7 +565,7 @@ Better Auth の標準のエンドポイントを使う。管理画面は `better
 |---|---|---|---|
 | `POST /api/auth/sign-in/social` | A1 の「GitHubでログイン」 | `{ "provider": "github", "callbackURL": "/admin/works/0f8c…", "errorCallbackURL": "/admin/login?redirect=%2Fadmin%2Fworks%2F0f8c…" }`（`callbackURL` は `redirect` クエリの値。なければ、`/admin` の下のパスでなければ、A1（`/admin/login`）自身なら `/admin`。`errorCallbackURL` は、`redirect` があれば `callbackURL` と同じ値を `redirect` に付けた A1、なければ `/admin/login`） | `200 { "url": "https://github.com/login/oauth/authorize?...", "redirect": true }` → クライアントが `url` へ移る |
 | `GET /api/auth/callback/github` | GitHub からの戻り | `?code=...&state=...` | 成功: `302` で `callbackURL` へ（セッションの Cookie を付ける）。失敗: `302` で `errorCallbackURL?error={コード}` へ（`error_description` が付くことがある。A1 は読まない）。state が読めず `errorCallbackURL` が分からない失敗（state の期限切れ・戻りの URL の再読み込み）は `onAPIError.errorURL` の `/admin/login?error={コード}` へ |
-| `GET /api/auth/get-session` | セッションの確認（A2〜A9 の表示前、サイドメニューの GitHub ユーザー名） | Cookie | `200 { "session": { "id", "expiresAt", … }, "user": { "id", "name", "email", "image", "githubUserId": "1234567", "githubLogin": "octocat" } }`。ないときは `200 null` |
+| `GET /api/auth/get-session` | セッションの確認（管理画面の認証の要る画面（A2〜A9・A11）の表示前、サイドメニューの GitHub ユーザー名） | Cookie | `200 { "session": { "id", "expiresAt", … }, "user": { "id", "name", "email", "image", "githubUserId": "1234567", "githubLogin": "octocat" } }`。ないときは `200 null` |
 | `POST /api/auth/sign-out` | ログアウト | Cookie | `200 { "success": true }`。クライアントは `/admin/login?loggedOut=1` へ移る |
 
 A1 での `error` と、design-spec 6.4 の状態の対応:
@@ -1052,7 +1055,7 @@ oRPC の `OpenAPIGenerator` で作った OpenAPI 3.1 の仕様（管理者だけ
 
 ### 5.11 公開側のサーバー関数（`src/content/`）
 
-公開側のローダーが呼ぶ、読み取り専用のサーバー関数。**公開中（`status = 'published'`）の中身だけを返す。** 言語の代替（design-spec 1.4）はここで行い、表示用の形で返す。
+公開側のローダーが呼ぶ、読み取り専用のサーバー関数。**公開中（`status = 'published'`）の中身だけを返す。** 公開の状態を持たない1件だけの中身のうち、プライバシーのページ（`privacy_page`）は本文の有無で出す（本文が日英とも空なら存在しない。プロフィールは状態を持たず、行があればそのまま出す）。言語の代替（design-spec 1.4）はここで行い、表示用の形で返す。
 
 共通の型:
 
@@ -1078,6 +1081,7 @@ type PageMeta = { title: string; description: string | null; ogImageUrl: string;
 | `getProjectDetail` | `{ lang, slug }` | `ProjectDetailView` | 同上 |
 | `getBlogPost` | `{ lang, slug }` | `BlogPostView` | 存在しない・非公開 → `notFound()` |
 | `getCodingLog` | `{ lang, slug }` | `CodingLogView` | 同上 |
+| `getPrivacyPage` | `{ lang }` | `PrivacyPageView` | 行が無い・本文が日英とも空 → `notFound()`（C1） |
 | `getSiteChrome` | なし | `SiteChromeView` | — |
 
 ```ts
@@ -1140,9 +1144,16 @@ type BlogPostView = {
 }
 type CodingLogView = BlogPostView & { kind: CodingLogKind; referenceUrl: string | null }
 
+type PrivacyPageView = {
+  lang: Lang; meta: PageMeta
+  body: LocalizedHtml                       // body.lang !== lang なら、本文の上に注記（design-spec 6.2.4）
+  updatedAt: string                         // 最終更新日（行の updated_at）
+}
+
 /** 公開側の全画面（C1・C2 を含む）のフッター（design-spec 6.1.2）。`$lang/route.tsx` のローダーが読む */
 type SiteChromeView = {
   socialLinks: { service: SocialService; url: string; label: string | null }[]  // プロフィールのSNSリンク。プロフィールがなければ空
+  hasPrivacyPage: boolean                   // プライバシーのページの本文が日英のどちらかにある
 }
 ```
 
@@ -1150,7 +1161,39 @@ type SiteChromeView = {
 - `getTopPage` は1回の `db.batch()` で全セクションと、自己紹介の描画に渡す使用技術の全件（`key`・`displayName`・`iconUrl`）を読む。ブログ・コーディング記録は本文を読まず、「言語あり」の判定（design-spec 1.4）のために本文があるかだけを読む。
 - 詳細ページの `body` が両方の言語で空のブログ・コーディング記録は、公開のルールで起こらない。
 - P1 がセクションを出すかは、`getTopPage` の配列が0件かで画面が決める。使用技術は「トップに表示する」の技術が1件以上で出す。
-- `getSiteChrome` は中身が言語に依らないので入力を取らない。
+- `getSiteChrome` は中身が言語に依らないので入力を取らない。読めなかった画面（`getSiteChrome` 自身が失敗した C2、`$lang` が `ja`・`en` 以外で読み取りにも失敗した C1、どのルートにも当たらない C1）は、SNS リンクを空、`hasPrivacyPage` を `false` にしたフッターを出す（全画面のフッターを出し続ける）。子のルートの失敗の C2 は `$lang` のレイアウトの中に描くので、読んだフッターのまま出す（4.1）。SNS リンクと同じ1回の `db.batch()` で、`privacy_page` の本文があるかだけを読み（本文の全文は読まない）、`src/domain/languages.ts` の判定（5.12 の `languages` と同じ関数）で `hasPrivacyPage` を決める。行が無ければ `false`。本文があるかは `NULL` かどうかで読むので、本文が `NULL` に正規化されていること（5.12 の PUT と 6.4 の CHECK）を前提にする。同じ batch に入れるので、テーブルの無い DB ではフッター全体が読めなくなるが、デプロイはマイグレーションをコードより先に当て、失敗すればデプロイしない（`docs/04_deployment-procedure.md` 2章）ので、新しいコードがテーブルの無い DB に当たることは無い。
+- `getPrivacyPage` の判定は、行があり本文が日英のどちらかにあること（`src/domain/languages.ts` の判定。design-spec 1.4 の言語ありの判定を本文に当てる）。本文は項目単位の代替表示で選び（design-spec 1.4）、描画結果は ADR-011 の Cache API に種類 `privacy`・行の `id` で入る。`meta` は ADR-019。最終更新日は行の `updated_at` で、日英で同じ日付になる。
+
+### 5.12 プライバシーのページ（A11）
+
+#### `GET /api/admin/privacy`
+
+```json
+// 200
+{
+  "id": "9c2e…",
+  "ja": { "body": "## アクセスの集計\n…" },
+  "en": { "body": "## Analytics\n…" },
+  "languages": { "ja": true, "en": true },
+  "updatedAt": "2026-10-10T03:12:45.000Z"
+}
+```
+
+- `id` は 5.5 と同じく行の ID（自動退避のキーに使う。ADR-008）。
+- `languages` は本文があるか（言語タブの印。design-spec 6.7.1）。
+- 行がまだ無いときは `NOT_FOUND`。A11 はこのとき空のフォームを出す（design-spec 6.7.4）。
+
+#### `PUT /api/admin/privacy`
+
+```json
+// リクエスト
+{ "ja": { "body": "…" }, "en": { "body": null } }
+// 200: GET と同じ形
+```
+
+- 行がなければ作る。行（1件だけ）の upsert を `insert … on conflict (singleton) do update` の1文で行う（確かめてから書く形にしない。ADR-006）。`on conflict do update` では Drizzle の `$onUpdateFn` が効かないので、`updated_at` を明示して入れる（公開側の最終更新日がこの値）。応答は書いた後に読み直して作る。
+- 本文は 5.0 のとおり前後の空白を除き、空なら `NULL` で保存する（空白と改行だけの本文は `NULL`）。日英とも空でもよい（公開側にページもリンクも出なくなる）。
+- エラー: `INPUT_VALIDATION_FAILED`（本文が Markdown の上限 100,000字を超える）。
 
 ---
 
@@ -1183,6 +1226,8 @@ work (N) ──< work_stack >── (N) stack (N) ──< project_stack >── 
 blog_post (N)
 coding_log (N)
 
+privacy_page (1件)
+
 admin_user (1件) ──< admin_session (N)
            └──────< admin_account (N)     ※ GitHub の1件だけ
 auth_verification (N)                     ※ OAuth の state などの一時データ。どこにも紐づかない
@@ -1203,6 +1248,7 @@ auth_verification (N)                     ※ OAuth の state などの一時デ
 | `work_stack` ／ `project_stack` | 作品・プロジェクトと使用技術の紐づけ | 主キーは2つの外部キーの組。`sort_order` が作品・プロジェクトの中での技術の表示順 |
 | `blog_post` | ブログ記事 | `published_at` は「公開日」、`content_updated_at` は「更新日」（値を入れるのは 5.3。`published_at` は design-spec 6.7.2 の「公開したことがある」の判定にも使う）。抜粋はカラムを持たず本文から作る |
 | `coding_log` | コーディング記録 | `kind` は `learning_log`（初期値）・`snippet`・`problem`・`memo`。日時のカラムはブログ記事と同じ |
+| `privacy_page` | プライバシーのページ。1件だけ | `singleton` カラム（常に1、一意）で2件目を防ぐ。公開の状態を持たず、本文（`body_ja`・`body_en`）が日英のどちらかにあれば公開側にページとフッターのリンクが出る（5.11）。空白だけの本文は保存せず `NULL` にし、CHECK でも防ぐ（SQLite の `trim()` は既定で半角スペースしか除かないので、API の検査と公開側の判定が使う JS の `trim` と同じ文字を渡す）。最終更新日は `updated_at`。staging・本番は A11 の初回の保存で作られる |
 | `admin_user` | 管理者（Better Auth の user） | `github_user_id`（GitHub の数値 ID）で管理者かを判定する。`github_login` はサイドメニューに出す。初回ログインで作られる（ADR-009）。`name`・`email`・`image` は Better Auth が GitHub から入れる |
 | `admin_session` | ログインのセッション | Cookie のトークンに対応する。有効期限30日 |
 | `admin_account` | GitHub のアカウントとの紐づけ | `provider_id = 'github'`、`account_id` は GitHub の数値 ID |
@@ -1247,6 +1293,14 @@ const yearMonthFormat = (col: unknown) =>
 // LIKE は ASCII の大文字小文字を区別しない（'/MEDIA/...' が通る）ので、前方一致は GLOB で見る
 const httpsOrNull = (col: unknown) => sql`${col} is null or ${col} glob 'https://*'`
 const mediaOrNull = (col: unknown) => sql`${col} is null or ${col} glob '/media/*'`
+/** JS の trim（API の入力の検査と公開側の「言語あり」の判定）が除く文字。ECMAScript の WhiteSpace と LineTerminator */
+export const JS_TRIM_CODE_POINTS = [
+  0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007,
+  0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff,
+] as const
+// SQLite の trim() は既定で半角スペースしか除かないので、JS の trim と同じ文字を渡す
+const notBlankOrNull = (col: unknown) =>
+  sql`${col} is null or trim(${col}, char(${sql.raw(JS_TRIM_CODE_POINTS.join(', '))})) <> ''`
 
 // ---- profile ----------------------------------------------------------
 export const profile = sqliteTable(
@@ -1518,6 +1572,27 @@ export const codingLog = sqliteTable(
   ],
 )
 
+// ---- privacy_page -----------------------------------------------------
+/** プライバシーのページ。1件だけ。本文が日英とも空なら、公開側にページもリンクも出さない */
+export const privacyPage = sqliteTable(
+  'privacy_page',
+  {
+    id: id(),
+    /** 常に1。一意制約で2件目を防ぐ */
+    singleton: integer('singleton').notNull().default(1).unique(),
+    bodyJa: text('body_ja'), // Markdown
+    bodyEn: text('body_en'), // Markdown
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check('privacy_page_singleton', sql`${t.singleton} = 1`),
+    // 空白だけの本文は API が NULL にする。「ページがある」の判定（is not null）の最後の守り
+    check('privacy_page_body_ja', notBlankOrNull(t.bodyJa)),
+    check('privacy_page_body_en', notBlankOrNull(t.bodyEn)),
+  ],
+)
+
 // ---- Better Auth（管理者のログイン） -----------------------------------
 export const adminUser = sqliteTable('admin_user', {
   id: text('id').primaryKey(),
@@ -1630,6 +1705,7 @@ export default defineConfig({
 | Coding（中身なし） | `coding_log` | 新しく作る |
 | なし | `blog_post` | 新しく作る |
 | なし | `admin_user` ほか Better Auth のテーブル | 新しく作る（GitHub ログイン用） |
+| なし | `privacy_page` | 新しく作る（移す中身は無い。本文は A11 で書く） |
 
 移行の手順と方針（今の説明を `summary` に入れる、最初は下書きで入れる、など）は design-spec 9章。変換スクリプトは `scripts/migrate-legacy/` に置き、D1 に流す SQL を生成する。画像は R2 の `uploads/legacy/{ファイル名}-{中身の SHA-256 の先頭8桁}.{拡張子}` に置き直し、パスを書き換える。ファイル名は今のファイル名から拡張子を除いて英小文字・数字・ハイフンに直したもので、拡張子は形式から決める。`/media/*` はキーの中身が変わらない前提で長くキャッシュさせる（ADR-010）ので、キーに中身のハッシュを入れる。SQL は消す文を含まず、流す先の D1 の中身が空であることを前提にする（空でなければプロフィールの一意制約で失敗する）。
 
@@ -1645,19 +1721,19 @@ export default defineConfig({
 
 | リソース / 操作 | 管理者 | 管理者でないセッション | 未認証（訪問者） |
 |----------------|----------|----------|--------|
-| 公開側の画面（P1〜P5・C1・C2）の閲覧、公開側のサーバー関数（5.11） | ✓ | ✓ | ✓ |
+| 公開側の画面（P1〜P6・C1・C2）の閲覧、公開側のサーバー関数（5.11） | ✓ | ✓ | ✓ |
 | 下書きの中身の、公開側での閲覧 | ✕（404） | ✕（404） | ✕（404） |
 | `GET /media/*`（画像） | ✓ | ✓ | ✓ |
 | A1 ログイン画面 | ✓（A2、または `redirect` の画面へ移す） | ✓ | ✓ |
-| A2〜A9 の表示 | ✓ | ✕（A1 へ。design-spec 6.4 の「管理者でないアカウント」） | ✕（A1 へ） |
+| A2〜A9・A11 の表示 | ✓ | ✕（A1 へ。design-spec 6.4 の「管理者でないアカウント」） | ✕（A1 へ） |
 | `/api/auth/*`（ログイン開始・コールバック・セッション取得・ログアウト） | ✓ | ✓ | ✓（`admin_user` が作られるのは `ADMIN_GITHUB_USER_ID` の人だけ） |
 | `GET /api/admin/*`（ダッシュボード・一覧・詳細・スラッグ・OpenAPI） | ✓ | ✕（403） | ✕（401） |
 | `POST`・`PUT`・`DELETE /api/admin/*`（作成・更新・公開・非公開・削除・並べ替え） | ✓ | ✕（403） | ✕（401） |
 | `POST /api/admin/uploads` | ✓ | ✕（403） | ✕（401） |
 
 - 認可は 5.1 のミドルウェアで、`/api/admin/*` の全手続きに一律にかける。手続きごとに付け外ししない。
-- 公開側のサーバー関数は、`status = 'published'` の条件を `src/content/` の中の共通のクエリ部品に入れ、個別のクエリで書き忘れないようにする。
-- 管理画面のルートガード（`beforeLoad`）は表示のためのもので、守りの正は API 側。ガードが見るのはセッションの有無だけで、管理者かどうかは見ない（クライアントは `ADMIN_GITHUB_USER_ID` を知らない）。A2〜A9 は表示のときに CMS API を呼ぶので、管理者でないセッションはその `FORBIDDEN` で A1 の「管理者でないアカウント」へ移る（8章）。
+- 公開側のサーバー関数は、`status = 'published'` の条件を `src/content/` の中の共通のクエリ部品に入れ、個別のクエリで書き忘れないようにする。公開の状態を持たない `privacy_page` は、本文の有無を `src/domain/languages.ts` の判定で見て出す（5.11）。
+- 管理画面のルートガード（`beforeLoad`）は表示のためのもので、守りの正は API 側。ガードが見るのはセッションの有無だけで、管理者かどうかは見ない（クライアントは `ADMIN_GITHUB_USER_ID` を知らない）。A2〜A9・A11 は表示のときに CMS API を呼ぶので、管理者でないセッションはその `FORBIDDEN` で A1 の「管理者でないアカウント」へ移る（8章）。
 
 #### その他の設計判断
 
@@ -1683,7 +1759,7 @@ export default defineConfig({
 | P1〜P5 の LCP（モバイル、p75） | 2.5秒以下 |
 | CMS API の応答（p95） | 300ms 以下（アップロードを除く） |
 
-測り方: Sentry のブラウザのパフォーマンス計測（Web Vitals の TTFB・LCP）で、日本からのアクセスの p75 を見る。CMS API は Workers Logs の応答時間で見る。
+測り方: Sentry のブラウザのパフォーマンス計測（Web Vitals の TTFB・LCP）で、日本からのアクセスの p75 を見る。CMS API は Workers Logs の応答時間で見る。P6 は画像の無い短い文書で、LCP は本文の文字になり P1〜P5 より軽いので、LCP の目標と Lighthouse の対象には入れない。
 
 守るための設計:
 
@@ -1734,7 +1810,7 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 
 ### フロントエンドでの表示方針
 
-文言と出し方の正は design-spec（公開側は 6.1.5・6.2.3・6.3、管理側は 6.4〜6.7.4）。ここではエラーの種類との対応だけを決める。
+文言と出し方の正は design-spec（公開側は 6.1.5・6.2.3・6.2.4・6.3、管理側は 6.4〜6.7.4）。ここではエラーの種類との対応だけを決める。
 
 | エラー種別 | 表示方法 |
 |-----------|----------|
@@ -1772,11 +1848,11 @@ CMS API のエラーは oRPC の形式で返す。定義済みのエラーはコ
 
 | レイヤー | ツール | カバレッジ目標 | 対象 |
 |----------|--------|---------------|------|
-| ユニット | Vitest（Node.js 環境） | `src/domain/`・`src/i18n/`・`src/markdown/` の行カバレッジ 90% | スラッグの生成と重複の連番、言語ありの判定と代替、抜粋の作り方、公開状態の遷移（5.3）と公開のルール、日付・期間の書式、Markdown の描画（生の HTML・`javascript:`・見出しのレベル・外部リンク・太字と使用技術の照合・元の行番号）、キャッシュのキーの使用技術の版、Tech Stack の群の分け方（`src/domain/stack-groups.ts`）。データ移行の使用技術のカテゴリの表（表に無い識別名が Tools になること、表とマイグレーションの SQL の識別名の集合が一致すること）。管理画面の規則（`src/admin/`）: 自動退避の規則（design-spec 6.4 の表の各行。A7 のカテゴリと Core のキーが無い退避を読み込んだ値で埋めることを含む）、A7 の Core と「トップに表示するか」の規則、Cmd/Ctrl+S の割り当て、保存の状態の文言、ボタンを押せない理由、最初の誤りの欄の順、文字数の表示、表示の切り替えの記憶。公開側の行の規則（`src/site/row-rules.ts`）: トップの行を広げられるかの判定 |
-| API 結合 | Vitest ＋ `@cloudflare/vitest-pool-workers`（workerd 上で、ローカルの D1・R2 を使う。テストファイルごとにマイグレーションを当てた空の D1） | `/api/admin/*` の全手続きについて、未認証で 401・管理者でないセッションで 403 になるテストを必ず持つ（認可マトリクスの照合）。主要な手続きの正常系とエラー系 | CMS API の全手続き、Better Auth の hooks（管理者でない ID を拒否）、アップロードの形式・上限、`/media/*`。手で書いたマイグレーションが DB に入れた形（既定値・NOT NULL・CHECK）と、新しい列を書かない insert（古いコード）が既定値で入ること |
-| 公開側の読み取り | 同上 | 各サーバー関数の正常系と、下書き・詳細本文なしが返らないこと | 公開中だけを返す、並び順、前後のナビ、言語の代替、Tech Stack の群（トップに出さない技術を含めない）、自己紹介のキャッシュのキーが使用技術のカテゴリと Core で変わらないこと |
-| E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、ヘッダーのドメイン名からトップへ、プロフィールの上の一言（無ければ詰め、ヘッダーからの余白が変わらない）、経歴・作品・プロジェクトの行を行全体（キーボードの Enter・Space を含む）で広げ、広げた中の入口から詳細・外部へ移る、広げた行の名前の折り返し（モバイル幅。経歴は `所属 ~` と `タイトル` の境で折り返し、長い所属も ▸ と同じ1行目から始まる。1行目の名前は広げても横に動かず、続きの行は ▸ の左端から始まる）、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元、長い本文をスクロールしても操作バーが見えている、Cmd/Ctrl+S、「日英」で日英の本文を書いて保存、誤りの欄への移動、設定の引き出し、自動退避の復元の提案、使用技術を検索の欄を閉じずに続けて選ぶ、画像を挿入、L6（経歴）の「日英」で保存、A3 で一言を保存すると P1 に出る、ログアウトで退避を消す。P1 の Tech Stack の群（見出しの順と `lang`、Core の技術が Core の群にだけ出る、トップに出さない技術が無い、アイコンが無い・読み込めない技術の頭文字の丸、空の群を出さない）、公開側の使用技術の並びのアイコン（Tech Stack・行・P2）がグレースケールとトーンカーブのフィルターで切り抜かれず、ダークモードでは白黒反転され、自己紹介の太字の前と管理画面のアイコンは元の色、P1 の Tech Stack のリンクのチップは ↗ を見せず読み上げにだけ「別タブで開く」があり、P2 のチップは ↗ を見せる、A7 でカテゴリ・Core を変えて保存すると P1 の群が移る、Core をオンにすると「トップに表示するか」がオンで押せなくなる、Core でトップに表示しない値を保存すると欄の下に誤りを出す |
-| アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P5・A1・A2 と、A3・A4・A5・A7・A8 の編集ビュー（ライト・ダーク）で重大（serious 以上）な違反 0件。P1 は経歴・作品・プロジェクトを各1行広げた状態も検査する | 自動で検出できる範囲。表示の切り替え・設定の引き出し・画像を挿入をキーボードだけで操作できること。トップの行をキーボードで広げ、広げた中のリンクへ Tab で移れること |
+| ユニット | Vitest（Node.js 環境） | `src/domain/`・`src/i18n/`・`src/markdown/` の行カバレッジ 90% | スラッグの生成と重複の連番、言語ありの判定と代替、プライバシーのページがあるかの判定、抜粋の作り方、公開状態の遷移（5.3）と公開のルール、日付・期間の書式、Markdown の描画（生の HTML・`javascript:`・見出しのレベル・外部リンク・太字と使用技術の照合・元の行番号）、キャッシュのキーの使用技術の版、Tech Stack の群の分け方（`src/domain/stack-groups.ts`）。データ移行の使用技術のカテゴリの表（表に無い識別名が Tools になること、表とマイグレーションの SQL の識別名の集合が一致すること）。管理画面の規則（`src/admin/`）: 自動退避の規則（design-spec 6.4 の表の各行。A7 のカテゴリと Core のキーが無い退避を読み込んだ値で埋めることを含む）、A7 の Core と「トップに表示するか」の規則、Cmd/Ctrl+S の割り当て、保存の状態の文言、ボタンを押せない理由、最初の誤りの欄の順、文字数の表示、表示の切り替えの記憶、A11 の自動退避の種類と本文を日英とも空にして保存したときの通知。公開側の行の規則（`src/site/row-rules.ts`）: トップの行を広げられるかの判定 |
+| API 結合 | Vitest ＋ `@cloudflare/vitest-pool-workers`（workerd 上で、ローカルの D1・R2 を使う。テストファイルごとにマイグレーションを当てた空の D1） | `/api/admin/*` の全手続きについて、未認証で 401・管理者でないセッションで 403 になるテストを必ず持つ（認可マトリクスの照合）。主要な手続きの正常系とエラー系 | CMS API の全手続き、Better Auth の hooks（管理者でない ID を拒否）、アップロードの形式・上限、`/media/*`、プライバシーのページの保存（行が無ければ作る・`updated_at` が進む・空白だけの本文は `NULL`）と CHECK 制約。手で書いたマイグレーションが DB に入れた形（既定値・NOT NULL・CHECK）と、新しい列を書かない insert（古いコード）が既定値で入ること |
+| 公開側の読み取り | 同上 | 各サーバー関数の正常系と、下書き・詳細本文なしが返らないこと | 公開中だけを返す、並び順、前後のナビ、言語の代替、Tech Stack の群（トップに出さない技術を含めない）、自己紹介のキャッシュのキーが使用技術のカテゴリと Core で変わらないこと。プライバシーのページ（行が無い・本文が日英とも空なら返さない、言語の代替、メタの説明の言語と hreflang、フッターの `hasPrivacyPage`、描画結果のキャッシュの種類） |
+| E2E | Playwright（Chromium）＋ ローカルの D1（デモデータのシード） | design-spec のコアフロー（2.2）を1本ずつ | 訪問者: トップ → ページング → 作品詳細 → 戻るで元のページ、ヘッダーのドメイン名からトップへ、プロフィールの上の一言（無ければ詰め、ヘッダーからの余白が変わらない）、経歴・作品・プロジェクトの行を行全体（キーボードの Enter・Space を含む）で広げ、広げた中の入口から詳細・外部へ移る、広げた行の名前の折り返し（モバイル幅。経歴は `所属 ~` と `タイトル` の境で折り返し、長い所属も ▸ と同じ1行目から始まる。1行目の名前は広げても横に動かず、続きの行は ▸ の左端から始まる）、言語の切り替え、0件のセクションが消える（空のシード）。管理者: ログイン済みの状態から作品を作成 → 下書き保存 → 公開 → 公開サイトで確認、並べ替え、セッション切れ → 一時保存の復元、長い本文をスクロールしても操作バーが見えている、Cmd/Ctrl+S、「日英」で日英の本文を書いて保存、誤りの欄への移動、設定の引き出し、自動退避の復元の提案、使用技術を検索の欄を閉じずに続けて選ぶ、画像を挿入、L6（経歴）の「日英」で保存、A3 で一言を保存すると P1 に出る、ログアウトで退避を消す。P1 の Tech Stack の群（見出しの順と `lang`、Core の技術が Core の群にだけ出る、トップに出さない技術が無い、アイコンが無い・読み込めない技術の頭文字の丸、空の群を出さない）、公開側の使用技術の並びのアイコン（Tech Stack・行・P2）がグレースケールとトーンカーブのフィルターで切り抜かれず、ダークモードでは白黒反転され、自己紹介の太字の前と管理画面のアイコンは元の色、P1 の Tech Stack のリンクのチップは ↗ を見せず読み上げにだけ「別タブで開く」があり、P2 のチップは ↗ を見せる、A7 でカテゴリ・Core を変えて保存すると P1 の群が移る、Core をオンにすると「トップに表示するか」がオンで押せなくなる、Core でトップに表示しない値を保存すると欄の下に誤りを出す。P6・A11: フッターのリンクから P6（/ja・/en）へ移る、C1 のフッターにもリンクがある、A11 で英語の本文を空にすると /en/privacy に注記と日本語の本文が出る、「日英」で日英とも空にするとフッターのリンクが消えて P6 が C1 になる、行が無いときの空のフォームと「公開サイトで見る」が保存済みの本文があるときだけ出ること、A11 の Cmd/Ctrl+S・保存の状態・保存中の理由・自動退避の復元・移動の確認（本文を書き換えるテストは、各テストの後にシードの本文へ戻す） |
+| アクセシビリティ | Playwright ＋ `@axe-core/playwright` | P1〜P6・A1・A2 と、A3・A4・A5・A7・A8・A11 の編集ビュー（ライト・ダーク）で重大（serious 以上）な違反 0件。P1 は経歴・作品・プロジェクトを各1行広げた状態も検査する | 自動で検出できる範囲。表示の切り替え・設定の引き出し・画像を挿入をキーボードだけで操作できること。トップの行をキーボードで広げ、広げた中のリンクへ Tab で移れること |
 | Lighthouse | Lighthouse CI（`@lhci/cli`。モバイルの設定） | PRD 5章の Lighthouse の目標を、3回の中央値で assert する | デモデータを入れたプレビューの P1 と、P2〜P5 の各1ページ。本番では Cloudflare の拠点が HTML・JS・CSS を圧縮するが、ローカルのプレビューは圧縮しないので、gzip で圧縮して中継する（`scripts/lhci/server.ts`。本番の brotli より縮まない側で測る）。ローカルの robots.txt はすべてを拒否する（ADR-019）ので、SEO の `is-crawlable` の項目は外して測る |
 
 - API 結合テストの 401・403 の確認は、CSRF のヘッダーを付けたリクエストで行う（5.1）。ヘッダーがないときに 403 になることも別に確かめる。

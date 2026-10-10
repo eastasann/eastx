@@ -34,6 +34,7 @@ export const en = {
     postOnlyIn: (lang: Lang): string => `This post is available in ${LANG_NAMES[lang]} only.`,
     codingLogOnlyIn: (lang: Lang): string => `This log is available in ${LANG_NAMES[lang]} only.`,
     bodyOnlyIn: (lang: Lang): string => `This description is available in ${LANG_NAMES[lang]} only.`,
+    pageOnlyIn: (lang: Lang): string => `This page is available in ${LANG_NAMES[lang]} only.`,
   },
   backLink: (): { before: string; after: string } => ({ before: 'Back to', after: '' }),
   neighbor: {
@@ -58,6 +59,10 @@ export const en = {
   footer: {
     copyright: '© eastasian',
     social: 'Social links',
+  },
+  privacy: {
+    title: 'Privacy',
+    lastUpdated: 'Last updated',
   },
   theme: {
     toggle: (current: string, next: string): string => `Theme: ${current} (switch to ${next})`,

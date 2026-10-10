@@ -5,7 +5,17 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-const MENU = ['ダッシュボード', 'プロフィール', 'Career', 'Projects', 'Lab', 'Tech Stack', 'Blog', 'Coding Log']
+const MENU = [
+  'ダッシュボード',
+  'プロフィール',
+  'Career',
+  'Projects',
+  'Lab',
+  'Tech Stack',
+  'Blog',
+  'Coding Log',
+  'プライバシー',
+]
 
 async function expectNoHorizontalOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)

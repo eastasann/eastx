@@ -5,7 +5,7 @@
  */
 
 /** 退避を持つ編集ビューの種類 */
-export type BackupType = 'profile' | 'career' | 'stack' | 'work' | 'project' | 'blog-post' | 'coding-log'
+export type BackupType = 'profile' | 'career' | 'stack' | 'work' | 'project' | 'blog-post' | 'coding-log' | 'privacy'
 
 const PREFIX = 'eastx:backup:'
 

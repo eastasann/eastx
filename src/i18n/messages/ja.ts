@@ -43,6 +43,8 @@ export const ja = {
     codingLogOnlyIn: (lang: Lang): string => `この記録は${LANG_NAMES[lang]}のみです`,
     /** 作品・プロジェクトの詳細本文 */
     bodyOnlyIn: (lang: Lang): string => `この説明は${LANG_NAMES[lang]}のみです`,
+    /** プライバシーのページの本文 */
+    pageOnlyIn: (lang: Lang): string => `この説明は${LANG_NAMES[lang]}のみです`,
   },
   /**
    * 詳細ページの戻るリンクの、セクションの名前の前後に読み上げだけで足す語（「Lab へ戻る」）。見える文字はセクションの
@@ -77,6 +79,12 @@ export const ja = {
   footer: {
     copyright: '© eastasian',
     social: 'SNS',
+  },
+  /** P6 プライバシー（design-spec 6.2.4）。題はフッターのリンクの文字にも使う */
+  privacy: {
+    title: 'プライバシー',
+    /** タイトルの下のメタ。日付が続く（「最終更新 2026年10月10日」） */
+    lastUpdated: '最終更新',
   },
   theme: {
     /** テーマの切り替えボタンの読み上げ名。今の設定と、押したあとの設定を伝える */

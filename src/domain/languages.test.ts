@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasLanguage, languagesOf } from './languages'
+import { hasLanguage, hasPrivacyPage, languagesOf } from './languages'
 
 describe('hasLanguage', () => {
   it('ブログ・コーディング記録はタイトルと本文の両方', () => {
@@ -26,5 +26,21 @@ describe('languagesOf', () => {
       ja: true,
       en: true,
     })
+  })
+})
+
+describe('プライバシーのページ', () => {
+  it('言語ありは本文があること', () => {
+    expect(hasLanguage('body', { body: '## 集めるもの' })).toBe(true)
+    expect(hasLanguage('body', { body: null })).toBe(false)
+    expect(languagesOf('body', { body: null }, { body: 'Body' })).toEqual({ ja: false, en: true })
+  })
+
+  it('ページがあるのは、行があり本文が日英のどちらかにあるとき', () => {
+    expect(hasPrivacyPage(null)).toBe(false)
+    expect(hasPrivacyPage({ ja: { body: null }, en: { body: null } })).toBe(false)
+    expect(hasPrivacyPage({ ja: { body: '本文' }, en: { body: null } })).toBe(true)
+    expect(hasPrivacyPage({ ja: { body: null }, en: { body: 'Body' } })).toBe(true)
+    expect(hasPrivacyPage({ ja: { body: '本文' }, en: { body: 'Body' } })).toBe(true)
   })
 })

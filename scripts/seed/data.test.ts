@@ -147,10 +147,17 @@ describe('デモデータ（design-spec 8章）', () => {
     expect(seed.images.every((i) => /^uploads\/\d{4}\/\d{2}\/[0-9a-f-]{36}\.svg$/.test(i.key))).toBe(true)
   })
 
+  it('privacy_page: 1件。日英とも本文あり', () => {
+    expect(seed.privacyPage).toHaveLength(1)
+    expect(seed.privacyPage[0]?.bodyJa).toBeTruthy()
+    expect(seed.privacyPage[0]?.bodyEn).toBeTruthy()
+  })
+
   it('空のシードはブログ・コーディング記録だけが0件', () => {
     const empty = buildSeed({ empty: true })
     expect(empty.blogPosts).toHaveLength(0)
     expect(empty.codingLogs).toHaveLength(0)
     expect(empty.works).toHaveLength(12)
+    expect(empty.privacyPage).toHaveLength(1)
   })
 })

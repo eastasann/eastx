@@ -1,5 +1,5 @@
 /**
- * アクセシビリティ（P1〜P5・A1・A2 と、A3・A4・A5・A7・A8 の編集ビューで axe の serious 以上の違反 0件。SDD 10章）と、
+ * アクセシビリティ（P1〜P6・A1・A2 と、A3・A4・A5・A7・A8・A11 の編集ビューで axe の serious 以上の違反 0件。SDD 10章）と、
  * セキュリティヘッダー・X-Robots-Tag（SDD 7章・ADR-019）。どの画面でもブラウザに CSP の違反が出ないことも確かめる。
  * make e2e のデモデータ（make db-seed）を前提にする
  */
@@ -15,6 +15,7 @@ const PUBLIC_PAGES = [
   { name: 'P3 プロジェクト詳細', path: '/ja/projects/payment-renewal' },
   { name: 'P4 ブログ記事', path: '/ja/blog/hello-eastx' },
   { name: 'P5 コーディング記録詳細', path: '/en/coding/learn-elysia' },
+  { name: 'P6 プライバシー', path: '/ja/privacy' },
 ] as const
 
 /** ページの読み込みの前から、CSP の違反（securitypolicyviolation）とコンソールの CSP のエラーを集める */
@@ -122,6 +123,19 @@ test.describe('管理画面', () => {
       await page.goto('/admin/profile')
       await expect(page.getByRole('radiogroup', { name: '表示' })).toBeVisible()
       await expect(page.getByRole('status').filter({ hasText: /^保存済み/ })).toBeVisible()
+      expect(await seriousViolations(page)).toEqual([])
+    })
+  }
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(`A11 プライバシー編集（${theme}）: axe の重大な違反がない`, async ({ page, login }) => {
+      await page.emulateMedia({ colorScheme: theme })
+      await login({ admin: true })
+      await page.goto('/admin/privacy')
+      await expect(page.getByRole('radiogroup', { name: '表示' })).toBeVisible()
+      await expect(page.getByRole('status').filter({ hasText: /^保存済み/ })).toBeVisible()
+      // 保存済みの本文があるときだけ出す「公開サイトで見る」も検査に入れる
+      await expect(page.getByRole('link', { name: /公開サイトで見る/ })).toBeVisible()
       expect(await seriousViolations(page)).toEqual([])
     })
   }

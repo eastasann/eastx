@@ -45,6 +45,7 @@ console.log(
     `project ${data.projects.length}`,
     `blog_post ${data.blogPosts.length}`,
     `coding_log ${data.codingLogs.length}`,
+    `privacy_page ${data.privacyPage.length}`,
     `画像 ${data.images.length}`,
   ].join(' '),
 )

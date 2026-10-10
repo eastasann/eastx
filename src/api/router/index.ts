@@ -10,6 +10,7 @@ import { blogPosts } from './blog-posts'
 import { careers } from './careers'
 import { codingLogs } from './coding-logs'
 import { dashboard } from './dashboard'
+import { privacyRouter } from './privacy'
 import { profileRouter } from './profile'
 import { projects } from './projects'
 import { slugs } from './slugs'
@@ -39,6 +40,7 @@ export const router = admin.router({
   stacks,
   blogPosts,
   codingLogs,
+  privacy: privacyRouter,
   slugs,
   uploads,
   openapi,

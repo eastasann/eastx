@@ -240,6 +240,8 @@ export interface SaveRequest<O> {
   check: () => ReturnType<typeof issuesToErrors> | null
   request: () => Promise<O>
   onSuccess: (output: O) => Promise<void> | void
+  /** 保存に成功したときの通知の文言を、保存した内容で差し替える（省くと操作ごとの文言。design-spec 6.7.4） */
+  notice?: (output: O) => string
 }
 
 /**
@@ -266,7 +268,7 @@ function useSaveState(onProblems: (keys: string[], count: number) => void) {
     onProblems(keys, new Set(keys).size + messages.length)
   }
 
-  async function run<O>(action: SaveAction, { check, request, onSuccess }: SaveRequest<O>): Promise<void> {
+  async function run<O>(action: SaveAction, { check, request, onSuccess, notice }: SaveRequest<O>): Promise<void> {
     clear()
     const invalid = check()
     if (invalid) {
@@ -277,7 +279,7 @@ function useSaveState(onProblems: (keys: string[], count: number) => void) {
     try {
       const output = await request()
       await onSuccess(output)
-      toaster.create({ title: SAVE_NOTICES[action], type: 'success' })
+      toaster.create({ title: notice?.(output) ?? SAVE_NOTICES[action], type: 'success' })
     } catch (error) {
       const failure = saveFailureOf(error)
       switch (failure.kind) {

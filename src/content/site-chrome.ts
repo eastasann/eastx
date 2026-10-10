@@ -9,7 +9,12 @@ export type SocialService = (typeof SOCIAL_SERVICES)[number]
 export interface SiteChromeView {
   /** プロフィールの SNS リンク。並びは管理画面で決めた順。プロフィールがなければ空 */
   socialLinks: { service: SocialService; url: string; label: string | null }[]
+  /** プライバシーのページの本文が日英のどちらかにある（false ならフッターにリンクを出さない） */
+  hasPrivacyPage: boolean
 }
 
-/** 中身を読めなかったとき（C2・どのルートにも当たらない C1）のフッター。SNS は出さない */
-export const EMPTY_SITE_CHROME: SiteChromeView = { socialLinks: [] }
+/**
+ * フッターの中身を読めなかったとき（読み取りに失敗した C1・C2、どのルートにも当たらない C1）のフッター。
+ * SNS もプライバシーのページへのリンクも出さない
+ */
+export const EMPTY_SITE_CHROME: SiteChromeView = { socialLinks: [], hasPrivacyPage: false }

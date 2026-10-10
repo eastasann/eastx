@@ -59,6 +59,10 @@ test.describe('C2 エラー', () => {
     await expect(page.getByRole('heading', { level: 1, name: "This page can't be displayed right now" })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible()
     await expect(page.getByRole('banner').getByRole('link', { name: 'x.eastasian.dev', exact: true })).toBeVisible()
+    // フッターの中身を読めなかったので、プライバシーのページへのリンクも SNS も出さない（design-spec 6.1.2）
+    const footer = page.getByRole('contentinfo')
+    await expect(footer).toContainText('© eastasian')
+    await expect(footer.getByRole('link')).toHaveCount(0)
 
     await page.unroute('**/_serverFn/**')
     await page.getByRole('button', { name: 'Reload' }).click()

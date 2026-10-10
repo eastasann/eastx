@@ -53,6 +53,8 @@ describe('差し込みのある文言', () => {
     expect(en.notice.bodyOnlyIn('ja')).toBe('This description is available in Japanese only.')
     expect(ja.notice.bodyOnlyIn('en')).toBe('この説明は英語のみです')
     expect(en.notice.bodyOnlyIn('en')).toContain('English only')
+    expect(ja.notice.pageOnlyIn('en')).toBe('この説明は英語のみです')
+    expect(en.notice.pageOnlyIn('ja')).toBe('This page is available in Japanese only.')
   })
 
   it('ページングと件数の文言', () => {

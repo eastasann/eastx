@@ -26,6 +26,8 @@ export function displayTitle(title: { ja: string | null; en: string | null }): s
 /** 管理画面の共通の通知の文言（design-spec 6.6・6.7.4） */
 export const NOTICES = {
   saved: '保存しました',
+  /** A11 で本文を日英とも空にして保存したとき（design-spec 6.7.2） */
+  savedEmptyPrivacy: '保存しました。本文が空なので、公開サイトにはページとリンクが出ません',
   published: '公開しました',
   updated: '更新しました',
   unpublished: '非公開に戻しました',

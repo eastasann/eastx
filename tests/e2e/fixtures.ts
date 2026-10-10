@@ -49,7 +49,7 @@ function isBusy(error: unknown): boolean {
 }
 
 /** SQLITE_BUSY のあいだは待ってやり直す。ほかのエラーと、待っても空かないときはそのまま投げる */
-async function whenUnlocked<T>(run: () => Promise<T>): Promise<T> {
+export async function whenUnlocked<T>(run: () => Promise<T>): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await run()

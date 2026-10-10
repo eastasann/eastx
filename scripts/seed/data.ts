@@ -6,6 +6,7 @@ import type {
   blogPost,
   career,
   codingLog,
+  privacyPage,
   profile,
   project,
   projectStack,
@@ -28,6 +29,7 @@ export type SeedData = {
   projectStacks: (typeof projectStack.$inferInsert)[]
   blogPosts: (typeof blogPost.$inferInsert)[]
   codingLogs: (typeof codingLog.$inferInsert)[]
+  privacyPage: (typeof privacyPage.$inferInsert)[]
   images: SeedImage[]
 }
 
@@ -77,6 +79,58 @@ const DRAFT_SAVED_AT = jst('2026-10-01T12:00:00')
  * 公開した日時（下書きは最後に保存した日時）に揃える。`updatedAt` は公開後に更新したものだけ別にする
  */
 const stamps = (createdAt: Date, updatedAt: Date = createdAt) => ({ createdAt, updatedAt })
+
+// プライバシーのページの本文（design-spec 8章）。中身はアクセス解析を始めたときに訪問者へ示す告知（記録するもの・残す期間・
+// 記録しないもの）の見本で、画面の確認に使う
+const PRIVACY_BODY_JA = [
+  '## アクセスの集計',
+  '',
+  'どのページがどれだけ読まれているかを知るために、閲覧とページの中での操作を集計しています。Cookie は使いません。',
+  '',
+  '### 記録するもの',
+  '',
+  '- 開いたページのパスと、ページの中での操作（行を広げる、ページを送る、外部リンクを開く、どこまで読んだか、言語とテーマの切り替え、コードのコピー）',
+  '- どこから来たか（参照元のホスト名と、URL の UTM の値）',
+  '- 国、デバイスの種類、ブラウザの言語',
+  '- 日ごとの訪問者数を数えるための値。IP アドレスと User-Agent から作るその日だけの値で、日が変わると元の値と照合できなくなります',
+  '',
+  'IP アドレス・User-Agent・Cookie・端末の識別子は残しません。',
+  '',
+  '### 残す期間',
+  '',
+  '1件ずつの記録は3か月で消えます。そのあとは、訪問者を区別できない日ごとの集計だけを残します。',
+  '',
+  '### 記録しないもの',
+  '',
+  '- Do Not Track か Global Privacy Control を送るブラウザからの閲覧',
+  '- 検索エンジンなどのボットの閲覧',
+  '- サイトの持ち主自身の閲覧',
+].join('\n')
+
+const PRIVACY_BODY_EN = [
+  '## Analytics',
+  '',
+  'To learn which pages are read, this site counts page views and actions on the page. It does not use cookies.',
+  '',
+  '### What is recorded',
+  '',
+  '- The path of the page and actions on it (expanding a row, paging, opening an external link, how far you read, switching the language or theme, copying code)',
+  '- Where you came from (the referring host name and UTM values in the URL)',
+  '- Country, device type, and browser language',
+  '- A value for counting daily visitors. It is derived from your IP address and User-Agent for that day only, and cannot be matched to them after the day ends',
+  '',
+  'IP addresses, User-Agents, cookies, and device identifiers are not stored.',
+  '',
+  '### How long it is kept',
+  '',
+  'Individual records are deleted after three months. After that, only daily totals that cannot tell visitors apart are kept.',
+  '',
+  '### What is not recorded',
+  '',
+  '- Visits from browsers that send Do Not Track or Global Privacy Control',
+  '- Visits from bots such as search engines',
+  '- Visits by the site owner',
+].join('\n')
 
 export function buildSeed(options: SeedOptions): SeedData {
   const image = createImageFactory()
@@ -719,6 +773,8 @@ export function buildSeed(options: SeedOptions): SeedData {
     projectStacks,
     blogPosts,
     codingLogs,
+    // 空のシード（make db-seed-empty）でも入れる。ブログ・コーディング記録だけを0件にする
+    privacyPage: [{ bodyJa: PRIVACY_BODY_JA, bodyEn: PRIVACY_BODY_EN }],
     images: image.images,
   }
 }

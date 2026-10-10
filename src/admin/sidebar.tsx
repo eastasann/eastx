@@ -15,6 +15,7 @@ import {
   LayersIcon,
   LogoutIcon,
   PenIcon,
+  ShieldIcon,
   UserIcon,
 } from '~/ui/icons'
 import { ThemeToggle } from '~/ui/theme'
@@ -39,6 +40,7 @@ export const ADMIN_MENU: readonly MenuEntry[] = [
   { to: '/admin/stacks', label: SECTION_LABELS.stack, icon: LayersIcon },
   { to: '/admin/blog', label: SECTION_LABELS.blog, icon: PenIcon },
   { to: '/admin/coding', label: SECTION_LABELS.coding, icon: CodeIcon },
+  { to: '/admin/privacy', label: 'プライバシー', icon: ShieldIcon },
 ]
 
 const THEME_LABELS = {

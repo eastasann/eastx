@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { JS_TRIM_CODE_POINTS } from '../../src/db/schema'
 
 // スキーマの最後の守り（SDD 6.1・ADR-006）が D1 の上で実際に効くことを確かめる。
 // drizzle-kit が出した SQL をそのまま当てた D1（tests/integration/setup.ts）に対して、生の SQL で書き込む
@@ -123,6 +124,44 @@ describe('CHECK 制約: 公開時に必須の項目', () => {
     await expect(insert('profile', { name_ja: '名前2' })).rejects.toThrow(
       /UNIQUE constraint failed: profile\.singleton/,
     )
+  })
+})
+
+describe('CHECK 制約: プライバシーのページ', () => {
+  beforeEach(async () => {
+    await env.DB.prepare('delete from privacy_page').run()
+  })
+
+  it('1件だけで、singleton は 1 だけ', async () => {
+    await expect(insert('privacy_page', { singleton: 2, body_ja: '本文' })).rejects.toThrow(
+      /CHECK constraint failed: privacy_page_singleton/,
+    )
+    await insert('privacy_page', { body_ja: '本文' })
+    await expect(insert('privacy_page', { body_en: 'Body' })).rejects.toThrow(
+      /UNIQUE constraint failed: privacy_page\.singleton/,
+    )
+  })
+
+  it('CHECK が除く文字は、JS の trim が除く文字（BMP の中）と同じ', () => {
+    const blanks = Array.from({ length: 0x10000 }, (_, cp) => cp).filter((cp) => String.fromCharCode(cp).trim() === '')
+    expect([...JS_TRIM_CODE_POINTS]).toEqual(blanks)
+  })
+
+  it('空白だけの本文は、どの空白でも入らない（「ページがある」の判定は NULL かどうかで見る）', async () => {
+    for (const body of ['', ...JS_TRIM_CODE_POINTS.map((cp) => String.fromCharCode(cp).repeat(2)), ' \n\t\u3000']) {
+      await expect(insert('privacy_page', { body_ja: body }), JSON.stringify(body)).rejects.toThrow(
+        /CHECK constraint failed: privacy_page_body_ja/,
+      )
+      await expect(insert('privacy_page', { body_en: body }), JSON.stringify(body)).rejects.toThrow(
+        /CHECK constraint failed: privacy_page_body_en/,
+      )
+    }
+  })
+
+  it('空白に囲まれた本文と、日英とも NULL の行は入る', async () => {
+    await expect(insert('privacy_page', { body_ja: '\u3000本文\n' })).resolves.toBeUndefined()
+    await env.DB.prepare('delete from privacy_page').run()
+    await expect(insert('privacy_page', { body_ja: null, body_en: null })).resolves.toBeUndefined()
   })
 })
 
