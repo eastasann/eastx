@@ -1,10 +1,17 @@
 import { relations, sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STACK_CATEGORIES, STATUSES } from './enums'
+import {
+  ANALYTICS_DIMENSIONS,
+  CAREER_KINDS,
+  CODING_LOG_KINDS,
+  SOCIAL_SERVICES,
+  STACK_CATEGORIES,
+  STATUSES,
+} from './enums'
 
 // ---- 値の定義（ブラウザからも読むので enums.ts に置く） ---------------------
-export { CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STACK_CATEGORIES, STATUSES }
+export { ANALYTICS_DIMENSIONS, CAREER_KINDS, CODING_LOG_KINDS, SOCIAL_SERVICES, STACK_CATEGORIES, STATUSES }
 
 // ---- 共通のカラム ------------------------------------------------------
 const id = () =>
@@ -29,6 +36,9 @@ const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`
 const slugFormat = (col: unknown) => sql`${col} is null or (${col} <> '' and ${col} not glob '*[^a-z0-9-]*')`
 const yearMonthFormat = (col: unknown) =>
   sql`${col} is null or (${col} glob '[0-9][0-9][0-9][0-9]-[01][0-9]' and substr(${col}, 6, 2) between '01' and '12')`
+/** 日本時間の日。'YYYY-MM-DD'（SDD 6.1） */
+const dateFormat = (col: unknown) =>
+  sql`${col} glob '[0-9][0-9][0-9][0-9]-[01][0-9]-[0-3][0-9]' and substr(${col}, 6, 2) between '01' and '12' and substr(${col}, 9, 2) between '01' and '31'`
 // LIKE は ASCII の大文字小文字を区別しない（'/MEDIA/...' が通る）ので、前方一致は GLOB で見る
 const httpsOrNull = (col: unknown) => sql`${col} is null or ${col} glob 'https://*'`
 const mediaOrNull = (col: unknown) => sql`${col} is null or ${col} glob '/media/*'`
@@ -350,6 +360,45 @@ export const privacyPage = sqliteTable(
     check('privacy_page_body_ja', notBlankOrNull(t.bodyJa)),
     check('privacy_page_body_en', notBlankOrNull(t.bodyEn)),
   ],
+)
+
+// ---- analytics_daily --------------------------------------------------
+/**
+ * 解析の日ごとの集計（ADR-023）。Cron だけが書く。id・created_at・updated_at は持たない
+ * （行は日と次元とキーで決まり、Cron が日ごとに丸ごと書き直すので、更新の日時に意味が無い。SDD 6.1 の例外）
+ */
+export const analyticsDaily = sqliteTable(
+  'analytics_daily',
+  {
+    /** 日本時間の日。'YYYY-MM-DD' */
+    date: text('date').notNull(),
+    dimension: text('dimension', { enum: ANALYTICS_DIMENSIONS }).notNull(),
+    /** 次元ごとの値。total・top_view・outbound_total は空文字。上位に入らなかった残りは '(other)' */
+    key: text('key').notNull(),
+    count: integer('count').notNull(),
+    visitors: integer('visitors').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.date, t.dimension, t.key] }),
+    check('analytics_daily_dimension', sql`${t.dimension} in (${inList(ANALYTICS_DIMENSIONS)})`),
+    check('analytics_daily_date', dateFormat(t.date)),
+    // 1人は少なくとも1件を送るので、どの次元でも訪問者数は件数を超えない（(other) は上位に入らなかった行の合計どうし）
+    check('analytics_daily_counts', sql`${t.count} >= 0 and ${t.visitors} >= 0 and ${t.visitors} <= ${t.count}`),
+    // 空のキーは合計の次元だけ
+    check('analytics_daily_key', sql`(${t.dimension} in ('total', 'top_view', 'outbound_total')) = (${t.key} = '')`),
+    index('analytics_daily_dimension_date_idx').on(t.dimension, t.date),
+  ],
+)
+
+// ---- analytics_rollup -------------------------------------------------
+/** 集計を終えた日。この表にある日だけ、analytics_daily の行が確定している。id・created_at・updated_at は持たない（日で決まる。SDD 6.1 の例外） */
+export const analyticsRollup = sqliteTable(
+  'analytics_rollup',
+  {
+    date: text('date').primaryKey(),
+    rolledUpAt: integer('rolled_up_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [check('analytics_rollup_date', dateFormat(t.date))],
 )
 
 // ---- Better Auth（管理者のログイン） -----------------------------------

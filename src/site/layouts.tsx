@@ -2,11 +2,12 @@
  * 公開側のレイアウト（design-spec 4.1）。ヘッダーとフッターは SiteChrome が持ち、L1・L2 はその間の1列を作る。
  * 1列は画面幅が広くても読みやすい幅のまま中央に置く
  */
-import { createContext, type ReactNode, useContext } from 'react'
+import { createContext, type ReactNode, useContext, useRef } from 'react'
 import { css, cx } from 'styled-system/css'
 import type { SiteChromeView } from '~/content/site-chrome'
 import type { Lang } from '~/i18n/detect'
 import type { Messages } from '~/i18n/messages'
+import { AnalyticsEnabledProvider, useAnalyticsBeacon, useReadComplete } from './analytics'
 import { StackIconToneFilter } from './content-parts'
 import { useScrollToStateSection } from './section-scroll'
 import { SiteFooter } from './site-footer'
@@ -21,20 +22,26 @@ export interface SiteChromeProps {
 
 const InsideChrome = createContext(false)
 
-/** 公開側の全画面（P1〜P6・C1・C2）で共通のヘッダーとフッター。どれも列の幅（size.site-column）に揃える */
+/**
+ * 公開側の全画面（P1〜P6・C1・C2）で共通のヘッダーとフッター。どれも列の幅（size.site-column）に揃える。
+ * 解析の送信の部品（src/site/analytics.ts）もここで1つだけ動かす
+ */
 export function SiteChrome({ lang, chrome, messages, children }: SiteChromeProps) {
   // C1・C2 は、ルーターが `$lang` のレイアウトの中（Outlet）に描くとき（子のルートが当たらない・子が失敗した）と、
   // レイアウトの代わりに描くとき（`$lang` 自身が notFound・失敗した）がある。中に描かれたときは二重にしない
   const inside = useContext(InsideChrome)
+  useAnalyticsBeacon(!inside && chrome.analyticsBeacon, lang)
   if (inside) return children
   return (
     <InsideChrome.Provider value={true}>
-      <div className={css({ display: 'flex', flexDirection: 'column', minH: 'dvh' })}>
-        <StackIconToneFilter />
-        <SiteHeader lang={lang} messages={messages} />
-        <main className={css({ flex: '1' })}>{children}</main>
-        <SiteFooter lang={lang} chrome={chrome} messages={messages} />
-      </div>
+      <AnalyticsEnabledProvider value={chrome.analyticsBeacon}>
+        <div className={css({ display: 'flex', flexDirection: 'column', minH: 'dvh' })}>
+          <StackIconToneFilter />
+          <SiteHeader lang={lang} messages={messages} />
+          <main className={css({ flex: '1' })}>{children}</main>
+          <SiteFooter lang={lang} chrome={chrome} messages={messages} />
+        </div>
+      </AnalyticsEnabledProvider>
     </InsideChrome.Provider>
   )
 }
@@ -61,10 +68,22 @@ export interface ArticleLayoutProps {
   media?: ReactNode
   children: ReactNode
   footer?: ReactNode
+  /** 本文の最後まで読まれたかを送る（P2〜P5。SDD 5.14 の read_complete）。印は前後のナビの直前に置く */
+  trackReadComplete?: boolean
 }
 
 /** L2 記事カラム。上から「戻るリンク → タイトルとメタ情報 → 画像 → 本文 → 前後のナビ」 */
-export function ArticleLayout({ back, title, meta, media, children, footer }: ArticleLayoutProps) {
+export function ArticleLayout({
+  back,
+  title,
+  meta,
+  media,
+  children,
+  footer,
+  trackReadComplete = false,
+}: ArticleLayoutProps) {
+  const endOfBody = useRef<HTMLDivElement>(null)
+  useReadComplete(endOfBody)
   return (
     <article className={cx(column, css({ gap: 'stack', py: 'section' }))}>
       {back}
@@ -74,6 +93,7 @@ export function ArticleLayout({ back, title, meta, media, children, footer }: Ar
       </header>
       {media}
       <div>{children}</div>
+      {trackReadComplete && <div ref={endOfBody} aria-hidden="true" />}
       {footer !== undefined && (
         <footer
           className={css({

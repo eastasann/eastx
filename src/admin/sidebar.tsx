@@ -9,6 +9,7 @@ import { authClient } from '~/auth/client'
 import {
   BoxIcon,
   BriefcaseIcon,
+  ChartIcon,
   CodeIcon,
   DashboardIcon,
   FolderIcon,
@@ -40,6 +41,8 @@ export const ADMIN_MENU: readonly MenuEntry[] = [
   { to: '/admin/stacks', label: SECTION_LABELS.stack, icon: LayersIcon },
   { to: '/admin/blog', label: SECTION_LABELS.blog, icon: PenIcon },
   { to: '/admin/coding', label: SECTION_LABELS.coding, icon: CodeIcon },
+  // 中身の種類ではないので、公開側のセクションの並びの後ろに置く（design-spec 3.3）
+  { to: '/admin/analytics', label: 'アクセス解析', icon: ChartIcon },
   { to: '/admin/privacy', label: 'プライバシー', icon: ShieldIcon },
 ]
 

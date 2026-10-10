@@ -30,7 +30,7 @@ describe('GET /api/admin/openapi.json', () => {
     const operations = Object.entries(spec.paths).flatMap(([path, methods]) =>
       Object.keys(methods).map((method) => `${method.toUpperCase()} ${path}`),
     )
-    expect(operations).toHaveLength(42)
+    expect(operations).toHaveLength(43)
     expect(operations).toEqual(
       expect.arrayContaining([
         'POST /uploads',
@@ -38,6 +38,7 @@ describe('GET /api/admin/openapi.json', () => {
         'GET /slugs/suggest',
         'GET /privacy',
         'PUT /privacy',
+        'GET /analytics',
         'GET /openapi.json',
       ]),
     )

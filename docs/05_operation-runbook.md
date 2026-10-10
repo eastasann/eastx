@@ -17,14 +17,15 @@
 | 稼働監視 | Sentry Uptime Monitoring | 同上 | SDD 11章の監視先の応答 |
 | D1 のクエリ | D1 の Insights（ダッシュボード・`wrangler d1 insights`） | 30日 | クエリごとの回数・時間・読んだ行数 |
 | デプロイの履歴 | Workers の Deployments、GitHub Actions | 無期限 | いつ・どの SHA を出したか |
+| 解析のイベント | Analytics Engine（データセット `eastx_analytics`） | 3か月 | 訪問者の表示と行動（SDD 5.14）。日ごとの集計は D1 の `analytics_daily` に残る（SDD ADR-023） |
 
 ### ログレベル
 
 | レベル | 用途 | 本番で出力 |
 |--------|------|-----------|
 | ERROR | 想定外の例外、5xx、D1・R2 のエラー | ✅ |
-| WARN | 定義済みの 4xx（バリデーション・認可・レート制限・CSRF）、ログインの拒否 | ✅ |
-| INFO | ログイン・ログアウト、公開・非公開・削除の操作、アップロード | ✅ |
+| WARN | 定義済みの 4xx（バリデーション・認可・レート制限・CSRF）、ログインの拒否。解析の受け口（`/api/collect`）の 4xx は出さない（量が多く、ボットの送信で埋まるため）。A10 が今日の分を SQL API から読めなかったとき | ✅ |
+| INFO | ログイン・ログアウト、公開・非公開・削除の操作、アップロード、解析の集計（Cron）の結果（集計した日・失敗した日） | ✅ |
 | DEBUG | リクエストとレスポンスの詳細 | ❌（`ENVIRONMENT=local` だけ） |
 
 本文・Cookie・トークン・シークレットはログに出さない。
@@ -39,6 +40,7 @@
 | Worker の CPU 時間・エラー率 | Cloudflare ダッシュボード（Workers の Metrics） | エラー率 1% 超、CPU 時間の p99 が 50ms 超が続く | 週次で目視（6章） |
 | Workers の利用量・請求 | Cloudflare の Billing の通知 | 月の請求が $10 を超える見込み | メール（Cloudflare の Notifications で設定） |
 | D1 の容量 | Cloudflare ダッシュボード（D1） | 上限の 80% | 月次で目視（6章） |
+| 解析の集計（Cron） | Sentry の Issue（`scheduled` の失敗、`ANALYTICS_API_TOKEN か CF_ACCOUNT_ID が無い`）と、A10 の「集計していない日があります」 | 失敗したら | メール（Sentry の新しい Issue） |
 
 ## 3. よくある障害と対処法
 
@@ -136,6 +138,16 @@
 2. `x` の DNS レコードを手で作っていたらぶつかる。消してからもう一度デプロイする。
 3. `eastasian.dev` のネームサーバーが Cloudflare のままか確かめる。
 
+### 解析の数字が出ない・今日の分が読めない
+
+**症状:** A10 に「今日の分を読めませんでした」が出る。「集計していない日があります」が消えない。A10・A2 の数が増えない。Sentry に `scheduled` の失敗が出る。
+
+**対処:**
+1. 「今日の分を読めませんでした」: Workers Logs の `msg: "analytics today unavailable"`（WARN）の `error` で原因を見る。`ANALYTICS_API_TOKEN` の期限切れ・権限の不足（Account Analytics: Read。SQL API の 401・403）か、Analytics Engine の SQL API の障害（5xx・3秒の時間切れ）。Cloudflare のステータスページを見て、問題なければトークンを作り直して登録し直す（`docs/04_deployment-procedure.md` 3章 Step 4）。`CF_ACCOUNT_ID` が `wrangler.jsonc` の本番にあるかも見る。
+2. 「集計していない日があります」: Sentry の `scheduled` の Issue と、Workers Logs の `route: "scheduled"` のログ（`msg: "analytics rollup failed"` の `date`・`error`）を見る。トークンの問題なら 1 と同じ。D1 のエラーなら「D1 のエラー」の節。直れば、次の 00:15 の Cron が古い順に1回7日まで埋める（Analytics Engine の保持の3か月を過ぎた日は埋められない）。
+3. Cron が動いていない（ログに `route: "scheduled"` が無い）: ダッシュボードの Workers & Pages → `eastx` → Settings → Triggers に `15 15 * * *` があるかを見る。無ければ、`triggers` を含む SHA を昇格し直す。
+4. 数が増えない（今日の分は読める）: 公開側の送信が届いているかを `bunx wrangler tail eastx --search "/api/collect"` で見る。`ANALYTICS_BEACON` が `on` か、`/api/collect` が 429（`COLLECT_RATE_LIMITER`）・5xx を返していないかを見る。管理者のセッションのあるブラウザ・DNT・GPC の送信は数えない（SDD ADR-023）。
+
 ### 公開サイトに変更が出ない
 
 **症状:** 管理画面で保存したのに、公開サイトが古いまま。
@@ -195,5 +207,6 @@ bunx wrangler deployments list --name eastx
 | 期限切れのセッションの掃除 | 月1回 | `bunx wrangler d1 execute DB --env production --remote --command "delete from admin_session where expires_at < unixepoch() * 1000"` |
 | `compatibility_date` の見直し | 四半期に1回 | `wrangler.jsonc` の日付を新しくし、変更点（Cloudflare の compatibility flags の一覧）を読んで、staging で確かめてから本番へ |
 | OAuth App の Client secret の更新 | 年1回 | 環境ごと（staging 用・本番用の OAuth App）に: GitHub で新しい secret を作る → `bunx wrangler secret put GITHUB_CLIENT_SECRET --env production`（staging は `--env staging`）→ 新しい secret でログインできることを確かめる → 古い secret を消す → もう一度ログインを確かめる |
+| 解析の SQL API のトークン（`ANALYTICS_API_TOKEN`）の更新 | 期限の前（期限を付けないときは年1回）、または漏れた疑いがあるとき | Cloudflare で同じ権限（Account Analytics: Read だけ）のトークンを作る → `bunx wrangler secret put ANALYTICS_API_TOKEN --env production` → A10 に「今日の分を読めませんでした」が出ないことを確かめる → 古いトークンを消す |
 | `BETTER_AUTH_SECRET` の更新 | 年1回、または漏れた疑いがあるとき | `bunx wrangler secret put BETTER_AUTH_SECRET --env production`（staging は `--env staging`。環境ごとに別の値。全セッションが切れるので、ログインし直す） |
 | ドメイン（`eastasian.dev`）の更新 | 年1回 | レジストラーの更新の通知に従う。自動更新にしておく |

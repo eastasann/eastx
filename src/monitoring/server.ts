@@ -6,12 +6,25 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import * as Sentry from '@sentry/cloudflare'
 import { tracesSampleRate } from './sampling'
 
+/** トレースしないパス。解析の受け口（SDD 5.14）は訪問者の表示と操作のたびに呼ばれ、Sentry の無料枠を食う（ADR-018） */
+const UNTRACED_PATHS: ReadonlySet<string> = new Set(['/api/collect'])
+
+type SamplingContext = Parameters<NonNullable<Sentry.CloudflareOptions['tracesSampler']>>[0]
+
+function pathOf(context: SamplingContext): string | undefined {
+  const url = context.normalizedRequest?.url
+  if (url !== undefined) return new URL(url, 'http://localhost').pathname
+  // リクエストの情報が無いときは、スパンの名前（`POST /api/collect`）から読む
+  return context.name.split(' ')[1]
+}
+
 /** withSentry に渡す設定 */
 export function sentryOptions(env: Pick<Env, 'SENTRY_DSN' | 'ENVIRONMENT'>): Sentry.CloudflareOptions {
+  const rate = tracesSampleRate(env.ENVIRONMENT)
   return {
     dsn: env.SENTRY_DSN === '' ? undefined : env.SENTRY_DSN,
     environment: env.ENVIRONMENT,
-    tracesSampleRate: tracesSampleRate(env.ENVIRONMENT),
+    tracesSampler: (context) => (UNTRACED_PATHS.has(pathOf(context) ?? '') ? 0 : context.inheritOrSampleWith(rate)),
   }
 }
 

@@ -11,7 +11,7 @@
 - Auth: Better Auth（GitHub OAuth、DB セッション。管理者は `ADMIN_GITHUB_USER_ID` で決まる）
 - Storage: Cloudflare R2（`/media/*` から配信）
 - Markdown: unified（remark-gfm・rehype-sanitize）＋ Shiki
-- Infra: Cloudflare Workers（Paid）、Workers Static Assets、Rate Limiting バインディング
+- Infra: Cloudflare Workers（Paid）、Workers Static Assets、Rate Limiting バインディング。アクセス解析は Workers Analytics Engine・KV・Cron Triggers（本番だけ。ADR-023）
 - IaC: なし（`wrangler.jsonc`）
 - CI/CD: GitHub Actions ＋ wrangler。staging・本番とも昇格 PR（`deploy/{環境}/version`）でデプロイ
 - Tooling: Bun（パッケージ管理・スクリプト）、Node.js 24（wrangler・Vite・Vitest）、Biome、Vitest（`@cloudflare/vitest-pool-workers`）、Playwright、Lighthouse CI
@@ -21,10 +21,10 @@
 ## Structure
 
 - `src/server.ts`: Worker の入口。`/api/*`・`/media/*` を Elysia へ、それ以外を TanStack Start へ
-- `src/api/`: CMS API（`contract/` がコントラクト、`router/` が実装、`middleware/`、`media.ts`）
+- `src/api/`: CMS API（`contract/` がコントラクト、`router/` が実装、`middleware/`、`media.ts`）。解析の受け口（`collect.ts`）と、Cron の集計・SQL API（`analytics/`）
 - `src/auth/`: Better Auth の設定（server・client）
 - `src/db/`: Drizzle のスキーマとクライアント
-- `src/domain/`: 純粋関数（スラッグ・言語あり・抜粋・公開のルール・Tech Stack の群）
+- `src/domain/`: 純粋関数（スラッグ・言語あり・抜粋・公開のルール・Tech Stack の群・解析のイベントと集計の規則）
 - `src/content/`: 公開側のサーバー関数と、表示用の形への変換
 - `src/markdown/`、`src/i18n/`: 描画と辞書・日付の書式（公開側と管理画面で共通）
 - `src/routes/`: ルート。`src/site/`（公開側の部品）、`src/admin/`（管理画面の部品）、`src/ui/`（共通の部品）
@@ -34,7 +34,7 @@
 
 ## Key Design Decisions
 
-- 入口で API と UI を分ける。公開側はサーバー関数で公開中の中身だけを D1 から読み、CMS API を通さない。書き込みは管理画面から CMS API を通すだけ。公開側のコードから `src/admin/`・`src/api/` を import しない（ADR-001・005・020）
+- 入口で API と UI を分ける。公開側はサーバー関数で公開中の中身だけを D1 から読み、CMS API を通さない。書き込みは管理画面から CMS API を通すだけ（例外は訪問者の解析の送信 `POST /api/collect` で、Analytics Engine にだけ書く。ADR-023）。公開側のコードから `src/admin/`・`src/api/` を import しない（ADR-001・005・020）
 - CMS API はコントラクトが正。形を変えるときは SDD 5章とコントラクト（`src/api/contract/`）を先に直す。認証・レート制限・認可は 5.1 のミドルウェアで全手続きに一律にかけ、手続きごとに付け外ししない
 - 見た目はデザイントークンのセマンティック層だけで指定する。色・余白などの値を直接書かず、プリミティブ層も参照しない。値を変えるときは `docs/06_design-tokens.json` を直して `make tokens`（ADR-014）
 - 日英は `_ja`／`_en` のカラムで持ち、言語の代替は `src/content/localize.ts`、固定文言は `src/i18n/messages/` の辞書、日時は Asia/Tokyo。仕様の正は design-spec 1.4

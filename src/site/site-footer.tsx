@@ -74,7 +74,13 @@ export function SiteFooter({ lang, chrome, messages }: SiteFooterProps) {
               // 同じ URL を2回登録できるので、並びの位置で区別する（並べ替えは画面を読み込み直すまで起きない）
               // biome-ignore lint/suspicious/noArrayIndexKey: 上の理由
               <li key={index}>
-                <a href={link.url} target="_blank" rel="noopener noreferrer" className={footerLink}>
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-analytics-link="social"
+                  className={footerLink}
+                >
                   {socialLinkName(link)}
                 </a>
               </li>

@@ -14,6 +14,7 @@ const MENU = [
   'Tech Stack',
   'Blog',
   'Coding Log',
+  'アクセス解析',
   'プライバシー',
 ]
 

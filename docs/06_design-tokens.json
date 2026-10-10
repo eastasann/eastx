@@ -1262,6 +1262,14 @@
       "editor": {
         "$value": "{primitive.size.400}",
         "$description": "L5 の Markdown エディタとプレビューの最小の高さ"
+      },
+      "chart": {
+        "$value": "{primitive.size.240}",
+        "$description": "A10 の推移のグラフの高さ"
+      },
+      "meter": {
+        "$value": "{primitive.size.16}",
+        "$description": "A10 のセクション到達率の横の棒の太さ"
       }
     },
     "radius": {

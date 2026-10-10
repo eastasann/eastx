@@ -1,5 +1,5 @@
 /**
- * アクセシビリティ（P1〜P6・A1・A2 と、A3・A4・A5・A7・A8・A11 の編集ビューで axe の serious 以上の違反 0件。SDD 10章）と、
+ * アクセシビリティ（P1〜P6・A1・A2・A10 と、A3・A4・A5・A7・A8・A11 の編集ビューで axe の serious 以上の違反 0件。SDD 10章）と、
  * セキュリティヘッダー・X-Robots-Tag（SDD 7章・ADR-019）。どの画面でもブラウザに CSP の違反が出ないことも確かめる。
  * make e2e のデモデータ（make db-seed）を前提にする
  */
@@ -94,6 +94,40 @@ test.describe('管理画面', () => {
       expect(await violationsOf()).toEqual([])
     })
   }
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(`A10 アクセス解析（${theme}）: axe の重大な違反がなく、CSP の違反も出ない`, async ({ page, login }) => {
+      await page.emulateMedia({ colorScheme: theme })
+      await login({ admin: true })
+      const violationsOf = await collectCspViolations(page)
+      await page.goto('/admin/analytics?range=30d')
+      await expect(page.getByRole('group', { name: '推移の区切り' })).toBeVisible()
+      expect(await seriousViolations(page)).toEqual([])
+      expect(await violationsOf()).toEqual([])
+    })
+  }
+
+  test('A10 の期間とグラフのツールチップはキーボードだけで操作できる', async ({ page, login }) => {
+    await login({ admin: true })
+    await page.goto('/admin/analytics?range=30d')
+    const ranges = page.getByRole('radiogroup', { name: '期間' })
+    await ranges.getByRole('radio', { name: '30日' }).focus()
+    await page.keyboard.press('ArrowLeft')
+    await expect(ranges.getByRole('radio', { name: '7日' })).toBeChecked()
+    await expect(page).toHaveURL(/range=7d$/)
+    // グラフの区切りは Tab で1つだけに入り、矢印キーで移ってツールチップに値を出す
+    const bars = page.getByRole('group', { name: '推移の区切り' }).getByRole('button')
+    await expect(bars).toHaveCount(7)
+    await bars.last().focus()
+    await page.keyboard.press('ArrowLeft')
+    await expect(bars.nth(5)).toBeFocused()
+    await expect(page.getByRole('tooltip')).toContainText('閲覧')
+    await page.keyboard.press('Tab')
+    await expect(bars.nth(5)).not.toBeFocused()
+    expect(
+      await bars.evaluateAll((elements) => elements.filter((e) => e.getAttribute('tabindex') === '0').length),
+    ).toBe(1)
+  })
 
   /** 編集ビュー（L5 の作品・ブログ、L6 の経歴）。一覧の先頭の項目を開く */
   const EDIT_VIEWS = [

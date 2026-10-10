@@ -8,6 +8,7 @@ import type { Messages } from '~/i18n/messages'
 import { isPlainClick } from '~/ui/navigation'
 import { LANG_COOKIE, writePreferenceCookie } from '~/ui/preferences'
 import { ThemeToggle } from '~/ui/theme'
+import { track } from './analytics'
 
 export interface SiteHeaderProps {
   lang: Lang
@@ -71,7 +72,7 @@ export function SiteHeader({ lang, messages }: SiteHeaderProps) {
       </Link>
       <div className={css({ display: 'flex', alignItems: 'center', gap: 'inline', ml: 'auto' })}>
         <LanguageSwitch lang={lang} messages={messages} />
-        <ThemeToggle labels={messages.theme} />
+        <ThemeToggle labels={messages.theme} onSwitch={(to) => track({ type: 'theme_switch', to })} />
       </div>
     </header>
   )
@@ -116,6 +117,7 @@ function LanguageSwitch({ lang, messages }: { lang: Lang; messages: Messages }) 
               lang={target}
               className={navLink()}
               onClick={(event) => {
+                track({ type: 'lang_switch', to: target })
                 writePreferenceCookie(LANG_COOKIE, target)
                 if (!isPlainClick(event)) return
                 event.preventDefault()

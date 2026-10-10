@@ -43,6 +43,8 @@ export async function insertSeed(db: Db, data: SeedData): Promise<void> {
     db.delete(schema.blogPost),
     db.delete(schema.codingLog),
     db.delete(schema.privacyPage),
+    db.delete(schema.analyticsDaily),
+    db.delete(schema.analyticsRollup),
     ...chunkedInserts(db, schema.profile, data.profile),
     ...chunkedInserts(db, schema.socialLink, data.socialLinks),
     ...chunkedInserts(db, schema.career, data.careers),
@@ -54,5 +56,7 @@ export async function insertSeed(db: Db, data: SeedData): Promise<void> {
     ...chunkedInserts(db, schema.blogPost, data.blogPosts),
     ...chunkedInserts(db, schema.codingLog, data.codingLogs),
     ...chunkedInserts(db, schema.privacyPage, data.privacyPage),
+    ...chunkedInserts(db, schema.analyticsDaily, data.analyticsDaily),
+    ...chunkedInserts(db, schema.analyticsRollup, data.analyticsRollup),
   ])
 }

@@ -39,18 +39,31 @@ describe('sentryOptions', () => {
     expect(sentryOptions({ SENTRY_DSN: '', ENVIRONMENT: 'local' }).dsn).toBeUndefined()
   })
 
+  const sample = (
+    environment: string,
+    context: { name: string; normalizedRequest?: { url: string } },
+  ): number | boolean | undefined => {
+    const options = sentryOptions({ SENTRY_DSN: 'https://key@o1.ingest.us.sentry.io/1', ENVIRONMENT: environment })
+    return options.tracesSampler?.({ attributes: {}, inheritOrSampleWith: (rate) => rate, ...context })
+  }
+
   it('環境名は ENVIRONMENT、トレースは本番 0.1・staging 1.0', () => {
     const dsn = 'https://key@o1.ingest.us.sentry.io/1'
-    expect(sentryOptions({ SENTRY_DSN: dsn, ENVIRONMENT: 'production' })).toEqual({
+    expect(sentryOptions({ SENTRY_DSN: dsn, ENVIRONMENT: 'production' })).toMatchObject({
       dsn,
       environment: 'production',
-      tracesSampleRate: 0.1,
     })
-    expect(sentryOptions({ SENTRY_DSN: dsn, ENVIRONMENT: 'staging' })).toEqual({
-      dsn,
-      environment: 'staging',
-      tracesSampleRate: 1.0,
-    })
+    const page = { name: 'GET /ja', normalizedRequest: { url: 'https://x.eastasian.dev/ja' } }
+    expect(sample('production', page)).toBe(0.1)
+    expect(sample('staging', page)).toBe(1.0)
+  })
+
+  it('解析の受け口（/api/collect）はトレースしない', () => {
+    expect(sample('staging', { name: 'POST /api/collect', normalizedRequest: { url: 'https://x/api/collect' } })).toBe(
+      0,
+    )
+    expect(sample('staging', { name: 'POST /api/collect' })).toBe(0)
+    expect(sample('staging', { name: 'POST /api/admin/works' })).toBe(1.0)
   })
 })
 

@@ -43,6 +43,10 @@ export default defineConfig({
             // pool の更新で外せるようになったら外す
             miniflare: {
               compatibilityDate: '2026-08-22',
+              // 解析のバインディングは本番だけにあり wrangler.jsonc のトップレベルに無いので、テストにだけ足す。
+              // 無いとき（staging・ローカル）の振る舞いは、テストの中で env から外して確かめる
+              analyticsEngineDatasets: { ANALYTICS: { dataset: 'eastx_analytics' } },
+              kvNamespaces: ['ANALYTICS_SALTS'],
               bindings: {
                 // テストファイルごとに空の D1 へ当てる（tests/integration/setup.ts）。docs/03_dev-setup.md 7章
                 TEST_MIGRATIONS: await readD1Migrations('./drizzle/migrations'),

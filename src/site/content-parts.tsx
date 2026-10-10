@@ -205,6 +205,7 @@ function StackChipItem({
           href={stack.linkUrl}
           target="_blank"
           rel="noopener noreferrer"
+          data-analytics-link="stack"
           className={cx(chip({ interactive: true, plain: true }), css({ textDecoration: 'none' }))}
         >
           {content}

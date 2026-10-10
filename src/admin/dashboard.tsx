@@ -1,5 +1,6 @@
 /**
- * A2 ダッシュボード（design-spec 6.5、SDD 5.4）。種類ごとの件数、新規作成の近道、下書きの一覧、公開サイトへのリンク
+ * A2 ダッシュボード（design-spec 6.5、SDD 5.4）。昨日までの7日の解析の要約、種類ごとの件数、新規作成の近道、下書きの一覧、
+ * 公開サイトへのリンク
  */
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
@@ -7,8 +8,9 @@ import { css, cx } from 'styled-system/css'
 import type { z } from 'zod'
 import type { dashboardOutput, draftTypeSchema } from '~/api/contract/dashboard'
 import { formatAdminDate } from '~/i18n/format'
-import { ExternalLinkIcon, PlusIcon } from '~/ui/icons'
+import { ArrowRightIcon, ExternalLinkIcon, PlusIcon } from '~/ui/icons'
 import { button, card } from '~/ui/recipes'
+import { formatCount } from './analytics-labels'
 import { api } from './api'
 import { displayTitle, SECTION_LABELS } from './labels'
 import { ListLayout } from './layouts'
@@ -17,6 +19,7 @@ import { LoadError, Skeleton } from './states'
 
 type DraftType = z.infer<typeof draftTypeSchema>
 type Counts = z.infer<typeof dashboardOutput>['counts']
+type AnalyticsSummary = z.infer<typeof dashboardOutput>['analytics']
 
 /** 下書きの一覧に出す最大の件数（design-spec 6.5） */
 const MAX_DRAFTS = 10
@@ -100,6 +103,44 @@ function CountCards({ counts }: { counts: Counts | undefined }) {
   )
 }
 
+/** 昨日までの7日の要約の1行。リンクは A10 の7日（design-spec 6.5） */
+function AnalyticsLine({ analytics }: { analytics: AnalyticsSummary | undefined }) {
+  if (analytics === undefined) return <Skeleton className={css({ maxW: 'popover' })} />
+  return (
+    <p
+      className={css({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        columnGap: 'stack-dense',
+        rowGap: 'inline',
+        textStyle: 'body-sm',
+      })}
+    >
+      <span className={css({ color: 'text.muted' })}>昨日までの7日</span>
+      <span className={css({ fontVariantNumeric: 'tabular-nums' })}>
+        閲覧 {formatCount(analytics.pageViews)}・訪問者 {formatCount(analytics.visitors)}
+        {!analytics.measuring && <span className={css({ color: 'text.muted' })}>（この環境では計測していません）</span>}
+      </span>
+      <AdminLink
+        href="/admin/analytics?range=7d"
+        className={css({
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 'inline-tight',
+          color: 'link.default',
+          textDecoration: 'underline',
+          textDecorationColor: 'link.underline',
+          _hover: { textDecorationColor: 'link.default' },
+        })}
+      >
+        アクセス解析を見る
+        <ArrowRightIcon size="sm" />
+      </AdminLink>
+    </p>
+  )
+}
+
 const cell = css({
   textAlign: 'start',
   px: 'inset-dense',
@@ -135,6 +176,7 @@ export function DashboardPage() {
           <LoadError onRetry={() => query.refetch()} />
         ) : (
           <>
+            <AnalyticsLine analytics={query.data?.analytics} />
             <CountCards counts={query.data?.counts} />
             <div className={css({ display: 'flex', flexWrap: 'wrap', gap: 'inline' })}>
               <AdminLink

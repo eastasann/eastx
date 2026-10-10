@@ -120,6 +120,16 @@ export function DashboardIcon(props: IconProps) {
   )
 }
 
+/** アクセス解析（折れ線のグラフ） */
+export function ChartIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3 3v18h18" />
+      <path d="m7 15 4-4 3 3 6-6" />
+    </Svg>
+  )
+}
+
 export function UserIcon(props: IconProps) {
   return (
     <Svg {...props}>

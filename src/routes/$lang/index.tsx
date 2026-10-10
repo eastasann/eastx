@@ -4,6 +4,7 @@ import { getTopPage } from '~/content/server-fns'
 import type { BlogPostItem, CareerItem, CodingLogItem, ProjectItem, WorkItem } from '~/content/types'
 import { isLang } from '~/i18n/detect'
 import { getMessages } from '~/i18n/messages'
+import { useSectionViews } from '~/site/analytics'
 import { TechStackGroups } from '~/site/content-parts'
 import { pageHead, statusHead } from '~/site/head'
 import { SingleColumnLayout } from '~/site/layouts'
@@ -28,6 +29,7 @@ function TopPage() {
   const { lang } = view
   const messages = getMessages(lang)
   const { section } = messages
+  useSectionViews()
   return (
     <SingleColumnLayout>
       {view.profile ? (

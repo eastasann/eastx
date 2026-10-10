@@ -160,6 +160,8 @@ export function MarkdownBody({ html, copyLabels, lang, className }: MarkdownBody
       const copy = document.createElement('button')
       copy.type = 'button'
       copy.className = copyButton
+      // 公開側の解析の送信の部品が、この印で押されたことを受ける（src/site/analytics.ts。ui から site を読まないため）
+      copy.dataset.codeCopy = ''
       copy.textContent = copyLabels.copy
       copy.addEventListener('click', () => {
         const done = (label: string) => {

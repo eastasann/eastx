@@ -5,6 +5,7 @@ import { OpenAPIGenerator } from '@orpc/openapi'
 import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4'
 import { API_BASE_PATH } from '../constants'
 import { contract } from '../contract'
+import { analytics } from './analytics'
 import { admin } from './base'
 import { blogPosts } from './blog-posts'
 import { careers } from './careers'
@@ -41,6 +42,7 @@ export const router = admin.router({
   blogPosts,
   codingLogs,
   privacy: privacyRouter,
+  analytics,
   slugs,
   uploads,
   openapi,

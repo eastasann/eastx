@@ -1,5 +1,6 @@
 /**
- * 公開側のフッターの中身（SDD 5.11 の getSiteChrome）。プロフィールの SNS リンクと、プライバシーのページがあるか
+ * 公開側の全画面の共通の中身（SDD 5.11 の getSiteChrome）。プロフィールの SNS リンク、プライバシーのページがあるか、
+ * 解析の送信のオン・オフ
  */
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -15,7 +16,13 @@ beforeEach(async () => {
 
 describe('loadSiteChrome', () => {
   it('プロフィールがなければ SNS もない', async () => {
-    expect(await loadSiteChrome(db)).toEqual({ socialLinks: [], hasPrivacyPage: false })
+    expect(await loadSiteChrome(db, 'on')).toEqual({ socialLinks: [], hasPrivacyPage: false, analyticsBeacon: true })
+  })
+
+  it('解析の送信は ANALYTICS_BEACON が on のときだけ（staging は off）', async () => {
+    expect((await loadSiteChrome(db, 'on')).analyticsBeacon).toBe(true)
+    expect((await loadSiteChrome(db, 'off')).analyticsBeacon).toBe(false)
+    expect((await loadSiteChrome(db, undefined)).analyticsBeacon).toBe(false)
   })
 
   it('SNS リンクは表示順で返し、プロフィールがなければ空', async () => {
@@ -24,10 +31,10 @@ describe('loadSiteChrome', () => {
       db.insert(socialLink).values({ service: 'other', url: 'https://example.com', label: 'Site', sortOrder: 2 }),
       db.insert(socialLink).values({ service: 'github', url: 'https://github.com/a', sortOrder: 0 }),
     ])
-    expect((await loadSiteChrome(db)).socialLinks).toEqual([])
+    expect((await loadSiteChrome(db, 'on')).socialLinks).toEqual([])
 
     await db.insert(profile).values({ nameJa: '名前' })
-    expect((await loadSiteChrome(db)).socialLinks).toEqual([
+    expect((await loadSiteChrome(db, 'on')).socialLinks).toEqual([
       { service: 'github', url: 'https://github.com/a', label: null },
       { service: 'x', url: 'https://x.com/a', label: null },
       { service: 'other', url: 'https://example.com', label: 'Site' },
@@ -35,15 +42,15 @@ describe('loadSiteChrome', () => {
   })
 
   it('プライバシーのページは、行があり本文が日英のどちらかにあるときだけ hasPrivacyPage', async () => {
-    expect((await loadSiteChrome(db)).hasPrivacyPage).toBe(false)
+    expect((await loadSiteChrome(db, 'on')).hasPrivacyPage).toBe(false)
 
     await db.insert(privacyPage).values({ bodyJa: null, bodyEn: null })
-    expect((await loadSiteChrome(db)).hasPrivacyPage).toBe(false)
+    expect((await loadSiteChrome(db, 'on')).hasPrivacyPage).toBe(false)
 
     await db.update(privacyPage).set({ bodyJa: '本文' })
-    expect((await loadSiteChrome(db)).hasPrivacyPage).toBe(true)
+    expect((await loadSiteChrome(db, 'on')).hasPrivacyPage).toBe(true)
 
     await db.update(privacyPage).set({ bodyJa: null, bodyEn: 'Body' })
-    expect((await loadSiteChrome(db)).hasPrivacyPage).toBe(true)
+    expect((await loadSiteChrome(db, 'on')).hasPrivacyPage).toBe(true)
   })
 })

@@ -27,6 +27,7 @@ export function PortfolioDetailPage(props: PortfolioDetailProps) {
 
   return (
     <ArticleLayout
+      trackReadComplete
       back={<BackLink kind={kind} lang={lang} itemId={view.id} messages={messages} />}
       title={<Text text={view.title} pageLang={lang} />}
       meta={
@@ -40,13 +41,25 @@ export function PortfolioDetailPage(props: PortfolioDetailProps) {
           {(view.linkUrl !== null || githubUrl !== null) && (
             <div className={css({ display: 'flex', flexWrap: 'wrap', gap: 'inline' })}>
               {view.linkUrl !== null && (
-                <a href={view.linkUrl} target="_blank" rel="noopener noreferrer" className={outlineLink}>
+                <a
+                  href={view.linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-analytics-link="site"
+                  className={outlineLink}
+                >
                   {messages.action.visitSite}
                   <ExternalMark messages={messages} />
                 </a>
               )}
               {githubUrl !== null && (
-                <a href={githubUrl} target="_blank" rel="noopener noreferrer" className={outlineLink}>
+                <a
+                  href={githubUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-analytics-link="github"
+                  className={outlineLink}
+                >
                   {messages.action.github}
                   <ExternalMark messages={messages} />
                 </a>
