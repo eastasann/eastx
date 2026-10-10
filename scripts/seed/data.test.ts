@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { STACK_CATEGORIES } from '../../src/db/enums'
+import { ANALYTICS_DIMENSIONS, STACK_CATEGORIES } from '../../src/db/enums'
+import { addDays } from '../../src/domain/analytics/dates'
 import { buildSeed } from './data'
 
 // design-spec 8章の表の「件数」と「内容のバリエーション」を1項目ずつ照合する
@@ -153,11 +154,63 @@ describe('デモデータ（design-spec 8章）', () => {
     expect(seed.privacyPage[0]?.bodyEn).toBeTruthy()
   })
 
-  it('空のシードはブログ・コーディング記録だけが0件', () => {
+  it('空のシードはブログ・コーディング記録だけが0件（解析の集計も入る）', () => {
     const empty = buildSeed({ empty: true })
     expect(empty.blogPosts).toHaveLength(0)
     expect(empty.codingLogs).toHaveLength(0)
     expect(empty.works).toHaveLength(12)
     expect(empty.privacyPage).toHaveLength(1)
+    expect(empty.analyticsRollup).toHaveLength(399)
+  })
+
+  describe('analytics_daily・analytics_rollup', () => {
+    const today = '2026-10-10'
+    const analytics = buildSeed({ empty: false, today })
+
+    it('流した日の前日までの400日。3日前は集計していない日として抜く', () => {
+      const dates = analytics.analyticsRollup.map((row) => row.date).sort()
+      expect(dates).toHaveLength(399)
+      expect(dates[0]).toBe(addDays(today, -400))
+      expect(dates.at(-1)).toBe(addDays(today, -1))
+      expect(dates).not.toContain(addDays(today, -3))
+      expect(analytics.analyticsDaily.some((row) => row.date === addDays(today, -3))).toBe(false)
+      expect(analytics.analyticsDaily.some((row) => row.date === today)).toBe(false)
+    })
+
+    it('1日の行は全次元をそろえる（どの日も）', () => {
+      const byDate = new Map<string, Set<string>>()
+      for (const row of analytics.analyticsDaily) {
+        const dimensions = byDate.get(row.date) ?? new Set<string>()
+        dimensions.add(row.dimension)
+        byDate.set(row.date, dimensions)
+      }
+      expect(byDate.size).toBe(399)
+      for (const dimensions of byDate.values()) expect([...dimensions].sort()).toEqual([...ANALYTICS_DIMENSIONS].sort())
+    })
+
+    it('行の CHECK を満たす（visitors <= count、空のキーは合計の次元だけ、キーは日・次元で重ならない）', () => {
+      const totals = new Set(['total', 'top_view', 'outbound_total'])
+      const keys = new Set<string>()
+      for (const row of analytics.analyticsDaily) {
+        expect(row.count).toBeGreaterThan(0)
+        expect(row.visitors).toBeGreaterThan(0)
+        expect(row.visitors).toBeLessThanOrEqual(row.count)
+        expect(totals.has(row.dimension)).toBe(row.key === '')
+        const key = `${row.date}|${row.dimension}|${row.key}`
+        expect(keys.has(key)).toBe(false)
+        keys.add(key)
+      }
+    })
+
+    it('広げた行は公開中のデモの作品・プロジェクトの ID、同じ日に流せば同じ値', () => {
+      const ids = new Set([...analytics.works, ...analytics.projects].map((row) => row.id))
+      const expands = analytics.analyticsDaily.filter((row) => row.dimension === 'row_expand')
+      expect(expands.length).toBeGreaterThan(0)
+      for (const row of expands) expect(ids.has(row.key.split(':')[1])).toBe(true)
+      const again = buildSeed({ empty: false, today })
+      const counts = (rows: typeof analytics.analyticsDaily) =>
+        rows.filter((row) => row.dimension !== 'row_expand').map((row) => [row.date, row.dimension, row.key, row.count])
+      expect(counts(again.analyticsDaily)).toEqual(counts(analytics.analyticsDaily))
+    })
   })
 })

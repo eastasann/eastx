@@ -8,7 +8,9 @@
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true, "head_sampling_rate": 1 },
-  "vars": { "ENVIRONMENT": "local", "SITE_URL": "http://localhost:3000" },
+  // ANALYTICS_BEACON はブラウザの解析の送信のオン・オフ。ローカルは on にし、E2E で受け口までの経路を確かめる
+  // （Analytics Engine のバインディングが無いので、受け口は書かずに 204 を返す。SDD ADR-023）
+  "vars": { "ENVIRONMENT": "local", "SITE_URL": "http://localhost:3000", "ANALYTICS_BEACON": "on" },
   "d1_databases": [
     {
       "binding": "DB",
@@ -20,7 +22,8 @@
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "eastx-media-local" }],
   "ratelimits": [
     { "name": "AUTH_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
-    { "name": "ADMIN_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } }
+    { "name": "ADMIN_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } },
+    { "name": "COLLECT_RATE_LIMITER", "namespace_id": "1003", "simple": { "limit": 120, "period": 60 } }
   ],
   "env": {
     "staging": {
@@ -31,7 +34,8 @@
         "SITE_URL": "https://x-staging.eastasian.dev",
         "ADMIN_GITHUB_USER_ID": "47363417",
         "GITHUB_CLIENT_ID": "Ov23liCmlagV7L1nfs2H",
-        "SENTRY_DSN": "https://86bf04c614706b763de157ab2173c829@o4512062851514368.ingest.us.sentry.io/4512196366237696"
+        "SENTRY_DSN": "https://86bf04c614706b763de157ab2173c829@o4512062851514368.ingest.us.sentry.io/4512196366237696",
+        "ANALYTICS_BEACON": "off"
       },
       "d1_databases": [
         {
@@ -44,7 +48,8 @@
       "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "eastx-media-staging" }],
       "ratelimits": [
         { "name": "AUTH_RATE_LIMITER", "namespace_id": "2001", "simple": { "limit": 10, "period": 60 } },
-        { "name": "ADMIN_RATE_LIMITER", "namespace_id": "2002", "simple": { "limit": 300, "period": 60 } }
+        { "name": "ADMIN_RATE_LIMITER", "namespace_id": "2002", "simple": { "limit": 300, "period": 60 } },
+        { "name": "COLLECT_RATE_LIMITER", "namespace_id": "2003", "simple": { "limit": 120, "period": 60 } }
       ]
     },
     "production": {
@@ -55,8 +60,15 @@
         "SITE_URL": "https://x.eastasian.dev",
         "ADMIN_GITHUB_USER_ID": "47363417",
         "GITHUB_CLIENT_ID": "Ov23lixncjamszIXx3qw",
-        "SENTRY_DSN": "https://86bf04c614706b763de157ab2173c829@o4512062851514368.ingest.us.sentry.io/4512196366237696"
+        "SENTRY_DSN": "https://86bf04c614706b763de157ab2173c829@o4512062851514368.ingest.us.sentry.io/4512196366237696",
+        "ANALYTICS_BEACON": "on",
+        "CF_ACCOUNT_ID": "b932ed7bf83f43766c1c68a545c21a27"
       },
+      // 解析は本番だけで計測する（SDD ADR-023）。Analytics Engine・KV・Cron は staging・ローカルに書かない
+      "analytics_engine_datasets": [{ "binding": "ANALYTICS", "dataset": "eastx_analytics" }],
+      "kv_namespaces": [{ "binding": "ANALYTICS_SALTS", "id": "b6c2fbfe000648c9b32a53940cbef58e" }],
+      // UTC の 15:15 = 日本時間の 00:15
+      "triggers": { "crons": ["15 15 * * *"] },
       "d1_databases": [
         {
           "binding": "DB",
@@ -68,7 +80,8 @@
       "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "eastx-media" }],
       "ratelimits": [
         { "name": "AUTH_RATE_LIMITER", "namespace_id": "3001", "simple": { "limit": 10, "period": 60 } },
-        { "name": "ADMIN_RATE_LIMITER", "namespace_id": "3002", "simple": { "limit": 300, "period": 60 } }
+        { "name": "ADMIN_RATE_LIMITER", "namespace_id": "3002", "simple": { "limit": 300, "period": 60 } },
+        { "name": "COLLECT_RATE_LIMITER", "namespace_id": "3003", "simple": { "limit": 120, "period": 60 } }
       ]
     }
   }

@@ -1,5 +1,7 @@
+import { env } from 'cloudflare:workers'
 import { count, desc, eq } from 'drizzle-orm'
 import { blogPost, career, codingLog, project, stack, work } from '../../db/schema'
+import { isMeasuring, loadDashboardAnalytics } from '../analytics/report'
 import { admin, db, toIso } from './base'
 
 /** 下書きの一覧に出す件数（design-spec 6.5） */
@@ -67,6 +69,7 @@ export const dashboard = {
     return {
       counts: { careers, projects, works, stacks: { total: stackTotal[0]?.n ?? 0 }, blogPosts, codingLogs },
       drafts: { items, total: counts.reduce((sum, c) => sum + c.draft, 0) },
+      analytics: await loadDashboardAnalytics(d, Date.now(), isMeasuring(env)),
     }
   }),
 }

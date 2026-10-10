@@ -11,6 +11,7 @@ import type { Messages } from '~/i18n/messages'
 import { SECTION_NAME_LANG } from '~/i18n/section-names'
 import { ChevronLeftIcon, ChevronRightIcon } from '~/ui/icons'
 import { button } from '~/ui/recipes'
+import { track } from './analytics'
 import type { PagedSectionId } from './history-state'
 import { readSavedPages, savePage } from './page-memory'
 
@@ -90,6 +91,7 @@ export function PagedSection<T extends { id: string }>({
     setAnimated(true)
     setAnnouncement(messages.paging.announce(next, pageCount))
     if (entryKey !== undefined) savePage(entryKey, id, next)
+    track({ type: 'paging', section: id, page: next })
   }
 
   const onKeyDown = (event: KeyboardEvent) => {

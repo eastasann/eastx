@@ -46,6 +46,8 @@ console.log(
     `blog_post ${data.blogPosts.length}`,
     `coding_log ${data.codingLogs.length}`,
     `privacy_page ${data.privacyPage.length}`,
+    `analytics_daily ${data.analyticsDaily.length}`,
+    `analytics_rollup ${data.analyticsRollup.length}`,
     `画像 ${data.images.length}`,
   ].join(' '),
 )

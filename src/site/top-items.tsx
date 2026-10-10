@@ -14,6 +14,7 @@ import type { Messages } from '~/i18n/messages'
 import { ArrowRightIcon, ChevronDownIcon, ChevronRightIcon } from '~/ui/icons'
 import { FallbackImage } from '~/ui/image'
 import { MarkdownBody } from '~/ui/markdown-body'
+import { track } from './analytics'
 import { ExternalMark, LanguageLabel, MAX_ROW_STACKS, StackIconRow, Text } from './content-parts'
 import { isExpandable } from './row-rules'
 
@@ -154,10 +155,13 @@ function DisclosureRow({
   name,
   label,
   meta,
+  onExpand,
   children,
 }: {
   expandable: boolean
   metaBelowOnMobile?: boolean
+  /** 広げたとき（閉じたときは呼ばない）。解析の row_expand を送る */
+  onExpand: () => void
   /** 行の名前。ボタンの読み上げ名になる */
   name: ReactNode
   label: ReactNode
@@ -216,7 +220,10 @@ function DisclosureRow({
         aria-expanded={expanded}
         aria-controls={contentId}
         aria-labelledby={nameId}
-        onClick={() => setExpanded((value) => !value)}
+        onClick={() => {
+          if (!expanded) onExpand()
+          setExpanded(!expanded)
+        }}
         className={rowHead({ metaBelowOnMobile, interactive: true, expanded })}
       >
         {content}
@@ -290,6 +297,7 @@ export function CareerRow({ item, lang, messages }: ItemProps<CareerItem>) {
     <DisclosureRow
       expandable={isExpandable({ section: 'careers', item })}
       metaBelowOnMobile
+      onExpand={() => track({ type: 'row_expand', section: 'career', itemId: item.id })}
       name={
         // タイトルだけを折り返しの塊にする。所属まで塊にすると、所属が1行目の残りに収まらないとき ▸ だけが1行目に残る
         item.organization ? (
@@ -345,9 +353,9 @@ interface PortfolioEntries {
 
 function EntryLinks({ entries, lang, messages }: { entries: PortfolioEntries; lang: Lang; messages: Messages }) {
   const external = [
-    { href: entries.linkUrl, label: messages.action.visitSite },
-    { href: entries.githubUrl, label: messages.action.github },
-  ].filter((link): link is { href: string; label: string } => link.href !== null)
+    { href: entries.linkUrl, label: messages.action.visitSite, kind: 'site' },
+    { href: entries.githubUrl, label: messages.action.github, kind: 'github' },
+  ].filter((link): link is { href: string; label: string; kind: string } => link.href !== null)
   if (entries.detail === null && external.length === 0) return null
   return (
     <div className={css({ display: 'flex', flexWrap: 'wrap', columnGap: 'inset', rowGap: 'inline' })}>
@@ -358,7 +366,14 @@ function EntryLinks({ entries, lang, messages }: { entries: PortfolioEntries; la
         </Link>
       )}
       {external.map((link) => (
-        <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer" className={entryLink}>
+        <a
+          key={link.label}
+          href={link.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-analytics-link={link.kind}
+          className={entryLink}
+        >
           {link.label}
           <ExternalMark messages={messages} />
         </a>
@@ -369,6 +384,8 @@ function EntryLinks({ entries, lang, messages }: { entries: PortfolioEntries; la
 
 /** 作品・プロジェクトの行。閉じた行は左にタイトルと言語ラベル、右に使用技術。広げると右の使用技術を隠す */
 function PortfolioRow({
+  section,
+  itemId,
   detail,
   entries,
   expandable,
@@ -377,6 +394,8 @@ function PortfolioRow({
   messages,
   period,
 }: {
+  section: 'projects' | 'works'
+  itemId: string
   detail: PortfolioDetail
   entries: PortfolioEntries
   expandable: boolean
@@ -390,6 +409,7 @@ function PortfolioRow({
   return (
     <DisclosureRow
       expandable={expandable}
+      onExpand={() => track({ type: 'row_expand', section, itemId })}
       name={<Text text={detail.title} pageLang={lang} />}
       label={<LanguageLabel availability={availability} messages={messages} />}
       meta={(expanded) =>
@@ -429,6 +449,8 @@ function PortfolioRow({
 export function ProjectRow({ item, lang, messages }: ItemProps<ProjectItem>) {
   return (
     <PortfolioRow
+      section="projects"
+      itemId={item.id}
       detail={item}
       entries={{
         detail: item.hasDetail ? { to: '/$lang/projects/$slug', slug: item.slug } : null,
@@ -447,6 +469,8 @@ export function ProjectRow({ item, lang, messages }: ItemProps<ProjectItem>) {
 export function WorkRow({ item, lang, messages }: ItemProps<WorkItem>) {
   return (
     <PortfolioRow
+      section="works"
+      itemId={item.id}
       detail={item}
       entries={{
         detail: item.hasDetail ? { to: '/$lang/works/$slug', slug: item.slug } : null,

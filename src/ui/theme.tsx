@@ -76,10 +76,12 @@ export interface ThemeToggleProps extends Omit<ComponentProps<'button'>, 'childr
   /** アイコンの横に今の設定の名前を出す（管理画面のサイドメニュー） */
   showLabel?: boolean
   className?: string
+  /** 切り替えたとき。切り替えた先の設定を受ける（公開側の解析の theme_switch） */
+  onSwitch?: (to: ThemePreference) => void
 }
 
 /** 押すたびに「OSに合わせる → ライト → ダーク」と切り替え、選んだ設定を Cookie に覚える */
-export function ThemeToggle({ labels, showLabel = false, className, ...rest }: ThemeToggleProps) {
+export function ThemeToggle({ labels, showLabel = false, className, onSwitch, ...rest }: ThemeToggleProps) {
   const { preference, setPreference } = useTheme()
   const next = nextThemePreference(preference)
   const Icon = ICONS[preference]
@@ -87,7 +89,10 @@ export function ThemeToggle({ labels, showLabel = false, className, ...rest }: T
     <button
       {...rest}
       type="button"
-      onClick={() => setPreference(next)}
+      onClick={() => {
+        setPreference(next)
+        onSwitch?.(next)
+      }}
       aria-label={labels.toggle(labels[preference], labels[next])}
       // 文字付きは button の寄せ・余白を上書きするので、cx でクラスを並べず1つの css にまとめる
       className={cx(

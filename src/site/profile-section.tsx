@@ -73,6 +73,7 @@ export function ProfileSection({ profile, lang, messages }: { profile: ProfileVi
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    data-analytics-link="social"
                     // other は汎用のリンクアイコンと表示名（design-spec 6.1.4）。それ以外はアイコンだけで、読み上げ名はサービス名
                     aria-label={link.service === 'other' ? undefined : label}
                     title={link.service === 'other' ? undefined : label}

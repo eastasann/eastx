@@ -1,6 +1,7 @@
 /**
  * HTTP の入口（ADR-004）。`/api/*`・`/media/*` を Elysia で受け、
  * `/api/admin/*` は oRPC の OpenAPIHandler に、`/api/auth/*` は Better Auth に、本文を Elysia に読ませずに渡す（skipBodyParsing）。
+ * `/api/collect` は訪問者の解析の送信の受け口で、CMS API の外（SDD 5.14）。
  * `/api/admin/*` の処理の順は SDD 5.1（リクエストID → CSRF → 認証 → レート制限 → 認可）。
  */
 import { env } from 'cloudflare:workers'
@@ -11,6 +12,7 @@ import { Elysia } from 'elysia'
 import { CloudflareAdapter } from 'elysia/adapter/cloudflare-worker'
 import { getAuth } from '../auth/server'
 import { captureServerError, requestIdOf } from '../monitoring/server'
+import { handleCollect } from './collect'
 import { API_BASE_PATH } from './constants'
 import { baseErrors } from './contract/common'
 import { UPLOAD_MAX_BYTES } from './contract/misc'
@@ -170,6 +172,14 @@ export const app = new Elysia({ adapter: CloudflareAdapter, aot: false })
     async ({ request }) => {
       const requestId = requestIdOf(request)
       return withRequestId(await handleAuth(request, requestId), requestId)
+    },
+    { parse: skipBodyParsing },
+  )
+  .post(
+    '/api/collect',
+    async ({ request }) => {
+      const requestId = requestIdOf(request)
+      return withRequestId(await handleCollect(request, requestId), requestId)
     },
     { parse: skipBodyParsing },
   )

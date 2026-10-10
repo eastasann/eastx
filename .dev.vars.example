@@ -15,3 +15,7 @@ BETTER_AUTH_SECRET=
 
 # 空なら Sentry に送らない
 SENTRY_DSN=
+
+# 解析の Analytics Engine の SQL API を読む API トークン（本番だけ。権限は Account Analytics: Read）。
+# ローカルは空のまま（A10 は今日の分を読まずに出す）
+ANALYTICS_API_TOKEN=

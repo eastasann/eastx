@@ -60,7 +60,7 @@ function validateDetailInput(input: unknown): DetailInput {
 }
 
 export const getSiteChrome = createServerFn({ method: 'GET' }).handler(() =>
-  guarded('getSiteChrome', () => loadSiteChrome(getDb(env))),
+  guarded('getSiteChrome', () => loadSiteChrome(getDb(env), env.ANALYTICS_BEACON)),
 )
 
 export const getTopPage = createServerFn({ method: 'GET' })

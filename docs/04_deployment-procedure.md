@@ -77,7 +77,7 @@ IaC ツールは使わず、wrangler CLI とダッシュボードで準備し、
 2. `eastasian.dev` をゾーンとして追加し、レジストラーでネームサーバーを Cloudflare のものに変える（すでに Cloudflare なら不要）。
 3. `x` と `x-staging` の DNS レコードが既にあれば消しておく（Custom Domain を作るときにぶつかるため）。
 
-### Step 2: D1 と R2 を作る
+### Step 2: D1・R2・KV を作る
 
 ```bash
 # D1（場所のヒントはアジア太平洋）
@@ -87,9 +87,12 @@ bunx wrangler d1 create eastx-db --location apac
 # R2（場所のヒントはアジア太平洋）
 bunx wrangler r2 bucket create eastx-media-staging --location apac
 bunx wrangler r2 bucket create eastx-media --location apac
+
+# KV（本番だけ。解析の訪問者のハッシュに混ぜる日ごとの値。SDD ADR-023）
+bunx wrangler kv namespace create eastx-analytics-salts
 ```
 
-出てきた D1 の `database_id` を、`wrangler.jsonc` の `env.staging` と `env.production` に書く（`docs/03_dev-setup.md` 5章）。R2 は公開アクセスを有効にしない（Worker の `/media/*` から配信する。SDD ADR-010）。
+出てきた D1 の `database_id` を、`wrangler.jsonc` の `env.staging` と `env.production` に書く（`docs/03_dev-setup.md` 5章）。R2 は公開アクセスを有効にしない（Worker の `/media/*` から配信する。SDD ADR-010）。KV の `id` は `env.production` の `kv_namespaces` に、Cloudflare のアカウント ID（ダッシュボードの Workers & Pages の右側、または `bunx wrangler whoami`）は `env.production` の `vars.CF_ACCOUNT_ID` に書く。Analytics Engine のデータセット（`eastx_analytics`）は作らなくてよい（最初の書き込みで作られる）。
 
 ### Step 3: GitHub の OAuth App（staging 用・本番用）
 
@@ -112,9 +115,13 @@ bunx wrangler secret put GITHUB_CLIENT_SECRET --env staging
 # 本番（staging とは別の値にする）
 bunx wrangler secret put BETTER_AUTH_SECRET --env production
 bunx wrangler secret put GITHUB_CLIENT_SECRET --env production
+# 解析の SQL API のトークン（本番だけ。staging には登録しない）
+bunx wrangler secret put ANALYTICS_API_TOKEN --env production
 ```
 
 Worker がまだないときは、`secret put` が Worker を作るか聞いてくるので、作ってよい。
+
+`ANALYTICS_API_TOKEN` は、Cloudflare のダッシュボードの My Profile → API Tokens → Create Token → Custom token で作る。権限は Account → Account Analytics → Read だけ、Account Resources はこのアカウントだけにする（A10 の今日の分と Cron の集計が Analytics Engine の SQL API を読むのに使う。SDD ADR-023）。期限を付けたときは、切れる前に作り直して登録し直す（`docs/05_operation-runbook.md` 6章）。
 
 ### Step 5: Sentry
 
@@ -128,7 +135,7 @@ Worker がまだないときは、`secret put` が Worker を作るか聞いて�
 
 | Secret 名 | 内容 |
 |----------|------|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare の API トークン。テンプレート「Edit Cloudflare Workers」に、D1 の Edit を足したもの（Workers Scripts・Workers Routes・Workers R2 Storage・D1・Account Settings の読み取り） |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare の API トークン。テンプレート「Edit Cloudflare Workers」に、D1 の Edit を足したもの（Workers Scripts・Workers Routes・Workers R2 Storage・Workers KV Storage・D1・Account Settings の読み取り。KV のバインディングと Cron のトリガーもデプロイで設定する） |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare のアカウント ID |
 
 Settings → Rules → Rulesets で `main` のルールセットを作り、PR を必須にし、ステータスチェック `ci` と `promotion-check`（ワークフロー ci.yml のジョブ）を必須にする。バイパスは誰にも許さない。promotion-check を通らない昇格 PR はこれでマージできなくなる（deploy.yml は確認をやり直さない）。`if:` で飛ばされたジョブは成功として扱われるので、昇格でない PR も止まらない。
@@ -172,7 +179,7 @@ Settings → Rules → Rulesets で `main` のルールセットを作り、PR �
 - [ ] 対象の SHA で CI が緑（`main` の該当コミットのチェック）
 - [ ] マイグレーションがある場合、生成した SQL を読み、古いコードのままでも壊れない形になっている（`docs/03_dev-setup.md` 4章）
 - [ ] 新しい環境変数・シークレットがある場合、`wrangler.jsonc` の `vars` に書いた、または `wrangler secret put` で登録した（対象の環境すべて）
-- [ ] `wrangler.jsonc` の変更がある場合、差分（バインディング・ルート）を確かめた
+- [ ] `wrangler.jsonc` の変更がある場合、差分（バインディング・ルート・Cron のトリガー）を確かめた。解析の Analytics Engine・KV・Cron は本番にだけ書き、`<...>` の値が残っていない
 - [ ] 本番の場合: 同じ SHA を staging に出し、変更した画面とコアフローを確かめた
 - [ ] 昇格 PR に、`docs/03_dev-setup.md` 9章の「PR ルール」の記載事項を書いた
 - [ ] PR のセルフレビューが済んだ
@@ -197,11 +204,20 @@ bunx wrangler deployments list --name eastx
 bunx wrangler rollback --name eastx --message "rollback: <理由>"
 ```
 
-戻したあと、`deploy/production/version` を実際に動いている SHA に合わせる PR を必ず出す（宣言と実体をずらしたままにしない）。
+戻したあと、`deploy/production/version` を実際に動いている SHA に合わせる PR を必ず出す（宣言と実体をずらしたままにしない）。解析を入れる前のバージョンへ戻したときは、下の「インフラのロールバック」の Cron の確認もする（`wrangler rollback` も Cron のトリガーを外さない）。
 
 ### インフラのロールバック
 
-`wrangler.jsonc` の変更は、それを含む昇格 PR の revert で戻る。D1・R2 そのものの作成・削除は手作業なので、消す操作は行わない。
+`wrangler.jsonc` の変更は、それを含む昇格 PR の revert で戻る。D1・R2・KV そのものの作成・削除は手作業なので、消す操作は行わない。
+
+例外は Cron のトリガー（`triggers`）で、wrangler は `triggers` を書かない設定をデプロイしても既存の Cron を外さない（SDD ADR-022）。解析を入れる前の SHA へ戻したとき（`scheduled` を持たない版が動く）は、残った Cron が毎日失敗を記録するので、デプロイの後に手で外す。
+
+1. ダッシュボードの Workers & Pages → `eastx` → Settings → Triggers の Cron Triggers に `15 15 * * *` が残っているかを見る。
+2. 残っていれば削除する。
+
+解析を入れる前の SHA へ戻したときは、計測が止まった後に、A11 でプライバシーのページの解析の記述を戻す（告知を消すのは計測を止めた後）。
+
+解析のテーブル（`analytics_daily`・`analytics_rollup`）は残る（消すときはテーブルを消すマイグレーションを足す）。Analytics Engine のデータは書かれなくなるだけで3か月で消え、KV の日ごとの値は期限で消える。
 
 ### DB のロールバック
 
@@ -226,6 +242,8 @@ deploy.yml の疎通確認（2章）に加えて、手で確かめる。
 - [ ] 存在しない URL で C1（404）が出る
 - [ ] 管理画面に GitHub でログインでき、ダッシュボードが出る
 - [ ] 今回変えた画面・機能が動く（staging で確かめ済みなら、本番では主要な画面だけでよい）
+- [ ] 本番: A10 に「今日の分を読めませんでした」が出ていない（SQL API のトークンとアカウント ID が効いている）。管理者のセッションの無いブラウザ（プライベートウィンドウ）で P1 を開くと、数分後に A10 の今日の閲覧が増える（管理者のセッションのあるブラウザでは増えない）
+- [ ] 本番で Cron のトリガーを足した・変えたとき: 次の 00:15 JST の後に、A10 に「集計していない日があります」が出ていない（昨日が集計された）。Sentry に Cron（`scheduled`）の失敗が出ていない
 - [ ] Sentry に新しいエラーが出ていない。`bunx wrangler tail eastx --status error`（staging は `eastx-staging`）でエラーが流れていない
 
 ## 7. 緊急時連絡先

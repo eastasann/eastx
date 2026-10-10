@@ -3,6 +3,8 @@
  * 表を変えたら `data.test.ts` の検査も合わせて直す。
  */
 import type {
+  analyticsDaily,
+  analyticsRollup,
   blogPost,
   career,
   codingLog,
@@ -15,7 +17,9 @@ import type {
   work,
   workStack,
 } from '../../src/db/schema'
+import { jstDateOf } from '../../src/domain/analytics/dates'
 import type { StackCategory } from '../../src/domain/stack-groups'
+import { buildDemoAnalytics } from './analytics'
 import { createImageFactory, type SeedImage } from './images'
 
 export type SeedData = {
@@ -30,12 +34,16 @@ export type SeedData = {
   blogPosts: (typeof blogPost.$inferInsert)[]
   codingLogs: (typeof codingLog.$inferInsert)[]
   privacyPage: (typeof privacyPage.$inferInsert)[]
+  analyticsDaily: (typeof analyticsDaily.$inferInsert)[]
+  analyticsRollup: (typeof analyticsRollup.$inferInsert)[]
   images: SeedImage[]
 }
 
 export type SeedOptions = {
   /** ブログとコーディング記録を0件にする（make db-seed-empty。トップのセクションとメニューが消えることの確認用） */
   empty: boolean
+  /** シードを流した日（日本時間）。解析のデモの集計はこの前日までの400日。省くと今日 */
+  today?: string
 }
 
 /** 日本時間の日時。シードの日付を読みやすく書くため */
@@ -762,6 +770,19 @@ export function buildSeed(options: SeedOptions): SeedData {
     })
   }
 
+  // 広げた行のデモは、公開中の作品・プロジェクトを交互に5件（A10 でタイトルを引けるよう、このシードの ID を使う）
+  const publishedWorks = works
+    .filter((w) => w.status === 'published')
+    .map((w) => ({ section: 'works' as const, id: w.id ?? '' }))
+  const publishedProjects = projects
+    .filter((p) => p.status === 'published')
+    .map((p) => ({ section: 'projects' as const, id: p.id ?? '' }))
+  const rowItems = [publishedWorks[0], publishedProjects[0], publishedWorks[1], publishedProjects[1], publishedWorks[2]]
+  const analytics = buildDemoAnalytics({
+    today: options.today ?? jstDateOf(Date.now()),
+    rowItems: rowItems.filter((item) => item !== undefined),
+  })
+
   return {
     profile: profileRows,
     socialLinks,
@@ -775,6 +796,9 @@ export function buildSeed(options: SeedOptions): SeedData {
     codingLogs,
     // 空のシード（make db-seed-empty）でも入れる。ブログ・コーディング記録だけを0件にする
     privacyPage: [{ bodyJa: PRIVACY_BODY_JA, bodyEn: PRIVACY_BODY_EN }],
+    // 解析の集計もブログ・コーディング記録の0件と関係しないので、空のシードでも入れる
+    analyticsDaily: analytics.daily,
+    analyticsRollup: analytics.rollup,
     images: image.images,
   }
 }

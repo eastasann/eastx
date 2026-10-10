@@ -32,6 +32,7 @@ export function PostDetailPage(props: PostDetailProps) {
 
   return (
     <ArticleLayout
+      trackReadComplete
       back={<BackLink kind={kind} lang={lang} itemId={view.id} messages={messages} />}
       title={<Text text={view.title} pageLang={lang} />}
       meta={
@@ -53,6 +54,7 @@ export function PostDetailPage(props: PostDetailProps) {
                 href={codingLog.referenceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                data-analytics-link="reference"
                 className={css({
                   display: 'inline-flex',
                   alignItems: 'center',

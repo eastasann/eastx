@@ -25,6 +25,8 @@ export const dashboardOutput = z.object({
     ),
     total: z.number().int(),
   }),
+  /** 昨日までの7日の、D1 の集計の合計（SDD 5.4） */
+  analytics: z.object({ measuring: z.boolean(), pageViews: z.number().int(), visitors: z.number().int() }),
 })
 
 export const dashboardContract = {

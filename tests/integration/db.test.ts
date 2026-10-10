@@ -296,3 +296,52 @@ describe('マイグレーション: 使用技術のカテゴリと Core', () => 
     expect(row).toEqual({ category: 'tools', is_core: 0 })
   })
 })
+
+describe('CHECK 制約: 解析の集計（analytics_daily・analytics_rollup）', () => {
+  /** id・created_at・updated_at を持たないテーブル（SDD 6.1 の例外）なので insert を使わずに書く */
+  function daily(values: { date?: string; dimension?: string; key?: string; count?: number; visitors?: number }) {
+    const row = { date: '2026-10-09', dimension: 'page', key: '/ja', count: 3, visitors: 2, ...values }
+    return env.DB.prepare('insert into analytics_daily (date, dimension, key, count, visitors) values (?, ?, ?, ?, ?)')
+      .bind(row.date, row.dimension, row.key, row.count, row.visitors)
+      .run()
+  }
+  const rollup = (date: string) =>
+    env.DB.prepare('insert into analytics_rollup (date, rolled_up_at) values (?, ?)').bind(date, NOW).run()
+
+  beforeEach(async () => {
+    await env.DB.batch([env.DB.prepare('delete from analytics_daily'), env.DB.prepare('delete from analytics_rollup')])
+  })
+
+  it('正しい行は入る', async () => {
+    await daily({})
+    await daily({ dimension: 'total', key: '' })
+    await rollup('2026-10-09')
+  })
+
+  it.each([
+    ['形の違う日付', '2026-1-09'],
+    ['13月', '2026-13-01'],
+    ['32日', '2026-10-32'],
+    ['日時', '2026-10-09T00:00'],
+  ])('日付は YYYY-MM-DD（%s は入らない）', async (_, date) => {
+    await expect(daily({ date })).rejects.toThrow(/CHECK constraint failed/)
+    await expect(rollup(date)).rejects.toThrow(/CHECK constraint failed/)
+  })
+
+  it('訪問者数は件数を超えない。どちらも負にならない', async () => {
+    await expect(daily({ count: 1, visitors: 2 })).rejects.toThrow(/CHECK constraint failed/)
+    await expect(daily({ count: -1, visitors: 0 })).rejects.toThrow(/CHECK constraint failed/)
+  })
+
+  it('空のキーは合計の次元（total・top_view・outbound_total）だけ', async () => {
+    await expect(daily({ dimension: 'page', key: '' })).rejects.toThrow(/CHECK constraint failed/)
+    await expect(daily({ dimension: 'total', key: '/ja' })).rejects.toThrow(/CHECK constraint failed/)
+    await daily({ dimension: 'outbound_total', key: '' })
+  })
+
+  it('次元は決まった値だけ。日・次元・キーは重ならない', async () => {
+    await expect(daily({ dimension: 'clicks' })).rejects.toThrow(/CHECK constraint failed/)
+    await daily({})
+    await expect(daily({})).rejects.toThrow(/UNIQUE constraint failed|PRIMARY KEY/)
+  })
+})

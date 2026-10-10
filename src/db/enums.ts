@@ -8,3 +8,24 @@ export const CAREER_KINDS = ['work', 'education'] as const
 export const CODING_LOG_KINDS = ['learning_log', 'snippet', 'problem', 'memo'] as const
 /** 使用技術のカテゴリ。並びは公開側の Tech Stack の群の順（design-spec 6.1.4） */
 export const STACK_CATEGORIES = ['languages', 'frameworks', 'infrastructure', 'tools'] as const
+/** 解析の日ごとの集計の次元（SDD 6.3・5.13）。値を足すときは analytics_daily の CHECK を変えるマイグレーションになる */
+export const ANALYTICS_DIMENSIONS = [
+  'total',
+  'page',
+  'referrer',
+  'utm',
+  'country',
+  'device',
+  'browser_lang',
+  'site_lang',
+  'top_view',
+  'section_view',
+  'read_complete',
+  'row_expand',
+  'paging',
+  'outbound',
+  'outbound_total',
+  'lang_switch',
+  'theme_switch',
+  'code_copy',
+] as const

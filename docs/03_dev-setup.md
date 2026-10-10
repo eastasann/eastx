@@ -53,23 +53,25 @@ eastx/
 │   ├── promotion-check.sh         # 昇格 PR の SHA の確認（ci.yml が呼ぶ）
 │   └── doc-lint.sh                # ドキュメントと実体の整合検査
 ├── src/
-│   ├── server.ts                  # Worker の入口（/api/*・/media/* → Elysia、それ以外 → TanStack Start）
+│   ├── server.ts                  # Worker の入口（/api/*・/media/* → Elysia、それ以外 → TanStack Start。scheduled は解析の Cron）
 │   ├── response-headers.ts        # セキュリティヘッダーと X-Robots-Tag（SDD 7章・ADR-019）
 │   ├── monitoring/                # Sentry（サーバー・ブラウザ。SDD 11章）
-│   ├── api/                       # CMS API（Elysia ＋ oRPC）
+│   ├── api/                       # CMS API（Elysia ＋ oRPC）と解析の受け口
 │   │   ├── app.ts                 #   Elysia のアプリ
+│   │   ├── collect.ts             #   解析の受け口 POST /api/collect（CMS API の外。SDD 5.14）
+│   │   ├── analytics/             #   解析の Cron の集計・SQL API・日ごとの値・A10 の集計（SDD ADR-023）
 │   │   ├── contract/              #   oRPC のコントラクト（パス・入出力・エラー）
 │   │   ├── router/                #   コントラクトの実装
 │   │   ├── middleware/            #   認証・レート制限・認可（順序は SDD 5.1）
 │   │   └── media.ts               #   /media/* の配信
 │   ├── auth/                      # Better Auth（server.ts・client.ts）
 │   ├── db/                        # Drizzle のスキーマとクライアント
-│   ├── domain/                    # 純粋関数: スラッグ・言語あり・抜粋・公開のルール・Tech Stack の群
+│   ├── domain/                    # 純粋関数: スラッグ・言語あり・抜粋・公開のルール・Tech Stack の群・解析（analytics/）
 │   ├── content/                   # 公開側のサーバー関数と、表示用の形への変換
 │   ├── markdown/                  # Markdown の描画（公開側とプレビューで共通）
 │   ├── i18n/                      # 辞書（messages/ja.ts・en.ts）と日付の書式
 │   ├── routes/                    # TanStack Start のルート（SDD 4章）
-│   ├── site/                      # 公開側の画面の部品
+│   ├── site/                      # 公開側の画面の部品（解析の送信の部品 analytics.ts を含む）
 │   ├── admin/                     # 管理画面の部品・フック・API クライアント
 │   ├── ui/                        # Ark UI に見た目を付けた共通の部品
 │   └── styles/                    # グローバルな CSS、tokens.generated.ts（生成物）
@@ -132,6 +134,9 @@ Worker が読む値。ローカルは `.dev.vars`、staging・本番は `wrangle
 | `GITHUB_CLIENT_SECRET` | シークレット | ローカル用 OAuth App の Client secret | |
 | `BETTER_AUTH_SECRET` | シークレット | `openssl rand -base64 32` の出力 | Cookie の署名などに使う。変えると全セッションが切れる。`local` 以外で空だと Better Auth の初期化を拒否し、CMS API がすべて 500 になる（公開されている既定の値で黙って動かさないため） |
 | `SENTRY_DSN` | 変数 | 空 | 空なら Sentry に送らない |
+| `ANALYTICS_BEACON` | 変数 | `on`（`wrangler.jsonc`） | `on` なら公開側のブラウザが解析を送る（SDD ADR-023）。本番・ローカルは `on`、staging は `off`。ローカルは受け口まで送るが、Analytics Engine のバインディングが無いので記録しない |
+| `CF_ACCOUNT_ID` | 変数（本番だけ） | 無い | Analytics Engine の SQL API を呼ぶアカウント ID（A10 の今日の分・Cron の集計） |
+| `ANALYTICS_API_TOKEN` | シークレット（本番だけ） | 空 | Analytics Engine の SQL API のトークン（権限は Account Analytics: Read だけ）。空・未登録なら A10 は今日の分を読まずに出す |
 
 バインディング（`wrangler.jsonc` で設定。ローカルは wrangler が自動で用意する）:
 
@@ -141,6 +146,9 @@ Worker が読む値。ローカルは `.dev.vars`、staging・本番は `wrangle
 | `MEDIA` | R2 | 画像 |
 | `AUTH_RATE_LIMITER` | Rate Limiting | ログインの開始と GitHub からの戻りのレート制限（対象の正は SDD ADR-021） |
 | `ADMIN_RATE_LIMITER` | Rate Limiting | `/api/admin/*` のレート制限 |
+| `COLLECT_RATE_LIMITER` | Rate Limiting | 解析の受け口 `POST /api/collect` のレート制限 |
+| `ANALYTICS` | Analytics Engine（本番だけ） | 解析のイベントの書き込み（データセット `eastx_analytics`）。ローカル・staging には無い（受け口は書かずに 204 を返し、A10・A2 は計測しない環境の表示） |
+| `ANALYTICS_SALTS` | KV（本番だけ） | 訪問者のハッシュに混ぜる日ごとの値（期限付き） |
 
 型は `wrangler types` で `worker-configuration.d.ts` に生成する（8章の「生成」に含まれる）。
 
@@ -154,7 +162,7 @@ Worker が読む値。ローカルは `.dev.vars`、staging・本番は `wrangle
 |---|---|
 | `make db-generate` | `src/db/schema.ts` の変更から、drizzle-kit で `drizzle/migrations/` に SQL を生成する。生成した SQL は必ず読んでからコミットする |
 | `make db-migrate` | 未適用のマイグレーションをローカルの D1 に適用する |
-| `make db-seed` | デモデータ（design-spec 8章）をローカルの D1 に入れ、ダミー画像をローカルの R2 に置く。中身のテーブル（プロフィール〜コーディング記録・プライバシーのページ）は消してから入れる。管理者・セッションのテーブルと R2 の既存の画像は残す。`make setup`・`make e2e` もこれを呼ぶので、ローカルの管理画面で手で入れた中身は消える。`CLOUDFLARE_ENV` が設定されていると止まる |
+| `make db-seed` | デモデータ（design-spec 8章）をローカルの D1 に入れ、ダミー画像をローカルの R2 に置く。中身のテーブル（プロフィール〜コーディング記録・プライバシーのページ）と解析の集計（`analytics_daily`・`analytics_rollup`）は消してから入れる。管理者・セッションのテーブルと R2 の既存の画像は残す。`make setup`・`make e2e` もこれを呼ぶので、ローカルの管理画面で手で入れた中身は消える。`CLOUDFLARE_ENV` が設定されていると止まる |
 | `make db-seed-empty` | ブログとコーディング記録を0件にしたデモデータを入れる（セクションが消えることの確認用） |
 | `make db-reset` | ローカルの D1 を消して、マイグレーションの適用とデモデータの投入をやり直す |
 | `make db-studio` | Drizzle Studio でローカルの D1 を開く（https://local.drizzle.studio）。ポート（既定 4983）がふさがっていれば `STUDIO_PORT=` で変える |
@@ -179,14 +187,15 @@ Terraform などは使わず、`wrangler.jsonc` でインフラを管理する�
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true, "head_sampling_rate": 1 },
-  "vars": { "ENVIRONMENT": "local", "SITE_URL": "http://localhost:3000" },
+  "vars": { "ENVIRONMENT": "local", "SITE_URL": "http://localhost:3000", "ANALYTICS_BEACON": "on" },
   "d1_databases": [
     { "binding": "DB", "database_name": "eastx-db-local", "database_id": "local", "migrations_dir": "drizzle/migrations" }
   ],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "eastx-media-local" }],
   "ratelimits": [
     { "name": "AUTH_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
-    { "name": "ADMIN_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } }
+    { "name": "ADMIN_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } },
+    { "name": "COLLECT_RATE_LIMITER", "namespace_id": "1003", "simple": { "limit": 120, "period": 60 } }
   ],
   "env": {
     "staging": {
@@ -197,7 +206,8 @@ Terraform などは使わず、`wrangler.jsonc` でインフラを管理する�
         "SITE_URL": "https://x-staging.eastasian.dev",
         "ADMIN_GITHUB_USER_ID": "<GitHub の数値 ID>",
         "GITHUB_CLIENT_ID": "<staging 用 OAuth App の Client ID>",
-        "SENTRY_DSN": "<Sentry の DSN>"
+        "SENTRY_DSN": "<Sentry の DSN>",
+        "ANALYTICS_BEACON": "off"
       },
       "d1_databases": [
         { "binding": "DB", "database_name": "eastx-db-staging", "database_id": "<作成時に出た ID>", "migrations_dir": "drizzle/migrations" }
@@ -205,7 +215,8 @@ Terraform などは使わず、`wrangler.jsonc` でインフラを管理する�
       "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "eastx-media-staging" }],
       "ratelimits": [
         { "name": "AUTH_RATE_LIMITER", "namespace_id": "2001", "simple": { "limit": 10, "period": 60 } },
-        { "name": "ADMIN_RATE_LIMITER", "namespace_id": "2002", "simple": { "limit": 300, "period": 60 } }
+        { "name": "ADMIN_RATE_LIMITER", "namespace_id": "2002", "simple": { "limit": 300, "period": 60 } },
+        { "name": "COLLECT_RATE_LIMITER", "namespace_id": "2003", "simple": { "limit": 120, "period": 60 } }
       ]
     },
     "production": {
@@ -216,15 +227,21 @@ Terraform などは使わず、`wrangler.jsonc` でインフラを管理する�
         "SITE_URL": "https://x.eastasian.dev",
         "ADMIN_GITHUB_USER_ID": "<GitHub の数値 ID>",
         "GITHUB_CLIENT_ID": "<本番用 OAuth App の Client ID>",
-        "SENTRY_DSN": "<Sentry の DSN>"
+        "SENTRY_DSN": "<Sentry の DSN>",
+        "ANALYTICS_BEACON": "on",
+        "CF_ACCOUNT_ID": "<アカウント ID>"
       },
+      "analytics_engine_datasets": [{ "binding": "ANALYTICS", "dataset": "eastx_analytics" }],
+      "kv_namespaces": [{ "binding": "ANALYTICS_SALTS", "id": "<作成時に出た ID>" }],
+      "triggers": { "crons": ["15 15 * * *"] },
       "d1_databases": [
         { "binding": "DB", "database_name": "eastx-db", "database_id": "<作成時に出た ID>", "migrations_dir": "drizzle/migrations" }
       ],
       "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "eastx-media" }],
       "ratelimits": [
         { "name": "AUTH_RATE_LIMITER", "namespace_id": "3001", "simple": { "limit": 10, "period": 60 } },
-        { "name": "ADMIN_RATE_LIMITER", "namespace_id": "3002", "simple": { "limit": 300, "period": 60 } }
+        { "name": "ADMIN_RATE_LIMITER", "namespace_id": "3002", "simple": { "limit": 300, "period": 60 } },
+        { "name": "COLLECT_RATE_LIMITER", "namespace_id": "3003", "simple": { "limit": 120, "period": 60 } }
       ]
     }
   }
@@ -232,8 +249,9 @@ Terraform などは使わず、`wrangler.jsonc` でインフラを管理する�
 ```
 
 - `wrangler.jsonc` の変更は、コードと同じ PR で出す。反映されるのは、その SHA を各環境に昇格したとき。
-- D1・R2 の作成、シークレットの登録、独自ドメインの準備は、初回だけ手で行う（`docs/04_deployment-procedure.md` 3章）。
-- レート制限の値（`ratelimits`）の正は SDD ADR-021。
+- D1・R2・KV の作成、シークレットの登録、独自ドメインの準備は、初回だけ手で行う（`docs/04_deployment-procedure.md` 3章）。
+- レート制限の値（`ratelimits`）の正は SDD ADR-021。`namespace_id` は環境ごとに千の位を分け（ローカル 1xxx・staging 2xxx・本番 3xxx）、下の桁はバインディングの順にする。
+- 解析の Analytics Engine・KV・Cron（`triggers`。UTC の 15:15 = 日本時間の 00:15）は本番にだけ書く（SDD ADR-023）。結合テストは `vitest.config.ts` でテストにだけ同じバインディングを足す。
 - `compatibility_date` の見直しは `docs/05_operation-runbook.md` 6章。
 
 ---

@@ -15,12 +15,14 @@ export interface TooltipProps {
   placement?: 'top' | 'right' | 'bottom' | 'left'
   /** false のときはツールチップを出さず、中身だけを描く */
   enabled?: boolean
+  /** ホバーから出すまでの待ち（ミリ秒）。省くと Ark UI の既定。値を読むための部品（グラフの棒）はすぐに出す */
+  openDelay?: number
 }
 
-export function Tooltip({ content, children, placement = 'top', enabled = true }: TooltipProps) {
+export function Tooltip({ content, children, placement = 'top', enabled = true, openDelay }: TooltipProps) {
   if (!enabled) return children
   return (
-    <ArkTooltip.Root positioning={{ placement }} lazyMount unmountOnExit>
+    <ArkTooltip.Root positioning={{ placement }} openDelay={openDelay} lazyMount unmountOnExit>
       <ArkTooltip.Trigger asChild>{children}</ArkTooltip.Trigger>
       <Portal>
         <ArkTooltip.Positioner>
