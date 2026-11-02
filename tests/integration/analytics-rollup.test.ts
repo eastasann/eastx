@@ -10,6 +10,7 @@ import { rollUp, runAnalyticsCron } from '../../src/api/analytics/rollup'
 import type { SqlApiConfig } from '../../src/api/analytics/sql'
 import { getDb } from '../../src/db/client'
 import { analyticsDaily, analyticsRollup } from '../../src/db/schema'
+import { addDays, jstDateOf } from '../../src/domain/analytics/dates'
 import { saltKey } from '../../src/domain/analytics/visitor'
 import { eventRow, pageViewRows, type SqlApiRow } from './sql-api'
 
@@ -269,29 +270,39 @@ describe('rollUp', () => {
 })
 
 describe('runAnalyticsCron', () => {
+  // KV の expiration は注入した now ではなく壁時計で検証する。固定の過去日は put が 400 になり、
+  // get は null を返す。typeof null は object なので、toMatch は文字列を要求して例外になる。
+  async function expectTomorrowSalt(now: number) {
+    const stored = await env.ANALYTICS_SALTS?.get(saltKey(addDays(jstDateOf(now), 1)))
+    expect(String(stored)).toMatch(/^[0-9a-f]{64}$/)
+  }
+
   it('集計のあとに明日の日ごとの値を KV に作る', async () => {
-    fakeSqlApi({ days: { '2026-10-10': pageViewRows(1, 1) }, oldest: '2026-10-09 16:00:00' })
-    await runAnalyticsCron({ db: db(), config, salts: env.ANALYTICS_SALTS, now: NOW })
-    expect(await rolledUpDates()).toEqual(['2026-10-10'])
-    expect(await env.ANALYTICS_SALTS?.get(saltKey('2026-10-12'))).toMatch(/^[0-9a-f]{64}$/)
+    const now = Date.now()
+    const today = jstDateOf(now)
+    const yesterday = addDays(today, -1)
+    fakeSqlApi({ days: { [yesterday]: pageViewRows(1, 1) }, oldest: `${addDays(today, -2)} 16:00:00` })
+    await runAnalyticsCron({ db: db(), config, salts: env.ANALYTICS_SALTS, now })
+    expect(await rolledUpDates()).toEqual([yesterday])
+    await expectTomorrowSalt(now)
   })
 
   it('API トークンが無くても、集計の失敗を残して明日の値は作る', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const later = Date.parse('2026-10-20T15:15:00Z')
-    await runAnalyticsCron({ db: db(), config: null, salts: env.ANALYTICS_SALTS, now: later })
+    const now = Date.now()
+    await runAnalyticsCron({ db: db(), config: null, salts: env.ANALYTICS_SALTS, now })
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(errors.mock.calls.some(([line]) => String(line).includes('ANALYTICS_API_TOKEN'))).toBe(true)
-    expect(await env.ANALYTICS_SALTS?.get(saltKey('2026-10-22'))).toMatch(/^[0-9a-f]{64}$/)
+    await expectTomorrowSalt(now)
   })
 
   it('集計の全体が失敗しても（最も古いイベントが読めない）明日の値は作る', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('unauthorized', { status: 401 }))
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const later = Date.parse('2026-10-25T15:15:00Z')
-    await runAnalyticsCron({ db: db(), config, salts: env.ANALYTICS_SALTS, now: later })
+    const now = Date.now()
+    await runAnalyticsCron({ db: db(), config, salts: env.ANALYTICS_SALTS, now })
     expect(await rolledUpDates()).toEqual([])
-    expect(await env.ANALYTICS_SALTS?.get(saltKey('2026-10-27'))).toMatch(/^[0-9a-f]{64}$/)
+    await expectTomorrowSalt(now)
   })
 })
